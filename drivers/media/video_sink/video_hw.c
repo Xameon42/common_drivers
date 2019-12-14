@@ -320,6 +320,8 @@ bool force_vpp_blend_update;
 			VIDEO_ENABLE_STATE_ON_PENDING; \
 		vd_layer[0].enabled = 1; \
 		vd_layer[0].enabled_status_saved = 1; \
+		vd_layer[0].capture_frame_req = NULL; \
+		atomic_set(&vd_layer[0].capture_use_cnt, CAPTURE_STATE_ON); \
 		spin_unlock_irqrestore(&video_onoff_lock, flags); \
 	} while (0)
 
@@ -330,6 +332,14 @@ bool force_vpp_blend_update;
 		vd_layer[0].onoff_state = VIDEO_ENABLE_STATE_OFF_REQ; \
 		vd_layer[0].enabled = 0; \
 		vd_layer[0].enabled_status_saved = 0; \
+		atomic_set(&vd_layer[0].capture_use_cnt, CAPTURE_STATE_OFF); \
+		if (vd_layer[0].capture_frame_req && vd_layer[0].capture_frame_req->data) { \
+			struct amvideocap_req_data *reqdata = \
+				(struct amvideocap_req_data *)vd_layer[0].capture_frame_req->data; \
+			if (reqdata && reqdata->privdata) \
+				reqdata->privdata->state = 0xffff; \
+		} \
+		vd_layer[0].capture_frame_req = NULL; \
 		spin_unlock_irqrestore(&video_onoff_lock, flags); \
 	} while (0)
 
