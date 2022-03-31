@@ -763,8 +763,7 @@ static bool hdmitx_set_i2s_mask(struct aud_para *tx_aud_param, char ch_num, char
 {
 	unsigned int update_flag;
 
-	if (!(ch_num == 2 || ch_num == 4 ||
-	      ch_num == 6 || ch_num == 8)) {
+	if (!ch_num || !(ch_num % 2 == 0)) {
 		HDMITX_ERROR("audio chn setting, must be 2, 4, 6 or 8, Rst as def\n");
 		return 0;
 	}
@@ -772,7 +771,7 @@ static bool hdmitx_set_i2s_mask(struct aud_para *tx_aud_param, char ch_num, char
 		HDMITX_ERROR("audio chn msk, must larger than 0\n");
 		return 0;
 	}
-	update_flag = (ch_num << 4) + ch_msk;
+	update_flag = ((ch_num << 4) & 0xf0) | (ch_msk & 0xf);
 	if (update_flag != tx_aud_param->aud_output_i2s_ch) {
 		tx_aud_param->aud_output_i2s_ch = update_flag;
 		return 1;
