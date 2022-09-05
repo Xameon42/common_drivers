@@ -46,6 +46,7 @@
 #include <linux/amlogic/media/vrr/vrr.h>
 #include <linux/amlogic/media/amvecm/amvecm.h>
 
+#include <../../enhancement/amvecm/amcsc.h>
 #include "hdmi_tx_module.h"
 #include "hdmi_tx_ext.h"
 #include "hdmi_tx.h"
@@ -956,7 +957,8 @@ static void hdmitx_set_drm_pkt(struct master_display_info_s *data)
 	if (hdev->hdr_transfer_feature == T_BT709 &&
 		hdev->hdr_color_feature == C_BT709) {
 		/* send zero drm only for HDR->SDR transition */
-		if (hdmi_hdr_status == HDMI_HDR_SMPTE_2084 || hdmi_hdr_status == HDMI_HDR_HLG) {
+		if (hdmi_hdr_status == HDMI_HDR_SMPTE_2084 || hdmi_hdr_status == HDMI_HDR_HLG ||
+			sdr_mode == 0 || hdr_mode == 1) {
 			HDMITX_INFO("%s: HDR->SDR, hdmi_hdr_status=%d\n",
 				__func__, hdmi_hdr_status);
 			hdev->colormetry = 0;
