@@ -21,3 +21,26 @@
 
 # light_ucs11681.ko
   input_set_abs_params
+
+# snd-aloop.ko
+  snd_card_ref
+  snd_card_register
+  snd_card_rw_proc_new
+  snd_ctl_notify
+  snd_devm_card_new
+  snd_ecards_limit
+  snd_info_get_line
+  snd_interval_refine
+  snd_pcm_format_physical_width
+  snd_pcm_format_set_silence
+  snd_pcm_hw_rule_add
+  snd_pcm_new
+  snd_pcm_set_managed_buffer_all
+  snd_pcm_set_ops
+  snd_timer_close
+  snd_timer_instance_free
+  snd_timer_instance_new
+  snd_timer_open
+  snd_timer_start
+  snd_timer_stop
+

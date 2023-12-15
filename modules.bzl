@@ -135,6 +135,7 @@ AMLOGIC_COMMON_MODULES = [
     "fs/ntfs3/ntfs3.ko",
     "net/mac80211/mac80211.ko",
     "net/wireless/cfg80211.ko",
+    "sound/drivers/snd-aloop.ko",
 ]
 
 AMLOGIC_UPGRADE_COMMON_MODULES = [
