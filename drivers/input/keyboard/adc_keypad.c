@@ -57,6 +57,17 @@ static int meson_adc_kp_search_key(struct meson_adc_kp *kp)
 	return KEY_RESERVED;
 }
 
+static void meson_adc_kp_report_key(struct meson_adc_kp *kp, int code, int value)
+{
+	input_report_key(kp->input, code, value);
+	input_sync(kp->input);
+
+	if (kp->led_blink && value) {
+		led_trigger_blink_oneshot(kp->led_blink, &kp->led_delay_on,
+					  &kp->led_delay_off, 0);
+	}
+}
+
 static void meson_adc_kp_poll(struct work_struct *pwork)
 {
 	struct meson_adc_kp *kp =
@@ -66,8 +77,7 @@ static void meson_adc_kp_poll(struct work_struct *pwork)
 	if (kp->report_code && kp->report_code != code) {
 		dev_info(&kp->input->dev,
 			 "key %d up\n", kp->report_code);
-		input_report_key(kp->input, kp->report_code, 0);
-		input_sync(kp->input);
+		meson_adc_kp_report_key(kp, kp->report_code, 0);
 
 		kp->report_code = 0;
 	}
@@ -82,8 +92,7 @@ static void meson_adc_kp_poll(struct work_struct *pwork)
 			if (keypad_enable_flag && kp->report_code != code) {
 				dev_info(&kp->input->dev,
 					 "key %d down\n", code);
-				input_report_key(kp->input, code, 1);
-				input_sync(kp->input);
+				meson_adc_kp_report_key(kp, code, 1);
 				if (code == KEY_POWER)
 					pm_wakeup_hard_event(kp->input->dev.parent);
 
@@ -491,6 +500,45 @@ static void meson_adc_kp_init_keybit(struct meson_adc_kp *kp)
 			kp->input->keybit); /*set event code*/
 }
 
+static void meson_adc_kp_led_blink_register(struct platform_device *pdev)
+{
+	struct meson_adc_kp *kp = platform_get_drvdata(pdev);
+	struct device_node *blink_node;
+	u32 value;
+	const char *str;
+	int ret;
+
+	kp->led_delay_on = 100;
+	kp->led_delay_off = 100;
+	kp->led_trigger_name = DRIVE_NAME;
+
+	blink_node = of_find_node_by_name(pdev->dev.of_node, "led_blink");
+	if (blink_node) {
+		ret = of_property_read_u32(blink_node, "delay_on", &value);
+		if (!ret)
+			kp->led_delay_on = value;
+
+		ret = of_property_read_u32(blink_node, "delay_off", &value);
+		if (!ret)
+			kp->led_delay_off = value;
+
+		ret = of_property_read_string(blink_node, "trigger_name", &str);
+		if (!ret)
+			kp->led_trigger_name = str;
+	}
+
+	led_trigger_register_simple(kp->led_trigger_name, &kp->led_blink);
+}
+
+static void meson_adc_kp_led_blink_unregister(struct platform_device *pdev)
+{
+	struct meson_adc_kp *kp = platform_get_drvdata(pdev);
+
+	if (kp->led_blink)
+		led_trigger_unregister_simple(kp->led_blink);
+	kp->led_blink = NULL;
+}
+
 static int meson_adc_kp_probe(struct platform_device *pdev)
 {
 	struct meson_adc_kp *kp;
@@ -568,6 +616,9 @@ static int meson_adc_kp_probe(struct platform_device *pdev)
 
 	mod_delayed_work(system_wq, &kp->work,
 			 msecs_to_jiffies(kp->poll_period));
+
+	meson_adc_kp_led_blink_register(pdev);
+
 	return ret;
 
 err2:
@@ -587,6 +638,7 @@ static int meson_adc_kp_remove(struct platform_device *pdev)
 {
 	struct meson_adc_kp *kp = platform_get_drvdata(pdev);
 
+	meson_adc_kp_led_blink_unregister(pdev);
 	class_unregister(&kp->kp_class);
 	cancel_delayed_work_sync(&kp->work);
 	input_unregister_device(kp->input);
@@ -617,10 +669,8 @@ static int __maybe_unused meson_adc_kp_resume(struct device *dev)
 			if (key->code == KEY_POWER) {
 				dev_info(dev, "adc keypad wakeup\n");
 
-				input_report_key(kp->input, KEY_POWER, 1);
-				input_sync(kp->input);
-				input_report_key(kp->input, KEY_POWER, 0);
-				input_sync(kp->input);
+				meson_adc_kp_report_key(kp, KEY_POWER, 1);
+				meson_adc_kp_report_key(kp, KEY_POWER, 0);
 
 				if (!IS_ERR_OR_NULL(adc_mbox_chan)) {
 					aml_mbox_transfer_data(adc_mbox_chan,
