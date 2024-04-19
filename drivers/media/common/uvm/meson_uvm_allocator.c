@@ -38,6 +38,7 @@
 #include "meson_uvm_aicolor_processor.h"
 #include "meson_uvm_buffer_info.h"
 #include "meson_uvm_aisubtitle_processor.h"
+#include "meson_uvm_lcevc_processor.h"
 
 static struct mua_device *mdev;
 
@@ -798,6 +799,11 @@ static int mua_attach(int fd, int type, char *buf)
 		break;
 	case PROCESS_AISUBTITLE:
 		ret = attach_aisubtitle_hook_mod_info(fd, buf, &info);
+		if (ret)
+			return -EINVAL;
+		break;
+	case PROCESS_LCEVC:
+		ret = attach_lcevc_hook_mod_info(fd, buf, &info);
 		if (ret)
 			return -EINVAL;
 		break;
