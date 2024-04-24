@@ -19,6 +19,7 @@
 #include <linux/amlogic/aml_gpio_consumer.h>
 #include <linux/workqueue.h>
 #include <linux/notifier.h>
+#include <linux/suspend.h>
 #include <linux/amlogic/usbtype.h>
 #include "../phy/phy-aml-new-usb-v2.h"
 #include "../usb_main.h"
@@ -48,10 +49,23 @@ struct amlogic_crg_otg {
 	struct gpio_desc *usb_gpio_desc;
 	int vbus_power_pin;
 	int mode_work_flag;
+	int controller_type;
+	struct pm_reg {
+		/* host/device mode. */
+		union u2p_r0_v2 u2p_r0;
+		/* iddig irq state. */
+		union u2p_r2_v2 u2p_r2;
+		union u2p_r1_v2 usb_r1;
+	} pm_buf;
+	struct notifier_block pm_notifier;
 };
 
 static void set_mode
 	(unsigned long reg_addr, int mode, unsigned long phy3_addr);
+
+static int amlogic_crg_otg_pm_cb(struct notifier_block *notifier,
+			      unsigned long pm_event,
+			      void *unused);
 
 static void set_usb_vbus_power
 	(struct gpio_desc *usb_gd, int pin, char is_power_on)
@@ -294,6 +308,7 @@ static int amlogic_crg_otg_probe(struct platform_device *pdev)
 	phy->vbus_power_pin = gpio_vbus_power_pin;
 	phy->usb_gpio_desc = usb_gd;
 	phy->mode_work_flag = 0;
+	phy->controller_type = controller_type;
 	phy->otg_mutex = kmalloc(sizeof(*phy->otg_mutex),
 				GFP_KERNEL);
 	mutex_init(phy->otg_mutex);
@@ -303,6 +318,9 @@ static int amlogic_crg_otg_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, phy);
 
 	pm_runtime_enable(phy->dev);
+
+	phy->pm_notifier.notifier_call = amlogic_crg_otg_pm_cb;
+	register_pm_notifier(&phy->pm_notifier);
 
 	if (otg) {
 		retval = of_property_read_u32
@@ -372,8 +390,109 @@ static int amlogic_crg_otg_remove(struct platform_device *pdev)
 	return 0;
 }
 
-#ifdef CONFIG_PM_RUNTIME
+static int amlogic_crg_otg_freeze(struct device *dev)
+{
+	return 0;
+}
 
+static int amlogic_crg_otg_thaw(struct device *dev)
+{
+	struct amlogic_crg_otg *phy = platform_get_drvdata(to_platform_device(dev));
+
+	writel(phy->pm_buf.usb_r1.d32, phy->phy3_cfg + 4);
+	writel(phy->pm_buf.u2p_r2.d32, phy->usb2_phy_cfg + 8);
+	writel(phy->pm_buf.u2p_r0.d32, phy->usb2_phy_cfg);
+
+	/* Don't resync here because device_block_probing is still holded.
+	 * if hibernation fails,  PM_POST_HIBERNATION will handle.
+	 */
+	return 0;
+}
+
+static int amlogic_crg_otg_restore(struct device *dev)
+{
+	return 0;
+}
+
+static int amlogic_crg_otg_hibernation_prepare(struct amlogic_crg_otg *phy)
+{
+	union u2p_r2_v2 reg2;
+
+	reg2.d32 = readl((void __iomem *)((unsigned long)phy->usb2_phy_cfg + 8));
+	phy->pm_buf.u2p_r2.d32 = reg2.d32;
+	/* Quiesce otg func: clear&disable hwirq, cancel works. */
+	if (phy->controller_type == USB_OTG) {
+		reg2.b.usb_iddig_irq = 0;
+		reg2.b.iddig_en0 = 0;
+		reg2.b.iddig_en1 = 0;
+		reg2.b.iddig_th = 0;
+		writel(reg2.d32, (void __iomem *)((unsigned long)phy->usb2_phy_cfg + 8));
+		cancel_delayed_work_sync(&phy->work);
+	}
+
+	phy->pm_buf.u2p_r0.d32 = readl(phy->usb2_phy_cfg);
+	phy->pm_buf.usb_r1.d32 = readl(phy->phy3_cfg + 4);
+	return 0;
+}
+
+static int amlogic_crg_otg_post_hibernation(struct amlogic_crg_otg *phy)
+{
+	//union u2p_r2_v2 reg2;
+
+	//reg2.d32 = readl((void __iomem *)((unsigned long)phy->usb2_phy_cfg + 8));
+	//pr_err("linestate: %d recover to %d\n",
+	//	reg2.b.iddig_curr, phy->pm_buf.u2p_r2.b.iddig_curr);
+
+	writel(phy->pm_buf.usb_r1.d32, phy->phy3_cfg + 4);
+	writel(phy->pm_buf.u2p_r2.d32, phy->usb2_phy_cfg + 8);
+	writel(phy->pm_buf.u2p_r0.d32, phy->usb2_phy_cfg);
+
+	/* During STD the idpin line state could lose sync with controller state even the
+	 * register has been restored. This happens when linestate changes after std but
+	 * before h-prepare which disables the irq, records linesate then cancels the unscheduled
+	 * role-switch irq work.
+	 * e.g.
+	 * If the otg plug is removed before h-prepare, the restored state remains as host
+	 * even when the otg plug is still removed.
+	 * Try to resync after restore.
+	 */
+	if (phy->controller_type == USB_OTG)
+		schedule_delayed_work(&phy->work, msecs_to_jiffies(100));
+
+	return 0;
+}
+
+/* crg_gadget_exit&crg_gadget_init should be synchronous to prevent racing with crg_udc_pm_cb.
+ * However dpm_prepare defer all probes until dpm_complete, the probe inside is still asynchronous.
+ * Avoid this by using pm_cb.
+ */
+static int amlogic_crg_otg_pm_cb(struct notifier_block *notifier,
+			      unsigned long pm_event,
+			      void *unused)
+{
+	struct amlogic_crg_otg *phy =
+		container_of(notifier, struct amlogic_crg_otg, pm_notifier);
+
+	pr_info("%s called. pm_event:%lu.\n", __func__, pm_event);
+
+	switch (pm_event) {
+	case PM_HIBERNATION_PREPARE:
+		amlogic_crg_otg_hibernation_prepare(phy);
+		break;
+	case PM_POST_HIBERNATION:
+		amlogic_crg_otg_post_hibernation(phy);
+		break;
+	case PM_SUSPEND_PREPARE:
+	case PM_POST_SUSPEND:
+	case PM_RESTORE_PREPARE:
+	case PM_POST_RESTORE:
+	default:
+		break;
+	}
+	return NOTIFY_DONE;
+}
+
+#ifdef CONFIG_PM_RUNTIME
 static int amlogic_crg_otg_runtime_suspend(struct device *dev)
 {
 	return 0;
@@ -385,17 +504,20 @@ static int amlogic_crg_otg_runtime_resume(struct device *dev)
 
 	return ret;
 }
+#endif
 
 static const struct dev_pm_ops amlogic_crg_otg_pm_ops = {
+#ifdef CONFIG_PM_RUNTIME
 	SET_RUNTIME_PM_OPS(amlogic_crg_otg_runtime_suspend,
 			   amlogic_crg_otg_runtime_resume,
 			   NULL)
+#endif
+	.freeze = amlogic_crg_otg_freeze,
+	.thaw = amlogic_crg_otg_thaw,
+	.restore = amlogic_crg_otg_restore,
 };
 
-#define DEV_PM_OPS     (&amlogic_new_otg_pm_ops)
-#else
-#define DEV_PM_OPS     NULL
-#endif
+#define DEV_PM_OPS     (&amlogic_crg_otg_pm_ops)
 
 #ifdef CONFIG_OF
 static const struct of_device_id amlogic_crg_otg_id_table[] = {

@@ -245,7 +245,6 @@ static int amlogic_crg_drd_usb3_init(struct usb_phy *x)
 		}
 
 		phy->suspend_flag = 0;
-		return 0;
 	}
 
 	if (phy->phy.flags != AML_USB3_PHY_ENABLE)

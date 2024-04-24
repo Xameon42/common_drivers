@@ -726,17 +726,35 @@ static struct platform_driver crg_host_driver = {
 	},
 };
 
+static int crg_driver_state;
 void crg_exit(void)
 {
-	if (!crg_driver.driver.p)
+	pr_info("crg exit\n");
+	if (crg_driver_state != 1)
 		return;
+	crg_driver_state = 0;
 	platform_driver_unregister(&crg_driver);
 }
 EXPORT_SYMBOL_GPL(crg_exit);
 
 int crg_init(void)
 {
-	return platform_driver_register(&crg_driver);
+	int ret;
+
+	pr_info("crg init\n");
+	if (crg_driver_state != 0) {
+		ret = -EBUSY;
+		goto exit;
+	}
+
+	ret = platform_driver_register(&crg_driver);
+	if (ret) {
+		pr_info("crg_driver register error %d, exit\n", ret);
+		goto exit;
+	}
+	crg_driver_state = 1;
+exit:
+	return ret;
 }
 EXPORT_SYMBOL_GPL(crg_init);
 
