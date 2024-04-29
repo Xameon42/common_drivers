@@ -1688,11 +1688,6 @@
 		status = "disabled";
 	};
 
-	efuseburn: efuse_burn {
-		compatible = "amlogic, efuseburn";
-		efuse_pattern_size = <0x600>;
-		status = "disabled";
-	};
 	efusecheck: efusecheck{
 		maincmd = <0x8200003E>;
 		checknum = <3>;
@@ -1727,7 +1722,7 @@
 		key = <&efusekey>;
 		check = <&efusecheck>;
 		clock-names = "efuse_clk";
-		status = "disabled";
+		status = "okay";
 	};
 
 	efusekey:efusekey{
