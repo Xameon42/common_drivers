@@ -2303,19 +2303,21 @@ crg_udc_ep_dequeue(struct usb_ep *_ep, struct usb_request *_req)
 		 */
 	}
 #if CRG_MTP_WR
-	crg_issue_command(crg_udc, CRG_CMD_STOP_EP, 1 << DCI, 0);
-	do {
-		tmp = reg_read(&uccr->ep_running);
-	} while ((tmp & (1 << DCI)) != 0);
+	if (usb_endpoint_xfer_bulk(udc_ep_ptr->desc)) {
+		crg_issue_command(crg_udc, CRG_CMD_STOP_EP, 1 << DCI, 0);
+		do {
+			tmp = reg_read(&uccr->ep_running);
+		} while ((tmp & (1 << DCI)) != 0);
 
-	mdelay(10);
-	crg_udc_epcx_update_dqptr(udc_ep_ptr);
+		mdelay(10);
+		crg_udc_epcx_update_dqptr(udc_ep_ptr);
 
-	mdelay(10);
-	crg_issue_command(crg_udc, CRG_CMD_STOP_EP, 1 << DCI, 0);
-	do {
-		tmp = reg_read(&uccr->ep_running);
-	} while ((tmp & (1 << DCI)) != 0);
+		mdelay(10);
+		crg_issue_command(crg_udc, CRG_CMD_STOP_EP, 1 << DCI, 0);
+		do {
+			tmp = reg_read(&uccr->ep_running);
+		} while ((tmp & (1 << DCI)) != 0);
+	}
 #endif
 	CRG_DEBUG("End dequeue deq_pt = 0x%p, enq_pt = 0x%p\n",
 			udc_ep_ptr->deq_pt, udc_ep_ptr->enq_pt);
