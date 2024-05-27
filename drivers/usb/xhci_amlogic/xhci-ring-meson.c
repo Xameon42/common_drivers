@@ -1664,7 +1664,12 @@ static void xhci_handle_cmd_nec_get_fw(struct aml_xhci_hcd *xhci,
 			NEC_FW_MINOR(le32_to_cpu(event->status)));
 }
 
+#if IS_ENABLED(CONFIG_AMLOGIC_COMMON_USB)
+static void xhci_complete_del_and_free_cmd(struct aml_xhci_hcd *xhci,
+	struct aml_xhci_command *cmd, u32 status)
+#else
 static void xhci_complete_del_and_free_cmd(struct aml_xhci_command *cmd, u32 status)
+#endif
 {
 	list_del(&cmd->cmd_list);
 
@@ -1674,14 +1679,23 @@ static void xhci_complete_del_and_free_cmd(struct aml_xhci_command *cmd, u32 sta
 	} else {
 		kfree(cmd);
 	}
+#if IS_ENABLED(CONFIG_AMLOGIC_COMMON_USB)
+	if (xhci->cmd_ring)
+		aml_inc_deq(xhci, xhci->cmd_ring);
+#endif
 }
 
 void aml_xhci_cleanup_command_queue(struct aml_xhci_hcd *xhci)
 {
 	struct aml_xhci_command *cur_cmd, *tmp_cmd;
 	xhci->current_cmd = NULL;
+#if IS_ENABLED(CONFIG_AMLOGIC_COMMON_USB)
+	list_for_each_entry_safe(cur_cmd, tmp_cmd, &xhci->cmd_list, cmd_list)
+		xhci_complete_del_and_free_cmd(xhci, cur_cmd, COMP_COMMAND_ABORTED);
+#else
 	list_for_each_entry_safe(cur_cmd, tmp_cmd, &xhci->cmd_list, cmd_list)
 		xhci_complete_del_and_free_cmd(cur_cmd, COMP_COMMAND_ABORTED);
+#endif
 }
 
 void aml_xhci_handle_command_timeout(struct work_struct *work)
@@ -1870,9 +1884,14 @@ static void handle_cmd_completion(struct aml_xhci_hcd *xhci,
 	}
 
 event_handled:
+#if IS_ENABLED(CONFIG_AMLOGIC_COMMON_USB)
+	xhci_complete_del_and_free_cmd(xhci, cmd, cmd_comp_code);
+#else
 	xhci_complete_del_and_free_cmd(cmd, cmd_comp_code);
 
 	aml_inc_deq(xhci, xhci->cmd_ring);
+#endif
+
 }
 
 static void handle_vendor_event(struct aml_xhci_hcd *xhci,
