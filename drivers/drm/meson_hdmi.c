@@ -861,6 +861,9 @@ static int am_hdmitx_connector_atomic_set_property
 	} else if (property == am_hdmi->avmute_prop) {
 		hdmitx_state->avmute = val;
 		return 0;
+	} else if (property == am_hdmi->frac_rate_policy_prop) {
+		hdmitx_state->frac_rate_policy = val;
+		return 0;
 	} else if (property == am_hdmi->allm_prop) {
 		hdmitx_state->allm_mode = val;
 		return 0;
@@ -936,6 +939,9 @@ static int am_hdmitx_connector_atomic_get_property
 		return 0;
 	} else if (property == am_hdmi->hdcp_user_prop) {
 		*val = hdmitx_common_get_hdcp_user_state(tx_comm);
+		return 0;
+	} else if (property == am_hdmi->frac_rate_policy_prop) {
+		*val = hdmitx_state->frac_rate_policy;
 		return 0;
 	} else if (property == am_hdmi->allm_cap_prop) {
 		*val = get_allm_cap();
@@ -1080,6 +1086,11 @@ int meson_hdmitx_atomic_check(struct drm_connector *connector,
 				meson_crtc_state->attr_changed = true;
 			}
 		}
+
+		if (new_hdmitx_state->frac_rate_policy !=
+				old_hdmitx_state->frac_rate_policy) {
+			new_crtc_state->mode_changed = true;
+		}
 	}
 
 	return 0;
@@ -1107,6 +1118,7 @@ struct drm_connector_state *meson_hdmitx_atomic_duplicate_state
 	new_state->pref_hdr_policy = cur_state->pref_hdr_policy;
 	new_state->allm_mode = cur_state->allm_mode;
 	cur_state->hcs.state_sequence_id = am_hdmi_info.sequence_id;
+	new_state->frac_rate_policy = cur_state->frac_rate_policy;
 	memcpy(&new_state->hcs, &cur_state->hcs, sizeof(struct hdmitx_common_state));
 
 	return &new_state->base;
@@ -1155,7 +1167,6 @@ void meson_hdmitx_atomic_print_state(struct drm_printer *p,
 {
 	struct am_hdmitx_connector_state *hdmitx_state =
 		to_am_hdmitx_connector_state(state);
-	struct hdmitx_common *common = am_hdmi_info.hdmitx_dev->hdmitx_common;
 
 	drm_printf(p, "\tdrm hdmitx state:\n");
 	drm_printf(p, "\t\t android_path:[%d]\n", am_hdmi_info.android_path);
@@ -1186,7 +1197,7 @@ void meson_hdmitx_atomic_print_state(struct drm_printer *p,
 	drm_printf(p, "\t\t\t vic:[%d], cs:[%d], cd:[%d], name:[%s]",
 		   hdmitx_state->hcs.para.vic, hdmitx_state->hcs.para.cs,
 		   hdmitx_state->hcs.para.cd, hdmitx_state->hcs.para.name);
-	drm_printf(p, "\t\t\t frac_rate_policy:[%d]\n", common->frac_rate_policy);
+	drm_printf(p, "\t\t\t frac_rate_policy:[%d]\n", hdmitx_state->frac_rate_policy);
 }
 
 static bool meson_hdmitx_is_hdcp_running(void)
@@ -1919,6 +1930,9 @@ void meson_hdmitx_encoder_atomic_enable(struct drm_encoder *encoder,
 		return;
 	}
 
+	/*QMS seamless needs the value of frac_rate_policy property*/
+	tx_comm->frac_rate_policy = meson_conn_state->frac_rate_policy;
+
 	if (meson_crtc_state->seamless) {
 		dst_vrefresh = meson_crtc_state->base.vrr_enabled ? mode_vrefresh : 0;
 		DRM_INFO("%s, set frame rate: %d\n", __func__, dst_vrefresh);
@@ -2039,6 +2053,7 @@ static int meson_hdmitx_encoder_atomic_check(struct drm_encoder *encoder,
 		attr->colorformat = hdmitx_state->hcs.para.cs;
 		attr->bitdepth = colordepth_to_bitdepth(hdmitx_state->hcs.para.cd);
 		hdmitx_state->hdr_priority = hdmitx_state->hcs.hdr_priority;
+		hdmitx_state->frac_rate_policy = common->frac_rate_policy;
 	}
 
 	/*The recovery mode not have composer to set attr*/
@@ -2280,6 +2295,20 @@ static void meson_hdmitx_init_ready_property(struct drm_device *drm_dev,
 		drm_object_attach_property(&am_hdmi->base.connector.base, prop, 0);
 	} else {
 		DRM_ERROR("Failed to init ready property\n");
+	}
+}
+
+static void meson_hdmitx_init_frac_rate_policy_property(struct drm_device *drm_dev,
+						  struct am_hdmi_tx *am_hdmi)
+{
+	struct drm_property *prop;
+
+	prop = drm_property_create_bool(drm_dev, 0, "FRAC_RATE_POLICY");
+	if (prop) {
+		am_hdmi->frac_rate_policy_prop = prop;
+		drm_object_attach_property(&am_hdmi->base.connector.base, prop, 0);
+	} else {
+		DRM_ERROR("Failed to init FRAC_RATE_POLICY property\n");
 	}
 }
 
@@ -2550,8 +2579,10 @@ int meson_hdmitx_dev_bind(struct drm_device *drm,
 	meson_hdmitx_init_ready_property(drm, am_hdmi);
 	meson_hdmitx_init_edid_valid_property(drm, am_hdmi);
 	meson_hdmitx_init_hdcp_user_prop(drm, am_hdmi);
+	meson_hdmitx_init_frac_rate_policy_property(drm, am_hdmi);
 	meson_hdmitx_init_allm_cap_property(drm, am_hdmi);
 	meson_hdmitx_init_dc_cap_property(drm, am_hdmi);
+
 
 	/*TODO:update compat_mode for drm driver, remove later.*/
 	priv->compat_mode = am_hdmi_info.android_path;
