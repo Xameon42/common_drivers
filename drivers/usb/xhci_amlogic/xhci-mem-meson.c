@@ -1103,13 +1103,13 @@ EXPORT_SYMBOL_GPL(aml_xhci_usb_get_status);
 void stop_ep_cmd_work(struct work_struct *work)
 {
 	struct aml_xhci_hcd *xhci;
-	//struct aml_xhci_ep_ctx *ep_ctx;
 	struct usb_device *udev;
 	u32 i;
 	struct aml_xhci_virt_ep		*eps =
 		container_of(work, struct aml_xhci_virt_ep, stop_work);
-	//int ep_index = eps->ep_index;
 
+	if (!eps)
+		return;
 	xhci = eps->xhci;
 	if (eps->q_status_count == 0)
 		eps->q_status_count = 12;
@@ -1118,13 +1118,17 @@ void stop_ep_cmd_work(struct work_struct *work)
 			u16 stat;
 
 			udev = eps->udev;
-			//ep_ctx = aml_xhci_get_ep_ctx(xhci,
-			//xhci->devs[udev->slot_id]->out_ctx, ep_index);
-			//dev_warn(&udev->dev, " host011 start ...\n");
+			if (!udev)
+				return;
+			if (udev->state == USB_STATE_NOTATTACHED)
+				return;
 			for (i = 0; i < eps->q_status_count; i++) {
+				if (!udev)
+					return;
+				if (udev->state == USB_STATE_NOTATTACHED)
+					return;
 				aml_xhci_usb_get_status(udev, USB_RECIP_ENDPOINT,
 					USB_STATUS_TYPE_STANDARD, eps->bendpointaddress, &stat);
-				//usleep_range(500, 501);
 			}
 		}
 		break;

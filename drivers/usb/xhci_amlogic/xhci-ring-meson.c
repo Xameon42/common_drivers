@@ -5072,6 +5072,9 @@ void xhci_start_stop_endpoint_work(struct aml_xhci_hcd *xhci, int slot_id, unsig
 		else
 			return;
 
+		if (udev->state == USB_STATE_NOTATTACHED)
+			return;
+
 		eps = &xhci->devs[slot_id]->eps[ep_index];
 
 		if (ep_index % 2)
