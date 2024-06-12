@@ -3365,6 +3365,17 @@ static void vd1_scaler_setting(struct video_layer_s *layer, struct scaler_settin
 			(vpp_filter->vpp_vert_coeff[0] == 2) ? 1 : 0,
 			VPP_PHASECTL_DOUBLELINE_BIT,
 			VPP_PHASECTL_DOUBLELINE_WID);
+		if (frame_par->vpp_vf_rpt_num_load)
+			cur_dev->rdma_func[vpp_index].rdma_wr_bits
+				(vd_pps_reg->vd_vsc_phase_ctrl,
+				frame_par->vpp_vf_rpt_num,
+				VPP_PHASECTL_INIRPTNUMT_BIT,
+				VPP_PHASECTL_INIRPTNUM_WID);
+		if (frame_par->vpp_vf_init_phase_load)
+			cur_dev->rdma_func[vpp_index].rdma_wr
+				(vd_pps_reg->vd_vsc_init_phase,
+				frame_par->VPP_vf_init_phase |
+				(frame_par->VPP_vf_init_phase << 16));
 		bit9_mode = vpp_filter->vpp_vert_coeff[1] & 0x8000;
 		s11_mode = vpp_filter->vpp_vert_coeff[1] & 0x4000;
 		if (s11_mode && cur_dev->display_module == T7_DISPLAY_MODULE)
@@ -3757,7 +3768,7 @@ static void vdx_scaler_setting(struct video_layer_s *layer, struct scaler_settin
 				hsc_init_rev_num0 = 8;
 			} else {
 				hsc_init_rev_num0 = 4;
-				hsc_rpt_p0_num0 = 1;
+				hsc_rpt_p0_num0 = frame_par->vpp_hf_rpt_num;//1;
 			}
 			cur_dev->rdma_func[vpp_index].rdma_wr_bits
 				(vd_pps_reg->vd_hsc_phase_ctrl,
@@ -3961,6 +3972,17 @@ static void vdx_scaler_setting(struct video_layer_s *layer, struct scaler_settin
 			(vpp_filter->vpp_vert_coeff[0] == 2) ? 1 : 0,
 			VPP_PHASECTL_DOUBLELINE_BIT,
 			VPP_PHASECTL_DOUBLELINE_WID);
+		if (frame_par->vpp_vf_rpt_num_load)
+			cur_dev->rdma_func[vpp_index].rdma_wr_bits
+				(vd_pps_reg->vd_vsc_phase_ctrl,
+				frame_par->vpp_vf_rpt_num,
+				VPP_PHASECTL_INIRPTNUMT_BIT,
+				VPP_PHASECTL_INIRPTNUM_WID);
+		if (frame_par->vpp_vf_init_phase_load)
+			cur_dev->rdma_func[vpp_index].rdma_wr
+				(vd_pps_reg->vd_vsc_init_phase,
+				frame_par->VPP_vf_init_phase |
+				(frame_par->VPP_vf_init_phase << 16));
 		bit9_mode = vpp_filter->vpp_vert_coeff[1] & 0x8000;
 		s11_mode = vpp_filter->vpp_vert_coeff[1] & 0x4000;
 		if (s11_mode && cur_dev->display_module == T7_DISPLAY_MODULE)
@@ -9106,6 +9128,7 @@ int video_early_init(struct amvideo_device_data_s *p_amvideo)
 		glayer_info[i].layer_support = p_amvideo->layer_support[i];
 		glayer_info[i].alpha_support = p_amvideo->alpha_support[i];
 		hscaler_8tap_enable[i] = has_hscaler_8tap(i);
+		vd_layer[i].hscaler_8tap_enable_save = hscaler_8tap_enable[i];
 		pre_scaler[i].force_pre_scaler = 0;
 		pre_scaler[i].pre_hscaler_ntap_enable =
 			has_pre_hscaler_ntap(i);
@@ -9194,7 +9217,9 @@ int video_early_init(struct amvideo_device_data_s *p_amvideo)
 	init_layer_canvas(&vd_layer[0], LAYER1_CANVAS_BASE_INDEX);
 	init_layer_canvas(&vd_layer[1], LAYER2_CANVAS_BASE_INDEX);
 	init_layer_canvas(&vd_layer[2], LAYER3_CANVAS_BASE_INDEX);
-
+	lcevc_en = true;
+	lcevc_ctrl = 1;
+	video_lcevc.alpha = 0x80;
 	return r;
 }
 

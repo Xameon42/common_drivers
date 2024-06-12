@@ -132,8 +132,8 @@ static struct cur_line_info_t g_cur_line_info[2];
 static u8 new_frame_mask;
 static bool need_force_black;
 static u32 always_new_vf_cnt;
-
 bool rdma_enable_pre;
+struct video_lcevc_s video_lcevc;
 
 bool get_video_reverse(void)
 {
@@ -1389,6 +1389,20 @@ void pipx_swap_frame(struct video_layer_s *layer, struct vframe_s *vf,
 		crop[1] = vf->crop[1];
 		crop[2] = vf->crop[2];
 		crop[3] = vf->crop[3];
+		if (layer_id == 1 && video_lcevc.vd2_vd1_shared_vf) {
+			u32 vskip_cnt = 0, hskip_cnt = 0;
+
+			if (vd_layer[0].next_frame_par) {
+				vskip_cnt = vd_layer[0].next_frame_par->vscale_skip_count;
+				hskip_cnt = vd_layer[0].next_frame_par->hscale_skip_count;
+			}
+			/* vd2 is base frame, scaler up to vd1 source size */
+			axis[0] = 0;
+			axis[1] = 0;
+			axis[2] = (video_lcevc.vd1_src_width >> hskip_cnt) - 1;
+			axis[3] = (video_lcevc.vd1_src_height >> vskip_cnt) - 1;
+			/* crop todo */
+		}
 		_set_video_window(layer_info, axis);
 		_set_video_crop(layer_info, crop);
 		if (vf->flag & VFRAME_FLAG_MIRROR_H)
@@ -3360,6 +3374,38 @@ static struct vframe_s *video_toggle_frame
 	return path_new_frame;
 }
 
+void switch_from_lcevc_to_nonlcevc(bool unreg)
+{
+	if (video_lcevc.vd2_vd1_shared_vf ||
+		video_lcevc.lcevc_unreged) {
+		video_lcevc.lcevc_switch_normal = true;
+		int_hv_phase = 0xff;
+		int_hv_rpt_num = 0xff;
+		video_lcevc.preblend_en = false;
+		glayer_info[1].display_path_id = 0xff;
+		vd_layer[1].layer_alpha = 0x100;
+		hscaler_8tap_enable[0] =
+			vd_layer[0].hscaler_8tap_enable_save;
+		hscaler_8tap_enable[1] =
+			vd_layer[1].hscaler_8tap_enable_save;
+		if (!unreg) {
+#ifdef CONFIG_AMLOGIC_MEDIA_ENHANCEMENT_VECM
+			amve_lc_elc_ctrl(false);
+#endif
+			video_lcevc.lcevc_unreged = false;
+		} else {
+			video_lcevc.lcevc_unreged = true;
+		}
+		if (debug_common_flag & DEBUG_FLAG_COMMON_LCEVC)
+			pr_info("%s, vd2_vd1_shared_vf=%d, lcevc_switch_normal=%d, unreg:%d\n",
+				__func__,
+				video_lcevc.vd2_vd1_shared_vf,
+				video_lcevc.lcevc_switch_normal,
+				video_lcevc.lcevc_unreged);
+		video_lcevc.vd2_vd1_shared_vf = false;
+	}
+}
+
 static struct vframe_s *vdx_swap_frame(u8 layer_id,
 				s32 vdx_path_id,
 				s32 cur_vdx_path_id,
@@ -3412,27 +3458,113 @@ static struct vframe_s *vdx_swap_frame(u8 layer_id,
 	    gvideo_recv[0]->path_id == vdx_path_id) {
 		/* video_render.0 display on VDx */
 		new_frame = path_new_frame[3];
-		if (!new_frame) {
-			if (!gvideo_recv[0]->cur_buf) {
-				/* video_render.0 no frame in display */
-				if (cur_vdx_path_id != vdx_path_id)
-					safe_switch_videolayer
-						(layer_id, false, true);
-				vd_layer[layer_id].dispbuf = NULL;
-			} else if (gvideo_recv[0]->cur_buf ==
-				&gvideo_recv[0]->local_buf) {
-				/* video_render.0 keep frame */
-				vd_layer[layer_id].dispbuf =
-					gvideo_recv[0]->cur_buf;
-			} else if (vd_layer[layer_id].dispbuf
-				!= gvideo_recv[0]->cur_buf) {
-				/* video_render.0 has frame in display */
-				new_frame = gvideo_recv[0]->cur_buf;
+		if (layer_id == 1 && video_lcevc.vd2_vd1_shared_vf) {
+			new_frame = video_lcevc.enhance_vf;
+			if (new_frame && (debug_common_flag & DEBUG_FLAG_COMMON_LCEVC))
+				pr_info("%s,new_frame=0x%p, type=0x%x, flag=0x%x, bitdepth=0x%x\n",
+					__func__,
+					new_frame,
+					new_frame->type,
+					new_frame->flag,
+					new_frame->bitdepth);
+		} else {
+			if (!new_frame) {
+				if (!gvideo_recv[0]->cur_buf) {
+					/* video_render.0 no frame in display */
+					if (cur_vdx_path_id != vdx_path_id)
+						safe_switch_videolayer
+							(layer_id, false, true);
+					vd_layer[layer_id].dispbuf = NULL;
+				} else if (gvideo_recv[0]->cur_buf ==
+					&gvideo_recv[0]->local_buf) {
+					/* video_render.0 keep frame */
+					vd_layer[layer_id].dispbuf =
+						gvideo_recv[0]->cur_buf;
+				} else if (vd_layer[layer_id].dispbuf
+					!= gvideo_recv[0]->cur_buf) {
+					/* video_render.0 has frame in display */
+					new_frame = gvideo_recv[0]->cur_buf;
+				}
+			}
+			if (new_frame || gvideo_recv[0]->cur_buf) {
+				vd_layer[layer_id].dispbuf_mapping =
+					&gvideo_recv[0]->cur_buf;
+				if ((gvideo_recv[0]->cur_buf->type_ext & VIDTYPE_EXT_LCEVC) &&
+					gvideo_recv[0]->cur_buf->enhance_vf) {
+					u32 src_width = 3840, src_height = 2160;
+					struct vframe_s *vf = NULL;
+					int coef0[4], coef1[4];
+
+					video_lcevc.vd2_vd1_shared_vf = true;
+					video_lcevc.preblend_en = true;
+					video_lcevc.enhance_vf =
+						gvideo_recv[0]->cur_buf->enhance_vf;
+					vf = gvideo_recv[0]->cur_buf;
+					if (vf->type & VIDTYPE_COMPRESS) {
+						src_width = vf->compWidth;
+						src_height = vf->compHeight;
+					} else {
+						src_width = vf->width;
+						src_height = vf->height;
+					}
+					coef0[0] = (vf->scaler_coeff.k[0][0] - 127) / 128;
+					coef0[1] = (vf->scaler_coeff.k[0][1] + 127) / 128;
+					coef0[2] = (vf->scaler_coeff.k[0][2] + 127) / 128;
+					coef0[3] = (vf->scaler_coeff.k[0][3] + 127) / 128;
+
+					coef1[0] = (vf->scaler_coeff.k[1][0] + 127) / 128;
+					coef1[1] = (vf->scaler_coeff.k[1][1] + 127) / 128;
+					coef1[2] = (vf->scaler_coeff.k[1][2] + 127) / 128;
+					coef1[3] = (vf->scaler_coeff.k[1][3] - 127) / 128;
+
+					video_lcevc.vf_lcevc_coeff0 =
+						(unsigned int)(coef0[0] & 0xff) << 24 |
+						(unsigned int)(coef0[1] & 0xff) << 16 |
+						(unsigned int)(coef0[2] & 0xff) << 8 |
+						(unsigned int)(coef0[3] & 0xff);
+					video_lcevc.vf_lcevc_coeff1 =
+						(unsigned int)(coef1[0] & 0xff) << 24 |
+						(unsigned int)(coef1[1] & 0xff) << 16 |
+						(unsigned int)(coef1[2] & 0xff) << 8 |
+						(unsigned int)(coef1[3] & 0xff);
+					if (vf && (debug_common_flag & DEBUG_FLAG_COMMON_LCEVC))
+						pr_info("%s,coef:[0]%d,%d,%d,%d, [1]%d,%d,%d,%d,coef0:%d,%d,%d,%d, coef1:%d,%d,%d,%d, trans:0x%x, 0x%x\n",
+							__func__,
+							vf->scaler_coeff.k[0][0],
+							vf->scaler_coeff.k[0][1],
+							vf->scaler_coeff.k[0][2],
+							vf->scaler_coeff.k[0][3],
+							vf->scaler_coeff.k[1][0],
+							vf->scaler_coeff.k[1][1],
+							vf->scaler_coeff.k[1][2],
+							vf->scaler_coeff.k[1][3],
+							coef0[0], coef0[1], coef0[2], coef0[3],
+							coef1[0], coef1[1], coef1[2], coef1[3],
+							video_lcevc.vf_lcevc_coeff0,
+							video_lcevc.vf_lcevc_coeff1);
+					if (debug_common_flag & DEBUG_FLAG_COMMON_LCEVC)
+						pr_info("%s, vd2_vd1_shared_vf=%d,enhance_vf=0x%p, gvideo_recv[0]->cur_buf=0x%p, vd1 src_width=%d, src_height=%d\n",
+							__func__,
+							video_lcevc.vd2_vd1_shared_vf,
+							gvideo_recv[0]->cur_buf->enhance_vf,
+							gvideo_recv[0]->cur_buf,
+							src_width, src_height);
+					video_lcevc.vd1_src_width = src_width;
+					video_lcevc.vd1_src_height = src_height;
+					video_lcevc.vd1_type = vf->type;
+					glayer_info[1].display_path_id =
+						glayer_info[0].display_path_id;
+					vd_layer[1].layer_alpha = video_lcevc.alpha;
+#ifdef CONFIG_AMLOGIC_MEDIA_ENHANCEMENT_VECM
+					amve_lc_elc_ctrl(lcevc_en);
+#endif
+					hscaler_8tap_enable[0] = false;
+					hscaler_8tap_enable[1] = false;
+				} else {
+					switch_from_lcevc_to_nonlcevc(false);
+				}
 			}
 		}
-		if (new_frame || gvideo_recv[0]->cur_buf)
-			vd_layer[layer_id].dispbuf_mapping =
-				&gvideo_recv[0]->cur_buf;
 		cur_blackout = 1;
 	} else if (gvideo_recv[1] &&
 	    (gvideo_recv[1]->path_id == vdx_path_id)) {
@@ -3710,6 +3842,20 @@ static struct vframe_s *vdx_swap_frame(u8 layer_id,
 		crop[1] = vd_layer[layer_id].dispbuf->crop[1];
 		crop[2] = vd_layer[layer_id].dispbuf->crop[2];
 		crop[3] = vd_layer[layer_id].dispbuf->crop[3];
+		if (layer_id == 1 && video_lcevc.vd2_vd1_shared_vf) {
+			u32 vskip_cnt = 0, hskip_cnt = 0;
+
+			if (vd_layer[0].next_frame_par) {
+				vskip_cnt = vd_layer[0].next_frame_par->vscale_skip_count;
+				hskip_cnt = vd_layer[0].next_frame_par->hscale_skip_count;
+			}
+			/* vd2 is base frame, scaler up to vd1 source size */
+			axis[0] = 0;
+			axis[1] = 0;
+			axis[2] = (video_lcevc.vd1_src_width >> hskip_cnt) - 1;
+			axis[3] = (video_lcevc.vd1_src_height >> vskip_cnt) - 1;
+			/* crop todo */
+		}
 		_set_video_window(&glayer_info[layer_id], axis);
 		source_type = vd_layer[layer_id].dispbuf->source_type;
 		if (source_type != VFRAME_SOURCE_TYPE_HDMI &&
@@ -6135,7 +6281,8 @@ int _video_set_disable(u32 val)
 	}
 	if (get_video_debug_flags() & DEBUG_FLAG_HDMI_DV_CRC)
 		dump_stack();
-
+	if (video_lcevc.vd2_vd1_shared_vf)
+		_videopip_set_disable(1, val);
 	return 0;
 }
 
@@ -6193,6 +6340,9 @@ void video_set_global_output(u32 index, u32 val)
 	}
 	pr_info("VID: VD%d set global output as %d\n",
 		index + 1, (val != 0) ? 1 : 0);
+	if (index == 0 &&
+		video_lcevc.vd2_vd1_shared_vf)
+		video_set_global_output(1, val);
 }
 
 struct video_layer_s *get_layer_by_layer_id(u8 layer_id)

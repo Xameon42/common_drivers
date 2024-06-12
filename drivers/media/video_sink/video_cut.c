@@ -7937,6 +7937,7 @@ static ssize_t hscaler_8tap_enable_store(struct class *cla,
 	if (amvideo_meson_dev.has_hscaler_8tap[0] &&
 	    hscaler_8tap_en != hscaler_8tap_enable[0]) {
 		hscaler_8tap_enable[0] = hscaler_8tap_en;
+		vd_layer[0].hscaler_8tap_enable_save = hscaler_8tap_en;
 		vd_layer[0].property_changed = true;
 	}
 	return count;
@@ -7966,6 +7967,7 @@ static ssize_t pip_hscaler_8tap_enable_store
 	if (amvideo_meson_dev.has_hscaler_8tap[1] &&
 	    hscaler_8tap_en != hscaler_8tap_enable[1]) {
 		hscaler_8tap_enable[1] = hscaler_8tap_en;
+		vd_layer[1].hscaler_8tap_enable_save = hscaler_8tap_en;
 		if (vd_layer[1].vpp_index == VPP0)
 			vd_layer[1].property_changed = true;
 	}

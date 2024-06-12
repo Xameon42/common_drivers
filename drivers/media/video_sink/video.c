@@ -631,6 +631,9 @@ u32  video_mirror;
 bool vd1_vd2_mux;
 bool aisr_en;
 bool vsr_top_en;
+bool lcevc_en;
+u32 lcevc_ctrl;
+u32 lcevc_coef_demo = 1;
 u32 vsr_debug_mode;
 bool video_suspend;
 u32 video_suspend_cycle;
@@ -640,6 +643,9 @@ u64 vsync_cnt[VPP_MAX] = {0, 0, 0};
 u8 vsync_isr_cpuid;
 u8 prevsync_isr_cpuid;
 int dither_mode;
+static u32 lcevc_alpha = 0x80;
+module_param(lcevc_alpha, uint, 0664);
+MODULE_PARM_DESC(lcevc_alpha, "lcevc_alpha");
 
 #ifdef CONFIG_PM
 struct video_pm_state_s {
@@ -11106,6 +11112,7 @@ static ssize_t hscaler_8tap_enable_store(struct class *cla,
 	if (amvideo_meson_dev.has_hscaler_8tap[0] &&
 	    hscaler_8tap_en != hscaler_8tap_enable[0]) {
 		hscaler_8tap_enable[0] = hscaler_8tap_en;
+		vd_layer[0].hscaler_8tap_enable_save = hscaler_8tap_en;
 		vd_layer[0].property_changed = true;
 	}
 	return count;
@@ -11135,6 +11142,7 @@ static ssize_t pip_hscaler_8tap_enable_store
 	if (amvideo_meson_dev.has_hscaler_8tap[1] &&
 	    hscaler_8tap_en != hscaler_8tap_enable[1]) {
 		hscaler_8tap_enable[1] = hscaler_8tap_en;
+		vd_layer[1].hscaler_8tap_enable_save = hscaler_8tap_en;
 		if (vd_layer[1].vpp_index == VPP0) {
 			vd_layer[1].property_changed = true;
 		} else {
@@ -11169,6 +11177,7 @@ static ssize_t pip2_hscaler_8tap_enable_store
 	if (amvideo_meson_dev.has_hscaler_8tap[2] &&
 	    hscaler_8tap_en != hscaler_8tap_enable[2]) {
 		hscaler_8tap_enable[2] = hscaler_8tap_en;
+		vd_layer[2].hscaler_8tap_enable_save = hscaler_8tap_en;
 		if (vd_layer[2].vpp_index == VPP0) {
 			vd_layer[2].property_changed = true;
 		} else {
@@ -12973,6 +12982,72 @@ static ssize_t dither_mode_store(struct class *cla,
 	return count;
 }
 
+static ssize_t lcevc_en_show(struct class *cla,
+				struct class_attribute *attr,
+				char *buf)
+{
+	return snprintf(buf, 40, "lcevc_ctrl:%d(0: disable; 1:enable; 2:only y)\n", lcevc_ctrl);
+}
+
+static ssize_t lcevc_en_store(struct class *cla,
+				 struct class_attribute *attr,
+				 const char *buf, size_t count)
+{
+	int res = 0;
+	int ret = 0;
+
+	ret = kstrtoint(buf, 0, &res);
+	if (ret) {
+		pr_err("kstrtoint err\n");
+		return -EINVAL;
+	}
+
+	if (res != lcevc_ctrl) {
+		lcevc_ctrl = res;
+		if (lcevc_ctrl)
+			lcevc_en = true;
+		else
+			lcevc_en = false;
+		if (video_lcevc.vd2_vd1_shared_vf) {
+			if (lcevc_en)
+				video_lcevc.alpha = lcevc_alpha;
+			else
+				video_lcevc.alpha = 0x100;
+			vd_layer[1].property_changed = true;
+			force_vpp_blend_update = true;
+		}
+	}
+	return count;
+}
+
+static ssize_t lcevc_coef_demo_show(struct class *cla,
+			struct class_attribute *attr,
+			char *buf)
+{
+	return snprintf(buf, 40, "param:%d(0: default bicubic; 1:lcevc-stream coeff,2:manual)\n",
+		lcevc_coef_demo);
+}
+
+static ssize_t lcevc_coef_demo_store(struct class *cla,
+				 struct class_attribute *attr,
+				 const char *buf, size_t count)
+{
+	int res = 0;
+	int ret = 0;
+
+	ret = kstrtoint(buf, 0, &res);
+	if (ret) {
+		pr_err("kstrtoint err\n");
+		return -EINVAL;
+	}
+	if (res != lcevc_coef_demo) {
+		lcevc_coef_demo = res;
+		if (video_lcevc.vd2_vd1_shared_vf)
+			vd_layer[1].property_changed = true;
+	}
+	return count;
+}
+
 static struct class_attribute amvideo_class_attrs[] = {
 	__ATTR(axis,
 	       0664,
@@ -13574,6 +13649,14 @@ static struct class_attribute amvideo_class_attrs[] = {
 		0664,
 		dither_mode_show,
 		dither_mode_store),
+	__ATTR(lcevc_en,
+		0664,
+		lcevc_en_show,
+		lcevc_en_store),
+	__ATTR(lcevc_coef_demo,
+		0664,
+		lcevc_coef_demo_show,
+		lcevc_coef_demo_store),
 };
 
 static struct class_attribute amvideo_poll_class_attrs[] = {

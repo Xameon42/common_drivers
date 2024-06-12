@@ -12917,6 +12917,7 @@ int video_early_init_s5(struct amvideo_device_data_s *p_amvideo)
 		glayer_info[i].layer_support = p_amvideo->layer_support[i];
 		glayer_info[i].alpha_support = p_amvideo->alpha_support[i];
 		hscaler_8tap_enable[i] = has_hscaler_8tap(i);
+		vd_layer[i].hscaler_8tap_enable_save = hscaler_8tap_enable[i];
 		pre_scaler[i].force_pre_scaler = 0;
 		pre_scaler[i].pre_hscaler_ntap_enable =
 			has_pre_hscaler_ntap(i);
@@ -13081,6 +13082,9 @@ int video_early_init_s5(struct amvideo_device_data_s *p_amvideo)
 	memcpy(&vd_layer_vpp[1], &vd_layer[2], sizeof(struct video_layer_s));
 	/* init vpp_post */
 	memset(&g_vpp_post, 0, sizeof(struct vpp_post_s));
+	lcevc_en = true;
+	lcevc_ctrl = 1;
+	video_lcevc.alpha = 0x80;
 	return r;
 }
 

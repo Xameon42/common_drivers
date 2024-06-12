@@ -138,6 +138,10 @@ struct vpp_frame_par_s {
 	u32 VPP_hsc_linear_endp;
 	u32 VPP_hsc_endp;
 
+	bool vpp_vf_init_phase_load;
+	bool vpp_vf_rpt_num_load;
+	u32 vpp_hf_rpt_num;
+	u32 vpp_vf_rpt_num;
 	u32 VPP_hf_ini_phase_;
 	u32 VPP_vf_init_phase;
 	struct f2v_vphase_s VPP_vf_ini_phase_[9];

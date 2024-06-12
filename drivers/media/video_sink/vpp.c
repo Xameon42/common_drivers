@@ -112,6 +112,8 @@ static uint test_pps_v_coef[PPS_COEF_NUM] = {2, 33};
 static uint test_pps_v_coef_8tap[PPS_COEF_8TAP_NUM] = {8, 33};
 static uint force_pps_hcoef_update;
 static uint force_pps_vcoef_update;
+static uint lcevc_table_coef[PPS_COEF_NUM] = {4, 33};
+
 uint load_pps_coef;
 MODULE_PARM_DESC(force_pps_hcoef_update, "\n force_pps_hcoef_update\n");
 module_param(force_pps_hcoef_update, uint, 0664);
@@ -125,6 +127,13 @@ module_param_array(test_pps_h_coef_8tap, uint, &pps_coef_8tap, 0664);
 MODULE_PARM_DESC(test_pps_h_coef_8tap, "\n test_pps_h_coef_8tap\n");
 module_param_array(test_pps_v_coef_8tap, uint, &pps_coef_8tap, 0664);
 MODULE_PARM_DESC(test_pps_v_coef_8tap, "\n test_pps_v_coef_8tap\n");
+
+uint int_hv_phase = 0xff;
+module_param(int_hv_phase, uint, 0664);
+MODULE_PARM_DESC(int_hv_phase, "\n int_hv_phase\n");
+uint int_hv_rpt_num = 0xff;
+module_param(int_hv_rpt_num, uint, 0664);
+MODULE_PARM_DESC(int_hv_rpt_num, "\n int_hv_rpt_num\n");
 
 #define MAX_VD_LAYER 3
 static struct filter_info_s gfilter[MAX_VD_LAYER];
@@ -1647,6 +1656,7 @@ static int vpp_set_filters_internal
 	bool vd1s1_vd2_prebld_en = false;
 	u32 w_out, h_out;
 	u32 screen_h;
+	u32 vinfo_width = 0, vinfo_height = 0;
 	u8 id = 0;
 	u8 vpp_index = 0;
 
@@ -1658,21 +1668,28 @@ static int vpp_set_filters_internal
 
 	id = input->layer_id;
 	vpp_index = vd_layer[id].vpp_index;
+	if (id == 1 && video_lcevc.preblend_en) {
+		vinfo_width = wid_out;
+		vinfo_height = height_out;
+	} else {
+		vinfo_width = vinfo->width;
+		vinfo_height = vinfo->height;
+	}
 
 	/* min = 0.95 x 1024 * height / width */
 	min_aspect_ratio_out =
 		((100 - screen_ar_threshold) << 10) / 100;
 	min_aspect_ratio_out =
-		(vinfo->height * min_aspect_ratio_out) / vinfo->width;
+		(vinfo_height * min_aspect_ratio_out) / vinfo_width;
 	/* max = 1.05 x 1024 * height / width */
 	max_aspect_ratio_out =
 		((100 + screen_ar_threshold) << 10) / 100;
 	max_aspect_ratio_out =
-		(vinfo->height * max_aspect_ratio_out) / vinfo->width;
+		(vinfo_height * max_aspect_ratio_out) / vinfo_width;
 
 	if (aspect_ratio_out <= max_aspect_ratio_out &&
 	    aspect_ratio_out >= min_aspect_ratio_out)
-		aspect_ratio_out = (vinfo->height << 10) / vinfo->width;
+		aspect_ratio_out = (vinfo_height << 10) / vinfo_width;
 
 	cur_filter = &gfilter[input->layer_id];
 	cur_custom_ar = input->custom_ar;
@@ -2048,7 +2065,7 @@ RESTART:
 
 		width_adj = roundup(video_width, 32);
 		//must 32 aligned
-		if (video_left + width_adj >= vinfo->width - 1) {
+		if (video_left + width_adj >= vinfo_width - 1) {
 			video_left = rounddown(video_left, 32);
 			if (video_left < 0)
 				video_left = 0;
@@ -2211,7 +2228,7 @@ RESTART:
 				next_frame_par->VPP_vd_start_lines_ = 0;
 			}
 			temp_height = min((video_top + video_height - 1),
-					  (vinfo->height - 1));
+					  (vinfo_height - 1));
 		} else {
 			if (start < video_top) {
 				temp = ((video_top - start) * ratio_y) >> 18;
@@ -2220,7 +2237,7 @@ RESTART:
 				next_frame_par->VPP_vd_start_lines_ = 0;
 			}
 			temp_height = min((video_top + video_height - 1),
-					  (vinfo->height - 1)) - video_top + 1;
+					  (vinfo_height - 1)) - video_top + 1;
 		}
 		temp = next_frame_par->VPP_vd_start_lines_ +
 			(temp_height * ratio_y >> 18);
@@ -2309,7 +2326,7 @@ RESTART:
 	 *[video_top, video_top+video_height-1]
 	 */
 	start = max(start, max(0, video_top));
-	end = min(end, min((s32)(vinfo->height - 1),
+	end = min(end, min((s32)(vinfo_height - 1),
 			   (s32)(video_top + video_height - 1)));
 
 	if (start >= end) {
@@ -2396,7 +2413,7 @@ RESTART:
 				next_frame_par->VPP_hd_start_lines_ = 0;
 			}
 			temp_width = min((video_left + video_width - 1),
-					 (vinfo->width - 1));
+					 (vinfo_width - 1));
 		} else {
 			if (start < video_left) {
 				temp = ((video_left - start) * ratio_x) >> 18;
@@ -2405,7 +2422,7 @@ RESTART:
 				next_frame_par->VPP_hd_start_lines_ = 0;
 			}
 			temp_width = min((video_left + video_width - 1),
-					 (vinfo->width - 1)) - video_left + 1;
+					 (vinfo_width - 1)) - video_left + 1;
 		}
 		temp = next_frame_par->VPP_hd_start_lines_ +
 			(temp_width * ratio_x >> 18);
@@ -2473,7 +2490,7 @@ RESTART:
 	 */
 	start = max(start, max(0, video_left));
 	end = min(end,
-		  min((s32)(vinfo->width - 1),
+		  min((s32)(vinfo_width - 1),
 		      (s32)(video_left + video_width - 1)));
 
 	if (start >= end) {
@@ -2524,9 +2541,9 @@ RESTART:
 	     !next_frame_par->hscale_skip_count) &&
 	    (!(vpp_flags & VPP_FLAG_VSCALE_DISABLE))) {
 		if (cur_dev->frm2fld_support && id == 0)
-			screen_h = vinfo->height;
+			screen_h = vinfo_height;
 		else
-			screen_h = vinfo->height >>
+			screen_h = vinfo_height >>
 			((vpp_flags & VPP_FLAG_INTERLACE_OUT) ? 1 : 0);
 		int skip = vpp_process_speed_check
 			(input->layer_id,
@@ -2941,7 +2958,39 @@ RESTART:
 			pre_scaler[input->layer_id].pre_hscaler_ntap_set;
 	}
 	next_frame_par->VPP_hf_ini_phase_ = vpp_zoom_center_x & 0xff;
-
+	if (video_lcevc.vd2_vd1_shared_vf) {
+		switch (lcevc_coef_demo) {
+		case 0:
+			int_hv_phase = 0x0;
+			int_hv_rpt_num = 0x1;
+			break;
+		case 1:
+			int_hv_phase = 0xc000;
+			int_hv_rpt_num = 2;
+			break;
+		default:
+			break;
+		}
+	}
+	if (int_hv_phase != 0xff) {
+		next_frame_par->VPP_hf_ini_phase_ = int_hv_phase;
+		next_frame_par->VPP_vf_init_phase = int_hv_phase;
+		next_frame_par->vpp_vf_init_phase_load = true;
+	} else {
+		next_frame_par->vpp_vf_init_phase_load = false;
+	}
+	if (int_hv_rpt_num != 0xff) {
+		next_frame_par->vpp_hf_rpt_num = int_hv_rpt_num;
+		next_frame_par->vpp_vf_rpt_num = int_hv_rpt_num;
+		next_frame_par->vpp_vf_rpt_num_load = true;
+	} else {
+		next_frame_par->vpp_vf_rpt_num_load = false;
+	}
+	if (super_debug)
+		pr_info("rpt_num_load:%d, rpt_num=%d,%d\n",
+			next_frame_par->vpp_vf_rpt_num_load,
+			next_frame_par->vpp_hf_rpt_num,
+			next_frame_par->vpp_vf_rpt_num);
 	/* overwrite filter setting for interlace output*/
 	/* TODO: not reasonable when 4K input to 480i output */
 	if ((vpp_flags & VPP_FLAG_INTERLACE_OUT) &&
@@ -2987,6 +3036,23 @@ RESTART:
 		filter->vpp_vert_filter = COEF_3D_FILTER;
 	}
 #endif
+
+	/* used lcevc stream coeff */
+	if (input->layer_id == 1 &&
+		video_lcevc.vd2_vd1_shared_vf &&
+		lcevc_coef_demo == 1) {
+		int i;
+
+		for (i = 0; i < 32; i++)
+			lcevc_table_coef[2 + i] = video_lcevc.vf_lcevc_coeff0;
+		lcevc_table_coef[2 + 32] = video_lcevc.vf_lcevc_coeff1;
+		filter->vpp_horz_coeff = lcevc_table_coef;
+		filter->vpp_vert_coeff = lcevc_table_coef;
+		if (load_pps_coef) {
+			horz_coef_print(input->layer_id, filter);
+			vert_coef_print(input->layer_id, filter);
+		}
+	}
 
 	if (force_pps_hcoef_update) {
 		if (hscaler_8tap_enable[input->layer_id])
@@ -5651,8 +5717,16 @@ RERTY:
 	next_frame_par->VPP_post_blend_vd_h_end_ = vinfo->width - 1;
 	next_frame_par->VPP_post_blend_h_size_ = vinfo->width;
 
-	dst_width = vinfo->width;
-	dst_height = vinfo->height;
+	if (input->layer_id == 1 &&
+		video_lcevc.preblend_en) {
+		/* vd2 is preblend, dst size equal vd1 input size */
+		dst_width = video_lcevc.vd1_src_width;
+		dst_height = video_lcevc.vd1_src_height;
+	} else {
+		dst_width = vinfo->width;
+		dst_height = vinfo->height;
+	}
+
 	if (local_input.pps_support) {
 		ret = vpp_set_filters_internal
 			(&local_input, src_width, src_height,

@@ -355,6 +355,7 @@ static void common_vf_unreg_provider(struct video_recv_s *ins)
 		time_before(jiffies, end_jiffies)) {
 		schedule();
 	}
+	switch_from_lcevc_to_nonlcevc(true);
 	if (debug_flag & DEBUG_FLAG_BASIC_INFO)
 		pr_info("%s %s: unreg cost %d ms\n",
 			__func__, ins->recv_name,
