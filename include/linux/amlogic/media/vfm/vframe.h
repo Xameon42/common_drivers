@@ -606,6 +606,11 @@ enum dec_fence_status_t {
 	DEC_FENCE_ERR = 2,
 };
 
+struct vf_lcevc_t {
+	s16 k[2][8];
+	u32 len;
+};
+
 #define VF_UD_MAX_SIZE 5120 /* 5K size */
 #define UD_MAGIC_CODE 0x55445020 /* UDP */
 #define is_ud_param_valid(ud) ((ud.magic_code) == UD_MAGIC_CODE)
@@ -799,6 +804,7 @@ struct vframe_s {
 	u32 codec_vfmt;
 	/*for di process NR and cts, storage dec vf*/
 	void *vf_ext;
+	void *enhance_vf;
 	u32 di_cm_cnt;
 	u32 dwHeadAddr;
 	u32 dwBodyAddr;
@@ -852,6 +858,7 @@ struct vframe_s {
 	/*decoder set screen mode, vpp using this 1st priority*/
 	enum dec_set_screen_mode_t dec_set_screen_mode;
 	enum dec_fence_status_t dec_fence_status;
+	struct vf_lcevc_t scaler_coeff;
 } /*vframe_t */;
 
 #define VC_FLAG_AI_SR		0x1

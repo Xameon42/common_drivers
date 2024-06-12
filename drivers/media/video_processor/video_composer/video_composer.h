@@ -253,6 +253,7 @@ struct composer_dev {
 	struct completion task_done;
 	struct dst_buf_t dst_buf[BUFFER_LEN];
 	struct vframe_s dma_vf[DMA_BUF_COUNT];
+	struct vframe_s enhance_vf[DMA_BUF_COUNT];
 	u32 drop_frame_count;
 	struct received_frames_t last_frames;
 	struct timeval start_time;
@@ -260,6 +261,7 @@ struct composer_dev {
 	u32 vinfo_h;
 	u32 composer_buf_w;
 	u32 composer_buf_h;
+	bool kfifo_need_initialize;
 	bool need_rotate;
 	bool is_sideband;
 	bool need_empty_ready;

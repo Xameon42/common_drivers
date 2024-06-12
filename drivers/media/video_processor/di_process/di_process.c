@@ -1174,6 +1174,10 @@ static bool check_need_do_di(struct di_process_dev *dev, struct vframe_s *vf)
 		need_do_di = false;
 	}
 
+	if (vf->type_ext & VIDTYPE_EXT_LCEVC) {
+		dp_print(dev->index, PRINT_OTHER, "lcevc type, no need do di.\n");
+		need_do_di = false;
+	}
 	return need_do_di;
 }
 

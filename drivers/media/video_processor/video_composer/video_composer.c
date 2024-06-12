@@ -45,6 +45,7 @@
 #include <linux/amlogic/media/vfm/amlogic_fbc_hook_v1.h>
 #include "../../gdc/inc/api/gdc_api.h"
 #include <linux/amlogic/media/media_proxy/AmlVideoUserdata.h>
+#include "../../common/uvm/meson_uvm_lcevc_processor.h"
 #ifdef CONFIG_AMLOGIC_MEDIA_DEINTERLACE
 #include <linux/amlogic/media/di/di_interface.h>
 #endif
@@ -1515,6 +1516,11 @@ void videocomposer_vf_put(struct vframe_s *vf, void *op_arg)
 		src_frame_index[0] = vd_prepare->src_frame->frame_index;
 		dst_frame_index[0] = vd_prepare->dst_frame.frame_index;
 		vd_prepare_data_q_put(dev, vd_prepare);
+		if (vf->type_ext & VIDTYPE_EXT_LCEVC) {
+			vc_print(dev->index, PRINT_OTHER, "put enhance vf:%px\n", vf->enhance_vf);
+			if (!kfifo_put(&dev->free_q, vf->enhance_vf))
+				vc_print(dev->index, PRINT_ERROR, "put free_q is full\n");
+		}
 	} else if (is_mosaic_22) {
 		vd_prepare = container_of(vf, struct vd_prepare_s, dst_frame);
 		for (i = 0; i < 4; i++) {
@@ -3425,10 +3431,118 @@ static void set_vf_hdr_info(struct composer_dev *dev, struct vframe_s *vf)
 	vf->prop.master_display_colour.content_light_level.max_content = 0;
 	vf->prop.master_display_colour.content_light_level.max_pic_average = 0;
 }
+static struct vframe_s *get_enhance_vf_pointer(struct composer_dev *dev,
+	struct vframe_s *vf)
+{
+	int i;
+	struct vframe_s *enhance_vf;
+
+	if (dev->kfifo_need_initialize) {
+		vc_print(dev->index, PRINT_QUEUE_STATUS, "init buffer free_q for lcevc\n");
+		dev->kfifo_need_initialize = false;
+		for (i = 0; i < DMA_BUF_COUNT; i++) {
+			if (!kfifo_put(&dev->free_q, &dev->enhance_vf[i]))
+				vc_print(dev->index, PRINT_ERROR, "init buffer free_q is full\n");
+		}
+	}
+
+	if (!kfifo_get(&dev->free_q, &enhance_vf)) {
+		vc_print(dev->index, PRINT_ERROR,
+			 "task: free_q is empty, can not provide enhance_vf\n");
+		enhance_vf = NULL;
+	} else {
+		vc_print(dev->index, PRINT_OTHER,
+			 "task: get_enhance_vf:%px\n", enhance_vf);
+		memcpy(enhance_vf, vf, sizeof(struct vframe_s));
+	}
+
+	return enhance_vf;
+}
+
+static struct  uvm_lcevc_frame_info *vc_get_lcevc_data(struct composer_dev *dev,
+						     struct file *file_vf)
+{
+	struct uvm_lcevc_hook_data *hook_data;
+	struct uvm_lcevc_frame_info *lcevc_data;
+	struct uvm_hook_mod *uhmod;
+
+	if (!file_vf) {
+		vc_print(dev->index, PRINT_ERROR, "vc get lcevc data fail\n");
+		return NULL;
+	}
+
+	uhmod = uvm_get_hook_mod((struct dma_buf *)(file_vf->private_data),
+				 PROCESS_LCEVC);
+	if (!uhmod) {
+		vc_print(dev->index, PRINT_OTHER, "%s:dma file file_private_data is NULL 1\n",
+			__func__);
+		return NULL;
+	}
+
+	if (IS_ERR_VALUE(uhmod) || !uhmod->arg) {
+		vc_print(dev->index, PRINT_ERROR, "%s: dma file file_private_data is NULL 2\n",
+			__func__);
+		return NULL;
+	}
+	hook_data = uhmod->arg;
+	lcevc_data = &hook_data->lcevc_vframe;
+	uvm_put_hook_mod((struct dma_buf *)(file_vf->private_data),
+			 PROCESS_LCEVC);
+
+	return lcevc_data;
+}
+
+static bool set_vf_lcevc_data(struct composer_dev *dev,
+	struct vframe_s *enhance_vf, struct uvm_lcevc_frame_info *lcevc_data)
+{
+	int len, i;
+
+	if (!enhance_vf || !lcevc_data)
+		return false;
+	enhance_vf->width = lcevc_data->width;
+	enhance_vf->height = lcevc_data->height;
+	enhance_vf->canvas0Addr = -1;
+	enhance_vf->canvas0_config[0].phy_addr = lcevc_data->y_physical_addr;
+	enhance_vf->canvas1Addr = -1;
+	enhance_vf->canvas0_config[1].phy_addr = lcevc_data->uv_physical_addr;
+
+	enhance_vf->canvas0_config[0].width = lcevc_data->stride;
+	enhance_vf->canvas0_config[0].height = enhance_vf->height;
+	enhance_vf->canvas0_config[1].width = lcevc_data->stride;
+	enhance_vf->canvas0_config[1].height = enhance_vf->canvas0_config[0].height;
+
+	enhance_vf->plane_num = 1;
+	enhance_vf->type = VIDTYPE_VIU_FIELD
+		| VIDTYPE_VIU_422
+		| VIDTYPE_VIU_SINGLE_PLANE;
+	enhance_vf->flag = VFRAME_FLAG_VIDEO_LINEAR
+		| VFRAME_FLAG_VIDEO_COMPOSER
+		| VFRAME_FLAG_VIDEO_COMPOSER_BYPASS;
+	enhance_vf->type_ext = VIDTYPE_EXT_LCEVC;
+	enhance_vf->bitdepth = BITDEPTH_Y10 | BITDEPTH_U10 | BITDEPTH_V10 | FULL_PACK_422_MODE;
+	memcpy(&enhance_vf->scaler_coeff, &lcevc_data->upsample_kernel, sizeof(struct vf_lcevc_t));
+	len = enhance_vf->scaler_coeff.len;
+	vc_print(dev->index, PRINT_INDEX_DISP, "task: coeff len:%d", len);
+	for (i = 0; i < len; i++) {
+		vc_print(dev->index, PRINT_INDEX_DISP,
+				"task: coeff[%d] %d %d\n",
+				i,
+				enhance_vf->scaler_coeff.k[0][i],
+				enhance_vf->scaler_coeff.k[1][i]);
+	}
+	vc_print(dev->index, PRINT_INDEX_DISP,
+		"task: enhance_vf width:%d, height:%d, enhance_vf yuv addr:%px\n",
+		enhance_vf->width,
+		enhance_vf->height,
+		(void *)enhance_vf->canvas0_config[0].phy_addr);
+
+	return true;
+}
 
 static void video_composer_task(struct composer_dev *dev)
 {
 	struct vframe_s *vf = NULL;
+	struct vframe_s *enhance_vf = NULL;
 	struct file *file_vf = NULL;
 	struct file *fence_file = NULL;
 	struct frame_info_t *frame_info = NULL;
@@ -3453,6 +3567,7 @@ static void video_composer_task(struct composer_dev *dev)
 	struct vd_prepare_s *vd_prepare = NULL;
 	size_t usage = 0;
 	bool do_mosaic_22 = false;
+	struct uvm_lcevc_frame_info *lcevc_data;
 	struct vf_aiface_t *aiface_info = NULL;
 	struct vf_aicolor_t *aicolor_info = NULL;
 
@@ -3887,6 +4002,25 @@ static void video_composer_task(struct composer_dev *dev)
 						nn_status == NN_DONE) {
 						vf->vc_private->aicolor_info = aicolor_info;
 						vc_private->flag |= VC_FLAG_AI_COLOR;
+					}
+				}
+
+				if (vf->type_ext & VIDTYPE_EXT_LCEVC) {
+					lcevc_data = vc_get_lcevc_data(dev, file_vf);
+					if (!lcevc_data)
+						vc_print(dev->index, PRINT_ERROR,
+							"task: lcevc data is NULL!\n");
+					else
+						enhance_vf = get_enhance_vf_pointer(dev, vf);
+					if (set_vf_lcevc_data(dev, enhance_vf, lcevc_data)) {
+						vf->enhance_vf = enhance_vf;
+						enhance_vf = vf;
+						vf = vf->enhance_vf;
+						vf->enhance_vf = enhance_vf;
+					} else {
+						vc_print(dev->index, PRINT_ERROR,
+							"task: set lcevc data failed\n");
+						vf->type_ext &= ~VIDTYPE_EXT_LCEVC;
 					}
 				}
 			}
@@ -4558,6 +4692,7 @@ static int video_composer_init(struct composer_dev *dev)
 	dev->select_path_done = false;
 	dev->vd_prepare_last = NULL;
 	dev->dev_choice = COMPOSER_WITH_UNINITIAL;
+	dev->kfifo_need_initialize = true;
 	init_completion(&dev->task_done);
 	for (i = 0; i < MAX_VD_LAYERS; i++) {
 		for (j = 0; j < MXA_LAYER_COUNT; j++)
