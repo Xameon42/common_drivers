@@ -4895,7 +4895,11 @@ int crg_otg_write_UDC(const char *udc_name)
 	if (name[len - 1] == '\n')
 		name[len - 1] = '\0';
 
-	mutex_lock(&gi->lock);
+	//mutex_lock(&gi->lock);
+	if (mutex_trylock(&gi->lock) == 0) {
+		kfree(name);
+		return -EBUSY;
+	}
 
 	if (!strlen(name) || strcmp(name, "none") == 0) {
 		if (!gi->composite.gadget_driver.udc_name)
