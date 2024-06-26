@@ -451,12 +451,13 @@ static int _dmx_write_from_user(struct dmx_demux *demux,
 
 	if (pdmx->input_len < (count + CACHE_ALIGNMENT_LEN)) {
 		//free previous memory
-		if (pdmx->input_mem)
+		if (pdmx->input_mem) {
 			dma_free_coherent(aml_get_device(),
 				pdmx->input_len,
 				(void *)pdmx->input_mem,
 				pdmx->input_mem_phys);
-
+			pdmx->input_len = 0;
+		}
 		//alloc new memory
 		pdmx->input_mem = (unsigned long)dma_alloc_coherent(aml_get_device(),
 				(count + CACHE_ALIGNMENT_LEN), (dma_addr_t *)&pdmx->input_mem_phys,
