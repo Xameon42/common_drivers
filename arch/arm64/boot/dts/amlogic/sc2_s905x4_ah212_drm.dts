@@ -1043,6 +1043,7 @@
 		filter_mode = <1>;
 
 		train_sample_count = <0xe>;
+		start_clk_enable = <0>;
 
 		status = "okay";
 	};
@@ -1101,7 +1102,7 @@
 		 */
 		level = <1>;
 
-		status = "okay";
+		status = "disabled";
 	};
 
 	loopbacka:loopback@0 {

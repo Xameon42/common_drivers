@@ -117,6 +117,7 @@ struct aml_pdm {
 	struct regulator *regulator_vcc3v3;
 	struct regulator *regulator_vcc5v;
 	bool earc_use_48k;
+	int start_clk_enable;
 };
 
 int pdm_get_train_sample_count_from_dts(void);

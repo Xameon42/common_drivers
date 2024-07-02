@@ -900,20 +900,21 @@ static int aml_pdm_dai_set_sysclk(struct snd_soc_dai *cpu_dai,
 	clk_set_rate(p_pdm->clk_pdm_dclk, pdm_dclkidx2rate(dclk_idx));
 	clk_set_rate(p_pdm->clk_pdm_sysclk, 133333351);
 
-	ret = clk_prepare_enable(p_pdm->clk_pdm_dclk);
-	if (ret) {
-		pr_err("Can't enable pcm clk_pdm_dclk clock: %d\n", ret);
-		return -EINVAL;
+	if (!p_pdm->start_clk_enable) {
+		ret = clk_prepare_enable(p_pdm->clk_pdm_dclk);
+		if (ret) {
+			pr_err("Can't enable pcm clk_pdm_dclk clock: %d\n", ret);
+			return -EINVAL;
+		}
+
+		ret = clk_prepare_enable(p_pdm->clk_pdm_sysclk);
+		if (ret) {
+			pr_err("Can't enable pcm clk_pdm_sysclk clock: %d\n", ret);
+			return -EINVAL;
+		}
+
+		p_pdm->clk_on = true;
 	}
-
-	ret = clk_prepare_enable(p_pdm->clk_pdm_sysclk);
-	if (ret) {
-		pr_err("Can't enable pcm clk_pdm_sysclk clock: %d\n", ret);
-		return -EINVAL;
-	}
-
-	p_pdm->clk_on = true;
-
 	pr_info("\n%s, pdm_sysclk:%lu pdm_dclk:%lu, dclk_srcpll:%lu\n",
 		__func__,
 		clk_get_rate(p_pdm->clk_pdm_sysclk),
@@ -973,7 +974,6 @@ void aml_pdm_dai_shutdown(struct snd_pcm_substream *substream,
 {
 	struct aml_pdm *p_pdm = snd_soc_dai_get_drvdata(cpu_dai);
 	int id = p_pdm->chipinfo->id;
-	p_pdm->clk_on = false;
 	p_pdm->rate = 0;
 
 	if (p_pdm->islowpower) {
@@ -981,12 +981,15 @@ void aml_pdm_dai_shutdown(struct snd_pcm_substream *substream,
 		vad_set_lowerpower_mode(false);
 	}
 
-	/* disable clock and gate */
-	clk_disable_unprepare(p_pdm->clk_pdm_dclk);
-	clk_disable_unprepare(p_pdm->clk_pdm_sysclk);
-	clk_disable_unprepare(p_pdm->sysclk_srcpll);
-	clk_disable_unprepare(p_pdm->dclk_srcpll);
-	clk_disable_unprepare(p_pdm->clk_gate);
+	if (!p_pdm->start_clk_enable) {
+		/* disable clock and gate */
+		p_pdm->clk_on = false;
+		clk_disable_unprepare(p_pdm->clk_pdm_dclk);
+		clk_disable_unprepare(p_pdm->clk_pdm_sysclk);
+		clk_disable_unprepare(p_pdm->sysclk_srcpll);
+		clk_disable_unprepare(p_pdm->dclk_srcpll);
+		clk_disable_unprepare(p_pdm->clk_gate);
+	}
 }
 
 static const struct snd_soc_dai_ops aml_pdm_dai_ops = {
@@ -1094,6 +1097,69 @@ static struct early_suspend pdm_platform_early_suspend_handler[] = {
 	},
 };
 #endif
+
+static int aml_start_pdm_clk(struct aml_pdm *p_pdm)
+{
+	char *clk_name = NULL;
+	unsigned int dclk_idx = 0;
+	int ret;
+
+	/* lowpower, force dclk to 768k */
+	dclk_idx = p_pdm->dclk_idx;
+	if (p_pdm->islowpower)
+		dclk_idx = 2;
+
+	/* enable clock gate */
+	ret = clk_prepare_enable(p_pdm->clk_gate);
+	if (ret) {
+		pr_err("Can't enable pcm clk_gate: %d\n", ret);
+		return -EINVAL;
+	}
+
+	clk_name = (char *)__clk_get_name(p_pdm->dclk_srcpll);
+	if (!strcmp(clk_name, "hifi_pll")) {
+		ret = clk_set_parent(p_pdm->clk_pdm_dclk, p_pdm->dclk_srcpll);
+		if (ret)
+			pr_err("can't set pdm parent clock\n");
+		if (p_pdm->syssrc_clk_rate)
+			clk_set_rate(p_pdm->dclk_srcpll, p_pdm->syssrc_clk_rate);
+		else
+			clk_set_rate(p_pdm->dclk_srcpll, 1806336 * 1000);
+	}
+
+	clk_set_rate(p_pdm->clk_pdm_dclk, pdm_dclkidx2rate(dclk_idx));
+	clk_set_rate(p_pdm->clk_pdm_sysclk, 133333351);
+
+	ret = clk_prepare_enable(p_pdm->clk_pdm_dclk);
+	if (ret) {
+		pr_err("Can't enable pcm clk_pdm_dclk clock: %d\n", ret);
+		return -EINVAL;
+	}
+
+	ret = clk_prepare_enable(p_pdm->clk_pdm_sysclk);
+	if (ret) {
+		pr_err("Can't enable pcm clk_pdm_sysclk clock: %d\n", ret);
+		return -EINVAL;
+	}
+
+	p_pdm->clk_on = true;
+
+	pr_err("\n%s, pdm_sysclk:%lu pdm_dclk:%lu, dclk_srcpll:%lu\n",
+		__func__,
+		clk_get_rate(p_pdm->clk_pdm_sysclk),
+		clk_get_rate(p_pdm->clk_pdm_dclk),
+		clk_get_rate(p_pdm->dclk_srcpll));
+
+	return 0;
+}
+
+static int aml_stop_pdm_clk(struct aml_pdm *p_pdm)
+{
+	p_pdm->clk_on = false;
+	clk_disable_unprepare(p_pdm->sysclk_srcpll);
+	clk_disable_unprepare(p_pdm->clk_pdm_dclk);
+	return 0;
+}
 
 static void aml_pdm_train_debug_work(struct work_struct *debug)
 {
@@ -1332,6 +1398,15 @@ static int aml_pdm_platform_probe(struct platform_device *pdev)
 	pr_debug("%s pdm dclk id  from dts:%d\n",
 		__func__, p_pdm->dclk_idx);
 
+	ret = of_property_read_u32(node, "start_clk_enable",
+			&p_pdm->start_clk_enable);
+	if (ret < 0) {
+		dev_err(&pdev->dev, "Can't retrieve start_clk_enable\n");
+		p_pdm->start_clk_enable = 0;
+	}
+	pr_err("%s start_clk_enable  from dts:%d\n",
+		__func__, p_pdm->start_clk_enable);
+
 	if (p_pdm->chipinfo->regulator) {
 		p_pdm->regulator_vcc3v3 = devm_regulator_get(dev, "pdm3v3");
 		ret = PTR_ERR_OR_ZERO(p_pdm->regulator_vcc3v3);
@@ -1380,6 +1455,11 @@ static int aml_pdm_platform_probe(struct platform_device *pdev)
 	aml_pdm_arb_config(p_pdm->actrl, p_pdm->chipinfo->use_arb);
 	INIT_WORK(&p_pdm->debug_work, aml_pdm_train_debug_work);
 
+	if (p_pdm->start_clk_enable) {
+		ret = aml_start_pdm_clk(p_pdm);
+		if (ret < 0)
+			goto err;
+	}
 	ret = devm_snd_soc_register_component(&pdev->dev,
 					      &aml_pdm_component[p_pdm->pdm_id],
 					      &aml_pdm_dai[p_pdm->pdm_id], 1);
@@ -1405,8 +1485,8 @@ err:
 static int aml_pdm_platform_remove(struct platform_device *pdev)
 {
 	struct aml_pdm *p_pdm = dev_get_drvdata(&pdev->dev);
-	clk_disable_unprepare(p_pdm->sysclk_srcpll);
-	clk_disable_unprepare(p_pdm->clk_pdm_dclk);
+	if (p_pdm->start_clk_enable)
+		aml_stop_pdm_clk(p_pdm);
 
 	if (!IS_ERR_OR_NULL(p_pdm->regulator_vcc5v))
 		regulator_disable(p_pdm->regulator_vcc5v);
