@@ -25,8 +25,8 @@ static char otg_mode_string[2] = "0";
 static int force_otg_mode(char *s)
 {
 	if (s)
-		sprintf(otg_mode_string, "%s", s);
-	if (strcmp(otg_mode_string, "0") == 0)
+		snprintf(otg_mode_string, 2, "%s", s);
+	if (strncmp(otg_mode_string, "0", 1) == 0)
 		force_device_mode = 0;
 	else
 		force_device_mode = 1;
