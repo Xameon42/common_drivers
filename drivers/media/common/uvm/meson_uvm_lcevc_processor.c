@@ -94,14 +94,10 @@ static int lcevc_ioctl_data_2_hook_data
 	}
 
 	phy_addr = phy_addr_from_dmabuff(dmabuf);
-	if (phy_addr == 0)
-		lcevc_print(LCEVC_LOG_ERROR, "phy_addr_from_dmafd failed, lcevc dma fd = %d",
-			ioctl_data->lcevc_fd);
-	else
-		lcevc_print(LCEVC_LOG_DEBUG,
-		"phy_addr_from_dmafd lcevc dma fd = %d, phy_addr = %llx",
-			ioctl_data->lcevc_fd, phy_addr);
 	dma_buf_put(dmabuf);
+
+	lcevc_print(LCEVC_LOG_DEBUG, "lcevc dma fd = %d, phy_addr = %llx",
+		ioctl_data->lcevc_fd, phy_addr);
 
 	hook_data->lcevc_vframe.frame_type = ioctl_data->residual_plane_info.packing;
 	hook_data->lcevc_vframe.width = ioctl_data->residual_plane_info.width;
@@ -111,10 +107,6 @@ static int lcevc_ioctl_data_2_hook_data
 	hook_data->lcevc_vframe.uv_physical_addr = 0;
 	memcpy(&hook_data->lcevc_vframe.upsample_kernel, &ioctl_data->upsample_kernel,
 		sizeof(struct uvm_lcevc_upsample_kernel));
-	lcevc_print(LCEVC_LOG_DEBUG,
-		"%s:lcevc_vframe width=%d, height=%d, stride=%d, y_physical_addr=%llx\n",
-		__func__, hook_data->lcevc_vframe.width, hook_data->lcevc_vframe.height,
-		hook_data->lcevc_vframe.stride, hook_data->lcevc_vframe.y_physical_addr);
 
 	return 0;
 }
@@ -134,7 +126,6 @@ int attach_lcevc_hook_mod_info(int shared_fd,
 	struct vframe_s *vf = NULL;
 	struct file_private_data *v4l_private_data = NULL;
 
-	lcevc_print(LCEVC_LOG_DEBUG, "%s:shared_fd=%d\n", __func__, shared_fd);
 	dmabuf = dma_buf_get(shared_fd);
 	if (IS_ERR_OR_NULL(dmabuf)) {
 		lcevc_print(LCEVC_LOG_ERROR,
@@ -146,6 +137,12 @@ int attach_lcevc_hook_mod_info(int shared_fd,
 	is_v4l_vf = is_valid_mod_type(dmabuf, VF_PROCESS_V4LVIDEO);
 	if (is_dec_vf) {
 		vf = dmabuf_get_vframe(dmabuf);
+		if (!vf) {
+			lcevc_print(LCEVC_LOG_ERROR,
+				"%s: vf is NULL\n", __func__);
+			dma_buf_put(dmabuf);
+			return -EINVAL;
+		}
 		dmabuf_put_vframe(dmabuf);
 	} else if (is_v4l_vf) {
 		v4l_uhmod = uvm_get_hook_mod(dmabuf, VF_PROCESS_V4LVIDEO);
@@ -160,21 +157,16 @@ int attach_lcevc_hook_mod_info(int shared_fd,
 			lcevc_print(LCEVC_LOG_ERROR, "invalid fd no uvm/v4lvideo\n");
 		else
 			vf = &v4l_private_data->vf;
-	} else {
-		lcevc_print(LCEVC_LOG_ERROR,
-			"%s:dmabuf is not dec vf, uvm.dmabuf=%px, shared_fd=%d\n",
-			__func__, dmabuf, shared_fd);
-		dma_buf_put(dmabuf);
-		return -EINVAL;
 	}
 
 	if (vf) {
-		vf->type_ext = VIDTYPE_EXT_LCEVC;
-		lcevc_print(LCEVC_LOG_DEBUG, "%s add VIDTYPE_EXT_LCEVC\n", __func__);
+		vf->type_ext |= VIDTYPE_EXT_LCEVC;
+		lcevc_print(LCEVC_LOG_DEBUG,
+			"%s add VIDTYPE_EXT_LCEVC for vf=%px, timestamp=%llu, y_addr=%lx\n",
+			__func__, vf, vf->timestamp, vf->canvas0_config[0].phy_addr);
 	} else {
 		lcevc_print(LCEVC_LOG_ERROR,
-			"%s:got vf from dmabuf failed, uvm.dmabuf=%px, shared_fd=%d\n",
-			__func__, dmabuf, shared_fd);
+			"%s: vf is NULL\n", __func__);
 		dma_buf_put(dmabuf);
 		return -EINVAL;
 	}
@@ -183,12 +175,9 @@ int attach_lcevc_hook_mod_info(int shared_fd,
 	uhmod = uvm_get_hook_mod(dmabuf, PROCESS_LCEVC);
 	if (IS_ERR_OR_NULL(uhmod)) {
 		lcevc_4_attach = kzalloc(sizeof(*lcevc_4_attach), GFP_KERNEL);
-		lcevc_print(LCEVC_LOG_DEBUG, "%s first attach: %p\n",
-			__func__, lcevc_4_attach);
 		if (!lcevc_4_attach) {
 			lcevc_print(LCEVC_LOG_ERROR,
-				"%s:first attach kzalloc lcevc_4_attach failed.\n",
-				__func__);
+				"%s: kzalloc failed\n", __func__);
 			dma_buf_put(dmabuf);
 			return -ENOMEM;
 		}
@@ -219,7 +208,6 @@ int lcevc_setinfo(void *arg, char *buf)
 	struct uvm_ioctl_lcevc_data *lcevc_info_input =  (struct uvm_ioctl_lcevc_data *)buf;
 	struct uvm_lcevc_hook_data *lcevc_4_save = (struct uvm_lcevc_hook_data *)arg;
 
-	lcevc_print(LCEVC_LOG_DEBUG, "%s arg:%p, buf:%p\n", __func__, arg, buf);
 	if (lcevc_info_input && lcevc_4_save) {
 		lcevc_ioctl_data_2_hook_data(lcevc_info_input, lcevc_4_save);
 		return 0;
@@ -230,8 +218,6 @@ int lcevc_setinfo(void *arg, char *buf)
 
 int lcevc_getinfo(void *arg, char *buf)
 {
-	lcevc_print(LCEVC_LOG_DEBUG, "%s arg:%px, buf:%px\n", __func__, arg, buf);
-
 	return 0;
 }
 
@@ -239,7 +225,6 @@ void lcevc_free_data(void *arg)
 {
 	struct uvm_lcevc_hook_data *hook_data = (struct uvm_lcevc_hook_data *)arg;
 
-	lcevc_print(LCEVC_LOG_DEBUG, "%s arg:%p\n", __func__, arg);
 	if (hook_data)
 		kfree((u8 *)arg);
 }
