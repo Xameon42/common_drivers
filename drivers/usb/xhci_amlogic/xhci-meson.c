@@ -4699,6 +4699,10 @@ int aml_xhci_alloc_dev(struct usb_hcd *hcd, struct usb_device *udev)
 	 * mass storage driver error handling.
 	 */
 	if (!aml_xhci_alloc_virt_device(xhci, slot_id, udev, GFP_NOIO)) {
+#if IS_ENABLED(CONFIG_AMLOGIC_COMMON_USB)
+		if (slot_id != 0)
+			udev->slot_id = slot_id;
+#endif
 		aml_xhci_warn(xhci, "Could not allocate xHCI USB device data structures\n");
 		goto disable_slot;
 	}
