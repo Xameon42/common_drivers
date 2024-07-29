@@ -1514,7 +1514,11 @@ static int hdmitx_set_dispmode(struct hdmitx_hw_common *tx_hw)
 		hdmitx21_venc_en(1, 1);
 	}
 
-	/* check the deep color phase */
+	/*
+	 * when in deep color, htotal is fractional value
+	 * here need check the phase is stable or not
+	 * otherwise it may cause display flash and abnormal issue
+	 */
 	{
 		enum hdmi_colorspace cs = para->cs;
 		enum hdmi_color_depth cd = para->cd;
@@ -1527,9 +1531,7 @@ static int hdmitx_set_dispmode(struct hdmitx_hw_common *tx_hw)
 			__func__, __LINE__, get_current_frl_rate(), h_total, cs, cd, h_unstable);
 		if (!h_unstable) {
 			while (loop--) {
-				hdmitx21_set_reg_bits(INTR2_SW_TPI_IVCTX, 0, 1, 1);
-				mdelay(1);
-				hdmitx21_poll_reg(INTR2_SW_TPI_IVCTX, 1 << 1, ~(1 << 1), HZ / 100);
+				hdmitx21_poll_reg(SYS_STAT_IVCTX, 1 << 0, ~(1 << 0), HZ / 100);
 				if (is_deep_phase_unstable(cs, cd)) {
 					/* reset pfifo */
 					hdmitx21_set_reg_bits(PWD_SRST_IVCTX, 1, 1, 1);
@@ -3421,6 +3423,7 @@ static int hdmitx_get_state(struct hdmitx_hw_common *tx_hw, u32 cmd,
 	return 0;
 }
 
+/* when phy suspend, need keep tmds clk and enable phy to digital */
 static void hdmi_phy_suspend(void)
 {
 	u32 phy_cntl0 = ANACTRL_HDMIPHY_CTRL0;
@@ -3453,6 +3456,7 @@ static void hdmi_phy_suspend(void)
 	 */
 	switch (hdev->tx_hw.chip_data->chip_type) {
 	case MESON_CPU_ID_S7:
+		hd21_write_reg(phy_cntl3, 0xB);
 		hd21_write_reg(phy_cntl5, 0x800);
 		break;
 	case MESON_CPU_ID_S7D:
