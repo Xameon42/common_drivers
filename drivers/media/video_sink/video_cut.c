@@ -341,6 +341,10 @@ static int enable_video_discontinue_report = 1;
 #ifdef CONFIG_AMLOGIC_MEDIA_VIDEOCAPTURE
 static struct amvideocap_req *capture_frame_req;
 #endif
+bool force_scaler_all;
+bool lcevc_en;
+u32 lcevc_ctrl;
+u32 lcevc_coef_demo = 1;
 
 /*********************************************************/
 /* #define DUR2PTS(x) ((x) - ((x) >> 4)) */
