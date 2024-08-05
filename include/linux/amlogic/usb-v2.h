@@ -33,6 +33,13 @@ struct u2p_aml_regs_v2 {
 	void __iomem	*u2p_r_v2[4];
 };
 
+struct u2p_aml_regs_m_v2 {
+	__le32 r0;
+	__le32 r1;
+	__le32 r2;
+	__le32 r3;
+};
+
 union u2p_r0_v2 {
 	/** raw register data */
 	u32 d32;

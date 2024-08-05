@@ -21,7 +21,7 @@
 #include <linux/notifier.h>
 #include <linux/amlogic/usbtype.h>
 //#include <linux/amlogic/power_ctrl.h>
-#include "../phy/phy-aml-new-usb-v2.h"
+#include "phy-aml-crg-drd.h"
 #include <linux/amlogic/aml_gpio_consumer.h>
 
 #define	phy_to_m31usb(x)	container_of((x), struct amlogic_usb_m31, phy)

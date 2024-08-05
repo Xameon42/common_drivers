@@ -10,6 +10,19 @@
 #include <linux/platform_device.h>
 #include <linux/workqueue.h>
 #include <linux/clk.h>
+#include <linux/amlogic/usb-v2.h>
+
+enum aml_usb_phy_mode {
+	AML_USB_PHY_MODE_INVALID,
+	AML_USB_PHY_MODE_USB_HOST,
+	AML_USB_PHY_MODE_USB_DEVICE,
+	AML_USB_PHY_MODE_USB_LS,
+	AML_USB_PHY_MODE_USB_FS,
+	AML_USB_PHY_MODE_USB_HS,
+	AML_USB_PHY_MODE_USB_HSP,
+	AML_USB_PHY_MODE_USB_SS,
+	AML_USB_PHY_MODE_USB_OTG,
+};
 
 #define USB_PHY_MAX_NUMBER  0x8
 
@@ -31,8 +44,10 @@ struct amlogic_usb_v2 {
 	void __iomem	*phy31_cfg_r5;
 	void __iomem	*usb2_phy_cfg;
 	void __iomem	*xhci_port_a_addr;
+	struct u2p_aml_regs_m_v2 __iomem *u2p_aml_regs[USB_PHY_MAX_NUMBER];
 	u32 pll_setting[8];
 	u32 pll_ver;
+	u32 ic_ver;
 	u32 pll_dis_thred_enhance;
 	int phy_cfg_state[4];
 	int phy_trim_initvalue[8];
@@ -43,6 +58,7 @@ struct amlogic_usb_v2 {
 	int vbus_power_pin_work_mask;
 	int otg;
 	u32 version;
+	int portspeed;
 	struct delayed_work	work;
 	struct delayed_work	id_gpio_work;
 	struct gpio_desc *usb_gpio_desc;
@@ -52,6 +68,7 @@ struct amlogic_usb_v2 {
 	int suspend_flag;
 	int phy_version;
 	u32 phy_reset_level_bit[USB_PHY_MAX_NUMBER];
+	u32 phy_reg_reset_level_bit[USB_PHY_MAX_NUMBER];
 	u32 usb_reset_bit;
 	u32 usb_comb_reset_bit;
 	bool pm_controller;

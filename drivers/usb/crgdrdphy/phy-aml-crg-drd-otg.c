@@ -21,7 +21,7 @@
 #include <linux/notifier.h>
 #include <linux/suspend.h>
 #include <linux/amlogic/usbtype.h>
-#include "../phy/phy-aml-new-usb-v2.h"
+#include "phy-aml-crg-drd.h"
 #include "../usb_main.h"
 
 #include <linux/amlogic/gki_module.h>

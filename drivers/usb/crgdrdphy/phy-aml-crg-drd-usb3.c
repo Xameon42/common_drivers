@@ -20,7 +20,7 @@
 #include <linux/workqueue.h>
 #include <linux/notifier.h>
 #include <linux/amlogic/usbtype.h>
-#include "../phy/phy-aml-new-usb-v2.h"
+#include "phy-aml-crg-drd.h"
 
 struct usb_aml_regs_v2 usb_crg_drd_aml_regs[2];
 

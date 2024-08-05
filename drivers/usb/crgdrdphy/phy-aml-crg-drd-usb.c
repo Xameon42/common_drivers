@@ -12,8 +12,9 @@
 #include <linux/of.h>
 #include <linux/of_address.h>
 #include <linux/amlogic/usb-v2.h>
-#include "../phy/phy-aml-new-usb-v2.h"
+#include "phy-aml-crg-drd.h"
 
+/* Reset usb controller. */
 int amlogic_crg_drd_usbphy_reset(struct amlogic_usb_v2 *phy)
 {
 	static int	init_count;
@@ -31,6 +32,28 @@ int amlogic_crg_drd_usbphy_reset(struct amlogic_usb_v2 *phy)
 }
 EXPORT_SYMBOL_GPL(amlogic_crg_drd_usbphy_reset);
 
+int amlogic_crg_drd_usbphy_usb_hold_reset(struct amlogic_usb_v2 *phy, bool on)
+{
+	u32 val = 0;
+	size_t mask = 0;
+
+	mask = (size_t)phy->reset_regs & 0xf;
+
+	val = readl((void __iomem		*)
+		((unsigned long)phy->reset_regs + (phy->reset_level - mask)));
+
+	if (on) {
+		writel(val | phy->usb_reset_bit, (void __iomem	*)
+			((unsigned long)phy->reset_regs + (phy->reset_level - mask)));
+	} else {
+		writel(val & ~phy->usb_reset_bit, (void __iomem	*)
+			((unsigned long)phy->reset_regs + (phy->reset_level - mask)));
+	}
+	return 0;
+}
+EXPORT_SYMBOL_GPL(amlogic_crg_drd_usbphy_usb_hold_reset);
+
+/* Reset phy hw state machine. */
 int amlogic_crg_drd_usbphy_reset_phycfg(struct amlogic_usb_v2 *phy, int cnt)
 {
 	u32 val, i = 0;
@@ -58,3 +81,75 @@ int amlogic_crg_drd_usbphy_reset_phycfg(struct amlogic_usb_v2 *phy, int cnt)
 	return 0;
 }
 EXPORT_SYMBOL_GPL(amlogic_crg_drd_usbphy_reset_phycfg);
+
+int amlogic_crg_drd_usbphy_hold_reset(struct amlogic_usb_v2 *phy, bool on)
+{
+	u32 val = 0, temp = 0;
+	size_t mask = 0;
+	int i = 0;
+
+	mask = (size_t)phy->reset_regs & 0xf;
+
+	for (i = 0; i < phy->portnum; i++)
+		temp = temp | (1 << phy->phy_reset_level_bit[i]);
+
+	val = readl((void __iomem		*)
+		((unsigned long)phy->reset_regs + (phy->reset_level - mask)));
+
+	if (on) {
+		writel(val | temp, (void __iomem	*)
+			((unsigned long)phy->reset_regs + (phy->reset_level - mask)));
+	} else {
+		writel(val & ~temp, (void __iomem	*)
+			((unsigned long)phy->reset_regs + (phy->reset_level - mask)));
+	}
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(amlogic_crg_drd_usbphy_hold_reset);
+
+int amlogic_crg_drd_usbphy_reg_hold_reset(struct amlogic_usb_v2 *phy, bool on)
+{
+	u32 val = 0, temp = 0;
+	size_t mask = 0;
+	int i = 0;
+
+	mask = (size_t)phy->reset_regs & 0xf;
+
+	for (i = 0; i < phy->portnum; i++) {
+		if (phy->phy_reg_reset_level_bit[i] != -1U)
+			temp = temp | (1 << phy->phy_reg_reset_level_bit[i]);
+	}
+
+	val = readl((void __iomem		*)
+		((unsigned long)phy->reset_regs + (phy->reset_level - mask)));
+
+	if (on) {
+		writel(val | temp, (void __iomem	*)
+			((unsigned long)phy->reset_regs + (phy->reset_level - mask)));
+	} else {
+		writel(val & ~temp, (void __iomem	*)
+			((unsigned long)phy->reset_regs + (phy->reset_level - mask)));
+	}
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(amlogic_crg_drd_usbphy_reg_hold_reset);
+
+/* Reset phy reg values. */
+int amlogic_crg_drd_usbphy_reg_reset(struct amlogic_usb_v2 *phy)
+{
+	int ret = 0;
+
+	ret = amlogic_crg_drd_usbphy_reg_hold_reset(phy, false);
+	if (ret)
+		goto done;
+	ret = amlogic_crg_drd_usbphy_reg_hold_reset(phy, true);
+	if (ret)
+		goto err;
+done:
+	return ret;
+err:
+	return ret;
+}
+EXPORT_SYMBOL_GPL(amlogic_crg_drd_usbphy_reg_reset);
