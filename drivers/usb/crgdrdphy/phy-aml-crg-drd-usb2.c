@@ -636,20 +636,19 @@ static int amlogic_crg_drd_usb2_phy_set_mode(struct amlogic_usb_v2 *phy, int por
 	switch (mode) {
 	case AML_USB_PHY_MODE_USB_HOST:
 		reg0.d32 = readl(&phy->u2p_aml_regs[port]->r0);
-		//dev_err(phy->dev, "%s %d 0x%x", __func__, __LINE__, reg0.d32);
 		if (phy->suspend_flag == 0) {
 			reg0.b.host_device = 1;
+			reg0.b.POR = 0;
 			reg0.b.IDPULLUP0 = 1;
 			reg0.b.DRVVBUS0 = 1;
 		}
 		writel(reg0.d32, &phy->u2p_aml_regs[port]->r0);
-		//dev_err(phy->dev, "%s %d 0x%x", __func__, __LINE__,
-		//	readl(&phy->u2p_aml_regs[port]->r0));
 		break;
 	case AML_USB_PHY_MODE_USB_DEVICE:
 		reg0.d32 = readl(&phy->u2p_aml_regs[port]->r0);
 		if (phy->suspend_flag == 0) {
 			reg0.b.host_device = 0;
+			reg0.b.POR = 0;
 			reg0.b.IDPULLUP0 = 1;
 			reg0.b.DRVVBUS0 = 1;
 		}
@@ -659,23 +658,23 @@ static int amlogic_crg_drd_usb2_phy_set_mode(struct amlogic_usb_v2 *phy, int por
 		/* Default HS. */
 		break;
 	case AML_USB_PHY_MODE_USB_HSP:
+		dev_dbg(phy->dev, "%s setmode %d.\n", __func__, mode);
 		switch (phy->ic_ver) {
 		case MESON_CPU_MAJOR_ID_T6D:
 #define USB2_SEL_STRENGTH ((u32)GENMASK(30, 29))
 #define USB2_SEL_STRENGTH_VAL(x) ((0x3 & (x)) << 29)
 			/* usbpll_reve[0]: configure analog and pll to 960m usb2T mode. */
 			val = readl(cfg + 0x44);
-			val &= BIT(10);
+			val |= BIT(10);
 			writel(val, cfg + 0x44);
 			usleep_range(20, 30);
-			/* Configure phy to 960M. */
-			val = readl(cfg + 0x5c);
-			val &= BIT(27);
-			writel(val, cfg + 0x5c);
 			/* Configure controller to 48M from SoC. */
 			usleep_range(20, 30);
 			val = readl(phy->regs + 0x84);
-			val &= BIT(1);
+			 /* Use SoC 48M ref_clk */
+			//val |= BIT(1);
+			/* Use phy PLL hs_clk. */
+			val |= BIT(0);
 			writel(val, phy->regs + 0x84);
 			break;
 		default:
@@ -815,10 +814,16 @@ static int amlogic_crg_drd_usb2_init_v1(struct usb_phy *x)
 	}
 
 	amlogic_crg_drd_usbphy_hold_reset(phy, false);
-	amlogic_crg_drd_usbphy_usb_hold_reset(phy, false);
+	usleep_range(49, 50);
 	amlogic_crg_drd_usbphy_reg_hold_reset(phy, true);
-
+	usleep_range(49, 50);
 	amlogic_crg_drd_usbphy_reg_reset(phy);
+	usleep_range(49, 50);
+
+	dev_dbg(phy->dev, "init r0~r2 0x%x 0x%x 0x%x.\n",
+			readl(&phy->u2p_aml_regs[0]->r0),
+			readl(&phy->u2p_aml_regs[0]->r1),
+			readl(&phy->u2p_aml_regs[0]->r2));
 
 	for (i = 0; i < phy->portnum; i++) {
 		amlogic_crg_drd_usb2_phy_set_mode(phy, i, AML_USB_PHY_MODE_USB_HOST);
@@ -826,6 +831,7 @@ static int amlogic_crg_drd_usb2_init_v1(struct usb_phy *x)
 			amlogic_crg_drd_usb2_phy_set_mode(phy, i, AML_USB_PHY_MODE_USB_HSP);
 		else
 			amlogic_crg_drd_usb2_phy_set_mode(phy, i, AML_USB_PHY_MODE_USB_HS);
+		amlogic_crg_drd_usb2_phy_set_mode(phy, i, AML_USB_PHY_MODE_USB_OTG);
 
 		amlogic_crg_drd_usb2_phy_cali(phy, i);
 		/* phy_cfg + 0xc is set in the amlogic_crg_drd_usb2_phy_cali_disc_squelch now. */
@@ -833,7 +839,7 @@ static int amlogic_crg_drd_usb2_init_v1(struct usb_phy *x)
 	}
 
 	amlogic_crg_drd_usbphy_hold_reset(phy, true);
-	amlogic_crg_drd_usbphy_usb_hold_reset(phy, true);
+	usleep_range(49, 50);
 
 	for (i = 0; i < phy->portnum; i++) {
 		ret = amlogic_crg_drd_usb2_phy_wait_ready(phy, i, 200);
@@ -841,13 +847,13 @@ static int amlogic_crg_drd_usb2_init_v1(struct usb_phy *x)
 			dev_err(phy->dev, " wait for ready timeout.\n");
 	}
 
-	//dev_err(phy->dev, "%s %d 0x%x", __func__, __LINE__,
-	//	readl(&phy->u2p_aml_regs[0]->r0));
-
-	usleep_range(200, 300);
-
 	for (i = 0; i < phy->portnum; i++)
 		phy->set_usb_pll(phy, phy->phy_cfg[i]);
+
+	dev_dbg(phy->dev, "end r0~r2 0x%x 0x%x 0x%x.\n",
+			readl(&phy->u2p_aml_regs[0]->r0),
+			readl(&phy->u2p_aml_regs[0]->r1),
+			readl(&phy->u2p_aml_regs[0]->r2));
 
 	if (phy->suspend_flag)
 		phy->suspend_flag = 0;
@@ -893,8 +899,16 @@ static int amlogic_crg_device_usb2_init_v1(struct amlogic_usb_v2 *phy)
 	}
 
 	amlogic_crg_drd_usbphy_hold_reset(phy, false);
-	amlogic_crg_drd_usbphy_usb_hold_reset(phy, false);
+	usleep_range(49, 50);
+	amlogic_crg_drd_usbphy_reg_hold_reset(phy, true);
+	usleep_range(49, 50);
 	amlogic_crg_drd_usbphy_reg_reset(phy);
+	usleep_range(49, 50);
+
+	dev_dbg(phy->dev, "init r0~r2 0x%x 0x%x 0x%x.\n",
+			readl(&phy->u2p_aml_regs[0]->r0),
+			readl(&phy->u2p_aml_regs[0]->r1),
+			readl(&phy->u2p_aml_regs[0]->r2));
 
 	for (i = 0; i < phy->portnum; i++) {
 		amlogic_crg_drd_usb2_phy_set_mode(phy, i, AML_USB_PHY_MODE_USB_DEVICE);
@@ -902,6 +916,7 @@ static int amlogic_crg_device_usb2_init_v1(struct amlogic_usb_v2 *phy)
 			amlogic_crg_drd_usb2_phy_set_mode(phy, i, AML_USB_PHY_MODE_USB_HSP);
 		else
 			amlogic_crg_drd_usb2_phy_set_mode(phy, i, AML_USB_PHY_MODE_USB_HS);
+		amlogic_crg_drd_usb2_phy_set_mode(phy, i, AML_USB_PHY_MODE_USB_OTG);
 
 		amlogic_crg_drd_usb2_phy_cali(phy, i);
 		/* phy_cfg + 0xc is set in the amlogic_crg_drd_usb2_phy_cali_disc_squelch now. */
@@ -909,7 +924,7 @@ static int amlogic_crg_device_usb2_init_v1(struct amlogic_usb_v2 *phy)
 	}
 
 	amlogic_crg_drd_usbphy_hold_reset(phy, true);
-	amlogic_crg_drd_usbphy_usb_hold_reset(phy, true);
+	usleep_range(49, 50);
 
 	for (i = 0; i < phy->portnum; i++) {
 		ret = amlogic_crg_drd_usb2_phy_wait_ready(phy, i, 200);
@@ -919,6 +934,11 @@ static int amlogic_crg_device_usb2_init_v1(struct amlogic_usb_v2 *phy)
 
 	for (i = 0; i < phy->portnum; i++)
 		phy->set_usb_pll(phy, phy->phy_cfg[i]);
+
+	dev_dbg(phy->dev, "end r0~r2 0x%x 0x%x 0x%x.\n",
+			readl(&phy->u2p_aml_regs[0]->r0),
+			readl(&phy->u2p_aml_regs[0]->r1),
+			readl(&phy->u2p_aml_regs[0]->r2));
 
 	if (phy->suspend_flag)
 		phy->suspend_flag = 0;

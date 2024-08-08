@@ -135,6 +135,7 @@ static void amlogic_crg_otg_work(struct work_struct *work)
 	unsigned long reg_addr = ((unsigned long)phy->usb2_phy_cfg);
 	unsigned long phy3_addr = ((unsigned long)phy->phy3_cfg);
 	int ret;
+	bool curr;
 
 	if (phy->mode_work_flag == 1) {
 		cancel_delayed_work_sync(&phy->set_mode_work);
@@ -142,6 +143,7 @@ static void amlogic_crg_otg_work(struct work_struct *work)
 	}
 	mutex_lock(phy->otg_mutex);
 	reg2.d32 = readl((void __iomem *)(reg_addr + 8));
+	curr = reg2.b.iddig_curr;
 	if (reg2.b.iddig_curr == 0) {
 		crg_gadget_exit();
 		amlogic_m31_set_vbus_power(phy, 1);
@@ -158,8 +160,21 @@ static void amlogic_crg_otg_work(struct work_struct *work)
 				UDC_exist_flag = 1;
 		}
 	}
+
+	reg2.d32 = readl(phy->usb2_phy_cfg + 8);
 	reg2.b.usb_iddig_irq = 0;
-	writel(reg2.d32, (void __iomem *)(reg_addr + 8));
+	/* PHY has reg val reset feature may reset otg related bits
+	 * to default. Restore reg bits we concern.
+	 */
+	reg2.b.iddig_curr = curr;
+	writel(reg2.d32, phy->usb2_phy_cfg + 8);
+	amlogic_crg_otg_init(phy);
+
+	dev_dbg(phy->dev, "otg_work r0, r1, r2: 0x%x 0x%x 0x%x.\n",
+			readl(phy->usb2_phy_cfg),
+			readl(phy->usb2_phy_cfg + 4),
+			readl(phy->usb2_phy_cfg + 8));
+
 	mutex_unlock(phy->otg_mutex);
 }
 
