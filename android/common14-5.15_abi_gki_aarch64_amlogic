@@ -10,3 +10,5 @@
 # amlogic-snd-codec-tas5805.ko
   devm_gpio_free
 
+# amlogic-usb.ko
+  devm_clk_bulk_get

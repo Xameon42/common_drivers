@@ -25,10 +25,12 @@ enum aml_usb_phy_mode {
 };
 
 #define USB_PHY_MAX_NUMBER  0x8
+#define AML_USB_PHY_MAX_CLK_NUMBER  0x3
 
 struct amlogic_usb_v2 {
 	struct usb_phy		phy;
 	struct device		*dev;
+	const void			*pdata;
 	void __iomem	*regs;
 	void __iomem	*reset_regs;
 	void __iomem	*phy_cfg[4];
@@ -74,6 +76,9 @@ struct amlogic_usb_v2 {
 	bool pm_controller;
 	u32 otg_phy_index;
 	u32 reset_level;
+	struct clk_bulk_data clks[AML_USB_PHY_MAX_CLK_NUMBER];
+	int clk_num;
+	u32	clk_mux;
 	struct clk		*clk;
 	struct clk		*usb_clk;
 	struct clk		*gate0_clk;
