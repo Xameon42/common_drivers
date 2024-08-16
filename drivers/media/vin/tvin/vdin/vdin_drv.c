@@ -1940,6 +1940,7 @@ int start_tvin_service(int no, struct vdin_parm_s  *para)
 		return -1;
 	}
 
+#ifdef VDIN_ENALBE_NOTIFY_SECURITY
 #ifdef CONFIG_AMLOGIC_MEDIA_SECURITY
 	/* config secure_en by loopback port */
 	switch (devp->parm.port) {
@@ -1978,6 +1979,7 @@ int start_tvin_service(int no, struct vdin_parm_s  *para)
 		devp->secure_en = 0;
 		break;
 	}
+#endif
 #endif
 	ret = vdin_start_dec(devp);
 	if (ret) {
