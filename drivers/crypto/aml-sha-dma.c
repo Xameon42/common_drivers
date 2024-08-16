@@ -227,8 +227,7 @@ static int aml_sha_xmit_dma(struct aml_sha_dev *dd,
 	u32 status = 0;
 	int err = 0;
 #endif
-	struct dma_dsc *dsc = descriptor;
-	struct dma_dsc_64 *dsc_64 = descriptor;
+	struct dma_dsc_64 dsc;
 
 	dbgp(1, "xmit_dma:ctx:%p,digcnt:0x%llx 0x%llx,nents: %u,final:%d\n",
 	     ctx, ctx->digcnt[1], ctx->digcnt[0], nents, final);
@@ -247,52 +246,30 @@ static int aml_sha_xmit_dma(struct aml_sha_dev *dd,
 			dd->hw_ctx_sz);
 		return -EINVAL;
 	}
+	for (i = 0; i < nents; i++) {
+		/* some fields are already filled, read it back and update dsc */
+		aml_dma_dsc_reader(descriptor, i, &dsc, dd->dma->dma_bus64, 0);
 
-	if (dd->dma->dma_bus64) {
-		for (i = 0; i < nents; i++) {
-			dsc_64[i].tgt_addr = (uintptr_t)ctx->hash_addr;
-			dsc_64[i].dsc_cfg.b.enc_sha_only = 1;
-			dsc_64[i].dsc_cfg.b.mode = mode;
-			dsc_64[i].dsc_cfg.b.begin =
-				(i == 0 && !(ctx->digcnt[0] || ctx->digcnt[1]) &&
-				 !(tctx->is_hmac));
-			dsc_64[i].dsc_cfg.b.end = final;
-			dsc_64[i].dsc_cfg.b.op_mode = OP_MODE_SHA;
-			dsc_64[i].dsc_cfg.b.eoc = (i == (nents - 1));
-			dsc_64[i].dsc_cfg.b.owner = 1;
-		}
-	} else {
-		for (i = 0; i < nents; i++) {
-			dsc[i].tgt_addr = (uintptr_t)ctx->hash_addr;
-			dsc[i].dsc_cfg.b.enc_sha_only = 1;
-			dsc[i].dsc_cfg.b.mode = mode;
-			dsc[i].dsc_cfg.b.begin =
-				(i == 0 && !(ctx->digcnt[0] || ctx->digcnt[1]) &&
-				 !(tctx->is_hmac));
-			dsc[i].dsc_cfg.b.end = final;
-			dsc[i].dsc_cfg.b.op_mode = OP_MODE_SHA;
-			dsc[i].dsc_cfg.b.eoc = (i == (nents - 1));
-			dsc[i].dsc_cfg.b.owner = 1;
-		}
+		dsc.tgt_addr = (uintptr_t)ctx->hash_addr;
+		dsc.dsc_cfg.b.enc_sha_only = 1;
+		dsc.dsc_cfg.b.mode = mode;
+		dsc.dsc_cfg.b.begin =
+		   (i == 0 && !(ctx->digcnt[0] || ctx->digcnt[1]) &&
+		   !(tctx->is_hmac));
+		dsc.dsc_cfg.b.end = final;
+		dsc.dsc_cfg.b.op_mode = OP_MODE_SHA;
+		dsc.dsc_cfg.b.eoc = (i == (nents - 1));
+		dsc.dsc_cfg.b.owner = 1;
+
+		aml_dma_dsc_writer(descriptor, i, &dsc, dd->dma->dma_bus64, 0);
+
+		length = dsc.dsc_cfg.b.length;
+		ctx->digcnt[0] += length;
+		if (ctx->digcnt[0] < length)
+			ctx->digcnt[1]++;
 	}
-
 	aml_dma_debug(descriptor, nents, __func__, dd->thread, dd->status, dd->dma->dma_bus64);
 	/* should be non-zero before next lines to disable clocks later */
-	if (dd->dma->dma_bus64) {
-		for (i = 0; i < nents; i++) {
-			length = dsc_64[i].dsc_cfg.b.length;
-			ctx->digcnt[0] += length;
-			if (ctx->digcnt[0] < length)
-				ctx->digcnt[1]++;
-		}
-	} else {
-		for (i = 0; i < nents; i++) {
-			length = dsc[i].dsc_cfg.b.length;
-			ctx->digcnt[0] += length;
-			if (ctx->digcnt[0] < length)
-				ctx->digcnt[1]++;
-		}
-	}
 	if (final)
 		ctx->flags |= SHA_FLAGS_FINAL; /* catch last interrupt */
 
@@ -344,8 +321,7 @@ static int aml_sha_xmit_dma_map(struct aml_sha_dev *dd,
 				struct aml_sha_reqctx *ctx,
 				size_t length, int final)
 {
-	struct dma_dsc *dsc = dd->descriptor;
-	struct dma_dsc_64 *dsc_64 = dd->descriptor;
+	struct dma_dsc_64 dsc;
 
 	ctx->dma_addr = dma_map_single(dd->parent, ctx->buffer,
 				       ctx->buflen, DMA_TO_DEVICE);
@@ -357,15 +333,10 @@ static int aml_sha_xmit_dma_map(struct aml_sha_dev *dd,
 	dma_sync_single_for_device(dd->parent, ctx->dma_addr,
 				   SHA_BUFFER_LEN, DMA_TO_DEVICE);
 
-	if (dd->dma->dma_bus64) {
-		dsc_64->src_addr = (uintptr_t)ctx->dma_addr;
-		dsc_64->dsc_cfg.d32 = 0;
-		dsc_64->dsc_cfg.b.length = length;
-	} else {
-		dsc->src_addr = (uintptr_t)ctx->dma_addr;
-		dsc->dsc_cfg.d32 = 0;
-		dsc->dsc_cfg.b.length = length;
-	}
+	dsc.src_addr = (uintptr_t)ctx->dma_addr;
+	dsc.dsc_cfg.d32 = 0;
+	dsc.dsc_cfg.b.length = length;
+	aml_dma_dsc_writer(dd->descriptor, 0, &dsc, dd->dma->dma_bus64, 0);
 
 	/* next call does not fail... so no unmap in the case of error */
 	return aml_sha_xmit_start(dd, req, dd->descriptor, 1, final);
@@ -432,8 +403,7 @@ static int aml_sha_update_dma_start(struct aml_sha_dev *dd,
 	struct aml_sha_reqctx *ctx = ahash_request_ctx(req);
 	unsigned int length = 0, final = 0, tail = 0;
 	struct scatterlist *sg;
-	struct dma_dsc *dsc = dd->descriptor;
-	struct dma_dsc_64 *dsc_64 = dd->descriptor;
+	struct dma_dsc_64 dsc;
 	struct device *dev = dd->dev;
 	int err = 0;
 
@@ -500,15 +470,13 @@ static int aml_sha_update_dma_start(struct aml_sha_dev *dd,
 		}
 
 		ctx->dma_addr = sg_dma_address(sg);
-		if (dd->dma->dma_bus64) {
-			dsc_64[ctx->fast_nents].src_addr = (uintptr_t)ctx->dma_addr;
-			dsc_64[ctx->fast_nents].dsc_cfg.d32 = 0;
-			dsc_64[ctx->fast_nents].dsc_cfg.b.length = length;
-		} else {
-			dsc[ctx->fast_nents].src_addr = (uintptr_t)ctx->dma_addr;
-			dsc[ctx->fast_nents].dsc_cfg.d32 = 0;
-			dsc[ctx->fast_nents].dsc_cfg.b.length = length;
-		}
+
+		dsc.src_addr = (uintptr_t)ctx->dma_addr;
+		dsc.tgt_addr = 0;
+		dsc.dsc_cfg.d32 = 0;
+		dsc.dsc_cfg.b.length = length;
+		aml_dma_dsc_writer(dd->descriptor, ctx->fast_nents,
+				   &dsc, dd->dma->dma_bus64, 0);
 
 		sg = sg_next(sg);
 		ctx->fast_nents++;
@@ -605,8 +573,7 @@ static int aml_sha_finish_hmac(struct ahash_request *req)
 	struct aml_sha_ctx *tctx = crypto_tfm_ctx(req->base.tfm);
 	struct aml_sha_reqctx *ctx = ahash_request_ctx(req);
 	struct aml_sha_dev *dd = ctx->dd;
-	struct dma_dsc *dsc = dd->descriptor;
-	struct dma_dsc_64 *dsc_64 = dd->descriptor;
+	struct dma_dsc_64 dsc;
 	dma_addr_t hmac_hw_ctx = 0;
 	u8 *hw_ctx = 0;
 	u32 mode;
@@ -649,57 +616,34 @@ static int aml_sha_finish_hmac(struct ahash_request *req)
 		ds = SHA224_DIGEST_SIZE;
 	else if (ctx->flags & SHA_FLAGS_SHA256)
 		ds = SHA256_DIGEST_SIZE;
-	if (dd->dma->dma_bus64) {
-		/* opad */
-		dsc_64[0].src_addr = (uintptr_t)dma_key;
-		dsc_64[0].tgt_addr = 0;
-		dsc_64[0].dsc_cfg.d32 = 0;
-		dsc_64[0].dsc_cfg.b.length = tctx->keylen;
-		dsc_64[0].dsc_cfg.b.mode = mode;
-		dsc_64[0].dsc_cfg.b.enc_sha_only = 1;
-		dsc_64[0].dsc_cfg.b.op_mode = OP_MODE_HMAC_O;
-		dsc_64[0].dsc_cfg.b.begin = 1;
-		dsc_64[0].dsc_cfg.b.end = 0;
-		dsc_64[0].dsc_cfg.b.eoc = 0;
-		dsc_64[0].dsc_cfg.b.owner = 1;
 
-		/* 2nd stage hash */
-		dsc_64[1].src_addr = (uintptr_t)hmac_hw_ctx;
-		dsc_64[1].tgt_addr = (uintptr_t)hmac_hw_ctx;
-		dsc_64[1].dsc_cfg.d32 = 0;
-		dsc_64[1].dsc_cfg.b.length = ds;
-		dsc_64[1].dsc_cfg.b.mode = mode;
-		dsc_64[1].dsc_cfg.b.enc_sha_only = 1;
-		dsc_64[1].dsc_cfg.b.begin = 0;
-		dsc_64[1].dsc_cfg.b.end = 1;
-		dsc_64[1].dsc_cfg.b.eoc = 1;
-		dsc_64[1].dsc_cfg.b.owner = 1;
-	} else {
-		/* opad */
-		dsc[0].src_addr = (uintptr_t)dma_key;
-		dsc[0].tgt_addr = 0;
-		dsc[0].dsc_cfg.d32 = 0;
-		dsc[0].dsc_cfg.b.length = tctx->keylen;
-		dsc[0].dsc_cfg.b.mode = mode;
-		dsc[0].dsc_cfg.b.enc_sha_only = 1;
-		dsc[0].dsc_cfg.b.op_mode = OP_MODE_HMAC_O;
-		dsc[0].dsc_cfg.b.begin = 1;
-		dsc[0].dsc_cfg.b.end = 0;
-		dsc[0].dsc_cfg.b.eoc = 0;
-		dsc[0].dsc_cfg.b.owner = 1;
+	/* opad */
+	dsc.src_addr = (uintptr_t)dma_key;
+	dsc.tgt_addr = 0;
+	dsc.dsc_cfg.d32 = 0;
+	dsc.dsc_cfg.b.length = tctx->keylen;
+	dsc.dsc_cfg.b.mode = mode;
+	dsc.dsc_cfg.b.enc_sha_only = 1;
+	dsc.dsc_cfg.b.op_mode = OP_MODE_HMAC_O;
+	dsc.dsc_cfg.b.begin = 1;
+	dsc.dsc_cfg.b.end = 0;
+	dsc.dsc_cfg.b.eoc = 0;
+	dsc.dsc_cfg.b.owner = 1;
+	aml_dma_dsc_writer(dd->descriptor, 0, &dsc, dd->dma->dma_bus64, 0);
 
-		/* 2nd stage hash */
-		dsc[1].src_addr = (uintptr_t)hmac_hw_ctx;
-		dsc[1].tgt_addr = (uintptr_t)hmac_hw_ctx;
-		dsc[1].dsc_cfg.d32 = 0;
-		dsc[1].dsc_cfg.b.length = ds;
-		dsc[1].dsc_cfg.b.mode = mode;
-		dsc[1].dsc_cfg.b.enc_sha_only = 1;
-		dsc[1].dsc_cfg.b.begin = 0;
-		dsc[1].dsc_cfg.b.end = 1;
-		dsc[1].dsc_cfg.b.eoc = 1;
-		dsc[1].dsc_cfg.b.owner = 1;
-	}
+	/* 2nd stage hash */
+	dsc.src_addr = (uintptr_t)hmac_hw_ctx;
+	dsc.tgt_addr = (uintptr_t)hmac_hw_ctx;
+	dsc.dsc_cfg.d32 = 0;
+	dsc.dsc_cfg.b.length = ds;
+	dsc.dsc_cfg.b.mode = mode;
+	dsc.dsc_cfg.b.enc_sha_only = 1;
+	dsc.dsc_cfg.b.begin = 0;
+	dsc.dsc_cfg.b.end = 1;
+	dsc.dsc_cfg.b.eoc = 1;
+	dsc.dsc_cfg.b.owner = 1;
+	aml_dma_dsc_writer(dd->descriptor, 1, &dsc, dd->dma->dma_bus64, 0);
+
 	aml_dma_debug(dd->descriptor, 2, __func__, dd->thread, dd->status, dd->dma->dma_bus64);
 #if DMA_IRQ_MODE
 	aml_write_crypto_reg(dd->dma, dd->thread,
@@ -733,26 +677,18 @@ static void aml_sha_clean_key(struct ahash_request *req)
 {
 	struct aml_sha_ctx *tctx = crypto_tfm_ctx(req->base.tfm);
 	struct aml_sha_dev *dd = tctx->dd;
-	struct dma_dsc *dsc = 0;
-	struct dma_dsc_64 *dsc_64 = 0;
+	void *descriptor = NULL;
+	struct dma_dsc_64 dsc;
 	dma_addr_t dma_key = 0;
 	dma_addr_t dma_descript_tab = 0;
 	u8 *key = 0;
 	size_t dsc_sz = 0;
+	dsc_sz = aml_dma_get_dsc_sz(dd->dma->dma_bus64, 0);
 
-	if (dd->dma->dma_bus64) {
-		dsc_sz = sizeof(struct dma_dsc_64);
-		dsc_64 = dmam_alloc_coherent(dd->parent, dsc_sz,
-				&dma_descript_tab, GFP_ATOMIC | GFP_DMA);
-		if (!dsc_64)
-			return;
-	} else {
-		dsc_sz = sizeof(struct dma_dsc);
-		dsc = dmam_alloc_coherent(dd->parent, dsc_sz,
-				&dma_descript_tab, GFP_ATOMIC | GFP_DMA);
-		if (!dsc)
-			return;
-	}
+	descriptor = dmam_alloc_coherent(dd->parent, dsc_sz,
+			&dma_descript_tab, GFP_ATOMIC | GFP_DMA);
+	if (!descriptor)
+		return;
 
 	key = dmam_alloc_coherent(dd->parent, tctx->keylen,
 			&dma_key, GFP_ATOMIC | GFP_DMA);
@@ -762,27 +698,17 @@ static void aml_sha_clean_key(struct ahash_request *req)
 
 	memset(key, 0, tctx->keylen);
 
-	if (dd->dma->dma_bus64) {
-		dsc_64[0].src_addr = (u64)dma_key;
-		dsc_64[0].tgt_addr = 0;
-		dsc_64[0].dsc_cfg.d32 = 0;
-		dsc_64[0].dsc_cfg.b.length = tctx->keylen;
-		dsc_64[0].dsc_cfg.b.mode = MODE_KEY;
-		dsc_64[0].dsc_cfg.b.eoc = 1;
-		dsc_64[0].dsc_cfg.b.owner = 1;
-		aml_dma_debug((void *)dsc_64, 1, __func__, dd->thread,
-				dd->status, dd->dma->dma_bus64);
-	} else {
-		dsc[0].src_addr = (u32)dma_key;
-		dsc[0].tgt_addr = 0;
-		dsc[0].dsc_cfg.d32 = 0;
-		dsc[0].dsc_cfg.b.length = tctx->keylen;
-		dsc[0].dsc_cfg.b.mode = MODE_KEY;
-		dsc[0].dsc_cfg.b.eoc = 1;
-		dsc[0].dsc_cfg.b.owner = 1;
-		aml_dma_debug((void *)dsc, 1, __func__, dd->thread,
-				dd->status, dd->dma->dma_bus64);
-	}
+	dsc.src_addr = (u64)dma_key;
+	dsc.tgt_addr = 0;
+	dsc.dsc_cfg.d32 = 0;
+	dsc.dsc_cfg.b.length = tctx->keylen;
+	dsc.dsc_cfg.b.mode = MODE_KEY;
+	dsc.dsc_cfg.b.eoc = 1;
+	dsc.dsc_cfg.b.owner = 1;
+	aml_dma_dsc_writer(descriptor, 0, &dsc, dd->dma->dma_bus64, 0);
+
+	aml_dma_debug(descriptor, 1, __func__, dd->thread,
+			dd->status, dd->dma->dma_bus64);
 
 	aml_write_crypto_reg(dd->dma, dd->thread,
 			(uintptr_t)dma_descript_tab | 2);
@@ -792,12 +718,9 @@ static void aml_sha_clean_key(struct ahash_request *req)
 out:
 	if (key)
 		dmam_free_coherent(dd->parent, tctx->keylen, key, dma_key);
-	if (dsc)
+	if (descriptor)
 		dmam_free_coherent(dd->parent, dsc_sz,
-				   dsc, dma_descript_tab);
-	if (dsc_64)
-		dmam_free_coherent(dd->parent, dsc_sz,
-				   dsc_64, dma_descript_tab);
+				   descriptor, dma_descript_tab);
 }
 
 static int aml_sha_finish(struct ahash_request *req)
@@ -846,8 +769,8 @@ void aml_sha_finish_req(struct ahash_request *req, int err)
 static int aml_sha_hw_init(struct aml_sha_dev *dd)
 {
 	if (!(dd->flags & SHA_FLAGS_INIT)) {
-		size_t dsc_sz = dd->dma->dma_bus64 ? sizeof(struct dma_dsc_64) :
-						     sizeof(struct dma_dsc);
+		size_t dsc_sz = aml_dma_get_dsc_sz(dd->dma->dma_bus64, 0);
+
 		dd->descriptor =
 			dmam_alloc_coherent(dd->parent,
 					MAX_NUM_TABLES * dsc_sz,
@@ -871,8 +794,7 @@ static int aml_sha_state_restore(struct ahash_request *req)
 	struct aml_sha_ctx *tctx = crypto_tfm_ctx(req->base.tfm);
 	struct aml_sha_dev *dd = tctx->dd;
 	dma_addr_t dma_ctx;
-	struct dma_dsc *dsc = dd->descriptor;
-	struct dma_dsc_64 *dsc_64 = dd->descriptor;
+	struct dma_dsc_64 dsc;
 	s32 len = dd->hw_ctx_sz;
 	u32 status = 0;
 	int err = 0;
@@ -886,23 +808,16 @@ static int aml_sha_state_restore(struct ahash_request *req)
 		dev_err(dd->dev, "mapping dma_ctx failed\n");
 		return -ENOMEM;
 	}
-	if (dd->dma->dma_bus64) {
-		dsc_64[0].src_addr = (uintptr_t)dma_ctx;
-		dsc_64[0].tgt_addr = 0;
-		dsc_64[0].dsc_cfg.d32 = 0;
-		dsc_64[0].dsc_cfg.b.length = len;
-		dsc_64[0].dsc_cfg.b.mode = MODE_KEY;
-		dsc_64[0].dsc_cfg.b.eoc = 1;
-		dsc_64[0].dsc_cfg.b.owner = 1;
-	} else {
-		dsc[0].src_addr = (uintptr_t)dma_ctx;
-		dsc[0].tgt_addr = 0;
-		dsc[0].dsc_cfg.d32 = 0;
-		dsc[0].dsc_cfg.b.length = len;
-		dsc[0].dsc_cfg.b.mode = MODE_KEY;
-		dsc[0].dsc_cfg.b.eoc = 1;
-		dsc[0].dsc_cfg.b.owner = 1;
-	}
+
+	dsc.src_addr = (uintptr_t)dma_ctx;
+	dsc.tgt_addr = 0;
+	dsc.dsc_cfg.d32 = 0;
+	dsc.dsc_cfg.b.length = len;
+	dsc.dsc_cfg.b.mode = MODE_KEY;
+	dsc.dsc_cfg.b.eoc = 1;
+	dsc.dsc_cfg.b.owner = 1;
+	aml_dma_dsc_writer(dd->descriptor, 0, &dsc, dd->dma->dma_bus64, 0);
+
 #if DMA_IRQ_MODE
 	aml_write_crypto_reg(dd->dma, dd->thread,
 			     (uintptr_t)dd->dma_descript_tab | 2);
@@ -926,7 +841,6 @@ static int aml_sha_state_restore(struct ahash_request *req)
 	aml_dma_debug(dd->descriptor, 1, "end restore", dd->thread, dd->status,
 			 dd->dma->dma_bus64);
 #endif
-
 	dma_unmap_single(dd->parent, dma_ctx,
 			 dd->hw_ctx_sz, DMA_TO_DEVICE);
 	return err;
@@ -938,8 +852,7 @@ static int aml_hmac_install_key(struct aml_sha_dev *dd,
 	struct aml_sha_ctx *tctx = crypto_tfm_ctx(req->base.tfm);
 	struct aml_sha_reqctx *ctx = ahash_request_ctx(req);
 	struct crypto_ahash *tfm = crypto_ahash_reqtfm(req);
-	struct dma_dsc *dsc = 0;
-	struct dma_dsc_64 *dsc_64 = 0;
+	struct dma_dsc_64 dsc;
 	void *descriptor = 0;
 	size_t dsc_sz = 0;
 	u32 bs = 0;
@@ -973,24 +886,13 @@ static int aml_hmac_install_key(struct aml_sha_dev *dd,
 	else if (ctx->flags & SHA_FLAGS_SHA256)
 		mode = MODE_SHA256;
 
-	if (dd->dma->dma_bus64) {
-		dsc_sz = sizeof(struct dma_dsc_64);
-		dsc_64 = dmam_alloc_coherent(dd->parent, dsc_sz,
-				&dma_descript_tab, GFP_ATOMIC | GFP_DMA);
-		if (!dsc_64) {
-			dd->flags &= ~SHA_FLAGS_BUSY;
-			return -ENOMEM;
-		}
-		descriptor = dsc_64;
-	} else {
-		dsc_sz = sizeof(struct dma_dsc);
-		dsc = dmam_alloc_coherent(dd->parent, dsc_sz,
-				&dma_descript_tab, GFP_ATOMIC | GFP_DMA);
-		if (!dsc) {
-			dd->flags &= ~SHA_FLAGS_BUSY;
-			return -ENOMEM;
-		}
-		descriptor = dsc;
+	dsc_sz = aml_dma_get_dsc_sz(dd->dma->dma_bus64, 0);
+
+	descriptor = dmam_alloc_coherent(dd->parent, dsc_sz,
+			&dma_descript_tab, GFP_ATOMIC | GFP_DMA);
+	if (!descriptor) {
+		dd->flags &= ~SHA_FLAGS_BUSY;
+		return -ENOMEM;
 	}
 	key = dmam_alloc_coherent(dd->parent, bs,
 				  &dma_key, GFP_ATOMIC | GFP_DMA);
@@ -1011,33 +913,20 @@ static int aml_hmac_install_key(struct aml_sha_dev *dd,
 		goto out;
 	}
 
-	if (dd->dma->dma_bus64) {
-		/* start first round hash */
-		dsc_64[0].src_addr = (uintptr_t)dma_key;
-		dsc_64[0].tgt_addr = (uintptr_t)partial;
-		dsc_64[0].dsc_cfg.d32 = 0;
-		dsc_64[0].dsc_cfg.b.length = bs;
-		dsc_64[0].dsc_cfg.b.mode = mode;
-		dsc_64[0].dsc_cfg.b.enc_sha_only = 1;
-		dsc_64[0].dsc_cfg.b.op_mode = OP_MODE_SHA;
-		dsc_64[0].dsc_cfg.b.begin = 1;
-		dsc_64[0].dsc_cfg.b.end = 0;
-		dsc_64[0].dsc_cfg.b.eoc = 1;
-		dsc_64[0].dsc_cfg.b.owner = 1;
-	} else {
-		/* start first round hash */
-		dsc[0].src_addr = (uintptr_t)dma_key;
-		dsc[0].tgt_addr = (uintptr_t)partial;
-		dsc[0].dsc_cfg.d32 = 0;
-		dsc[0].dsc_cfg.b.length = bs;
-		dsc[0].dsc_cfg.b.mode = mode;
-		dsc[0].dsc_cfg.b.enc_sha_only = 1;
-		dsc[0].dsc_cfg.b.op_mode = OP_MODE_SHA;
-		dsc[0].dsc_cfg.b.begin = 1;
-		dsc[0].dsc_cfg.b.end = 0;
-		dsc[0].dsc_cfg.b.eoc = 1;
-		dsc[0].dsc_cfg.b.owner = 1;
-	}
+	/* start first round hash */
+	dsc.src_addr = (uintptr_t)dma_key;
+	dsc.tgt_addr = (uintptr_t)partial;
+	dsc.dsc_cfg.d32 = 0;
+	dsc.dsc_cfg.b.length = bs;
+	dsc.dsc_cfg.b.mode = mode;
+	dsc.dsc_cfg.b.enc_sha_only = 1;
+	dsc.dsc_cfg.b.op_mode = OP_MODE_SHA;
+	dsc.dsc_cfg.b.begin = 1;
+	dsc.dsc_cfg.b.end = 0;
+	dsc.dsc_cfg.b.eoc = 1;
+	dsc.dsc_cfg.b.owner = 1;
+	aml_dma_dsc_writer(descriptor, 0, &dsc, dd->dma->dma_bus64, 0);
+
 	aml_dma_debug(descriptor, 1, __func__, dd->thread, dd->status,
 			dd->dma->dma_bus64);
 #if DMA_IRQ_MODE
@@ -1061,19 +950,16 @@ static int aml_hmac_install_key(struct aml_sha_dev *dd,
 	aml_dma_debug(descriptor, 1, "end hmac key", dd->thread, dd->status,
 			dd->dma->dma_bus64);
 #endif
+	/* Save hw state in ctx */
 	memcpy(ctx->hw_ctx, hw_ctx, dd->hw_ctx_sz);
 out:
 	if (key)
 		dmam_free_coherent(dd->parent, bs, key, dma_key);
-	if (dsc)
-		dmam_free_coherent(dd->parent, sizeof(struct dma_dsc),
-				dsc, dma_descript_tab);
-	if (dsc_64)
-		dmam_free_coherent(dd->parent, sizeof(struct dma_dsc_64),
-				dsc_64, dma_descript_tab);
+	if (descriptor)
+		dmam_free_coherent(dd->parent, dsc_sz,
+				descriptor, dma_descript_tab);
 	if (hw_ctx)
 		dmam_free_coherent(dd->parent, dd->hw_ctx_sz, hw_ctx, partial);
-
 	return err;
 }
 
@@ -1133,6 +1019,7 @@ static int aml_sha_handle_queue(struct aml_sha_dev *dd,
 	     ctx, ctx->op, req->nbytes);
 
 	if (ctx->flags & SHA_FLAGS_NEED_KEY) {
+		/* hmac */
 		err = aml_hmac_install_key(dd, req);
 		if (err)
 			goto err1;
@@ -1806,19 +1693,15 @@ static int aml_sha_remove(struct platform_device *pdev)
 	list_del(&sha_dd->list);
 	spin_unlock(&aml_sha.lock);
 
-	dsc_sz = sha_dd->dma->dma_bus64 ? sizeof(struct dma_dsc_64) :
-					  sizeof(struct dma_dsc);
-	pr_err("%s:%d: dsc_sz: %zu\n", __func__, __LINE__, dsc_sz);
+	dsc_sz = aml_dma_get_dsc_sz(sha_dd->dma->dma_bus64, 0);
 
 	dmam_free_coherent(sha_dd->parent, MAX_NUM_TABLES * dsc_sz,
 			  sha_dd->descriptor, sha_dd->dma_descript_tab);
-	pr_err("%s:%d: dsc_sz: %zu\n", __func__, __LINE__, dsc_sz);
 
 	aml_sha_unregister_algs(sha_dd);
 #if DMA_IRQ_MODE
 	tasklet_kill(&sha_dd->done_task);
 #endif
-	pr_err("%s:%d: dsc_sz: %zu\n", __func__, __LINE__, dsc_sz);
 	pm_runtime_disable(sha_dd->parent);
 	return 0;
 }

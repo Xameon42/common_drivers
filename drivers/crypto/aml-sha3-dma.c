@@ -185,8 +185,7 @@ static int aml_sha3_xmit_dma(struct aml_sha3_dev *dd,
 			    u32 nents, int final)
 {
 	int i = 0;
-	struct dma_dsc *dsc = descriptor;
-	struct dma_dsc_64 *dsc_64 = descriptor;
+	struct dma_dsc_64 dsc;
 	u32 mode;
 	struct aml_sha3_reqctx *ctx = ahash_request_ctx(req);
 	size_t length = 0;
@@ -230,79 +229,52 @@ static int aml_sha3_xmit_dma(struct aml_sha3_dev *dd,
 	}
 
 	if (!nents) {
-		if (dd->dma->dma_bus64) {
-			dsc_64[0].src_addr = 0;
-			dsc_64[0].dsc_cfg.d32 = 0;
-			dsc_64[0].dsc_cfg.b.length = 0;
-			dsc_64[0].tgt_addr = (uintptr_t)ctx->hash_ctx_addr;
-			dsc_64[0].dsc_cfg.b.enc_sha_only = enc_sha_only;
-			dsc_64[0].dsc_cfg.b.mode = mode;
-			dsc_64[0].dsc_cfg.b.begin =
-				(i == 0 && !(ctx->digcnt[0] || ctx->digcnt[1]));
-			dsc_64[0].dsc_cfg.b.end = final;
-			dsc_64[0].dsc_cfg.b.op_mode = op_mode;
-			dsc_64[0].dsc_cfg.b.eoc = 1;
-			dsc_64[0].dsc_cfg.b.owner = 1;
-		} else {
-			dsc[0].src_addr = 0;
-			dsc[0].dsc_cfg.d32 = 0;
-			dsc[0].dsc_cfg.b.length = 0;
-			dsc[0].tgt_addr = (uintptr_t)ctx->hash_ctx_addr;
-			dsc[0].dsc_cfg.b.enc_sha_only = enc_sha_only;
-			dsc[0].dsc_cfg.b.mode = mode;
-			dsc[0].dsc_cfg.b.begin =
-				(i == 0 && !(ctx->digcnt[0] || ctx->digcnt[1]));
-			dsc[0].dsc_cfg.b.end = final;
-			dsc[0].dsc_cfg.b.op_mode = op_mode;
-			dsc[0].dsc_cfg.b.eoc = 1;
-			dsc[0].dsc_cfg.b.owner = 1;
-		}
+		dsc.src_addr = 0;
+		dsc.dsc_cfg.d32 = 0;
+		dsc.dsc_cfg.b.length = 0;
+		dsc.tgt_addr = (uintptr_t)ctx->hash_ctx_addr;
+		dsc.dsc_cfg.b.enc_sha_only = enc_sha_only;
+		dsc.dsc_cfg.b.mode = mode;
+		dsc.dsc_cfg.b.begin =
+			(i == 0 && !(ctx->digcnt[0] || ctx->digcnt[1]));
+		dsc.dsc_cfg.b.end = final;
+		dsc.dsc_cfg.b.op_mode = op_mode;
+		dsc.dsc_cfg.b.eoc = 1;
+		dsc.dsc_cfg.b.owner = 1;
+
+		aml_dma_dsc_writer(descriptor, 0, &dsc, dd->dma->dma_bus64, 0);
+
 		nents = 1;
 		aml_dma_debug(descriptor, nents, __func__, dd->thread, dd->status,
 				 dd->dma->dma_bus64);
 	} else {
-		if (dd->dma->dma_bus64) {
-			for (i = 0; i < nents; i++) {
-				dsc_64[i].dsc_cfg.b.enc_sha_only = enc_sha_only;
-				dsc_64[i].dsc_cfg.b.mode = mode;
-				dsc_64[i].dsc_cfg.b.begin =
-					(i == 0 && !(ctx->digcnt[0] || ctx->digcnt[1]));
-				dsc_64[i].dsc_cfg.b.end = (i == nents - 1) ? final : 0;
-				dsc_64[i].dsc_cfg.b.op_mode = op_mode;
-				dsc_64[i].dsc_cfg.b.eoc = (i == (nents - 1));
-				dsc_64[i].dsc_cfg.b.owner = 1;
+		for (i = 0; i < nents; i++) {
+			/* some fields are already filled, read it back and update dsc */
+			aml_dma_dsc_reader(descriptor, i, &dsc, dd->dma->dma_bus64, 0);
+
+			dsc.dsc_cfg.b.enc_sha_only = enc_sha_only;
+			dsc.dsc_cfg.b.mode = mode;
+			dsc.dsc_cfg.b.begin =
+				(i == 0 && !(ctx->digcnt[0] || ctx->digcnt[1]));
+			dsc.dsc_cfg.b.op_mode = op_mode;
+			dsc.dsc_cfg.b.owner = 1;
+			if (i == (nents - 1)) {
+				dsc.dsc_cfg.b.end = final;
+				dsc.dsc_cfg.b.eoc = 1;
+				dsc.tgt_addr = (uintptr_t)ctx->hash_ctx_addr;
+			} else {
+				dsc.dsc_cfg.b.end = 0;
+				dsc.dsc_cfg.b.eoc = 0;
 			}
-			dsc_64[i - 1].tgt_addr = (uintptr_t)ctx->hash_ctx_addr;
-		} else {
-			for (i = 0; i < nents; i++) {
-				dsc[i].dsc_cfg.b.enc_sha_only = enc_sha_only;
-				dsc[i].dsc_cfg.b.mode = mode;
-				dsc[i].dsc_cfg.b.begin =
-					(i == 0 && !(ctx->digcnt[0] || ctx->digcnt[1]));
-				dsc[i].dsc_cfg.b.end = (i == nents - 1) ? final : 0;
-				dsc[i].dsc_cfg.b.op_mode = op_mode;
-				dsc[i].dsc_cfg.b.eoc = (i == (nents - 1));
-				dsc[i].dsc_cfg.b.owner = 1;
-			}
-			dsc[i - 1].tgt_addr = (uintptr_t)ctx->hash_ctx_addr;
+			length = dsc.dsc_cfg.b.length;
+			ctx->digcnt[0] += length;
+			if (ctx->digcnt[0] < length)
+				ctx->digcnt[1]++;
+
+			aml_dma_dsc_writer(descriptor, i, &dsc, dd->dma->dma_bus64, 0);
 		}
 		aml_dma_debug(descriptor, nents, __func__, dd->thread, dd->status,
 			      dd->dma->dma_bus64);
-		if (dd->dma->dma_bus64) {
-			for (i = 0; i < nents; i++) {
-				length = dsc_64[i].dsc_cfg.b.length;
-				ctx->digcnt[0] += length;
-				if (ctx->digcnt[0] < length)
-					ctx->digcnt[1]++;
-			}
-		} else {
-			for (i = 0; i < nents; i++) {
-				length = dsc[i].dsc_cfg.b.length;
-				ctx->digcnt[0] += length;
-				if (ctx->digcnt[0] < length)
-					ctx->digcnt[1]++;
-			}
-		}
 	}
 
 	if (final)
@@ -351,8 +323,7 @@ static int aml_sha3_update_dma_start(struct aml_sha3_dev *dd,
 	struct aml_sha3_reqctx *ctx = ahash_request_ctx(req);
 	unsigned int length = 0, final = 0;
 	struct scatterlist *sg;
-	struct dma_dsc *dsc = dd->descriptor;
-	struct dma_dsc_64 *dsc_64 = dd->descriptor;
+	struct dma_dsc_64 dsc;
 	struct device *dev = dd->dev;
 	u32 nents = 0, nents_act;
 	u32 mapped = 0;
@@ -380,39 +351,22 @@ static int aml_sha3_update_dma_start(struct aml_sha3_dev *dd,
 			mapped = 0;
 		}
 		dbgp(1, "ctx:%px, mapped: %d\n", ctx, mapped);
+		for (i = 0; i < mapped; i++) {
+			dbgp(1, "ctx:%px,dig:0x%llx 0x%llx,tot:%u,sgl: %u\n",
+					ctx, ctx->digcnt[1], ctx->digcnt[0],
+					ctx->total, sg->length);
 
-		if (dd->dma->dma_bus64) {
-			for (i = 0; i < mapped; i++) {
-				dbgp(1, "ctx:%px,dig:0x%llx 0x%llx,tot:%u,sgl: %u\n",
-						ctx, ctx->digcnt[1], ctx->digcnt[0],
-						ctx->total, sg->length);
+			length = sg->length;
+			length = ctx->total > length ? length : ctx->total;
+			ctx->dma_addr = sg_dma_address(sg);
 
-				length = sg->length;
-				length = ctx->total > length ? length : ctx->total;
-				ctx->dma_addr = sg_dma_address(sg);
-				dsc_64[i].src_addr = (uintptr_t)ctx->dma_addr;
-				dsc_64[i].dsc_cfg.d32 = 0;
-				dsc_64[i].dsc_cfg.b.length = length;
+			dsc.src_addr = (uintptr_t)ctx->dma_addr;
+			dsc.dsc_cfg.d32 = 0;
+			dsc.dsc_cfg.b.length = length;
+			aml_dma_dsc_writer(dd->descriptor, i, &dsc, dd->dma->dma_bus64, 0);
 
-				sg = sg_next(sg);
-				ctx->total -= length;
-			}
-		} else {
-			for (i = 0; i < mapped; i++) {
-				dbgp(1, "ctx:%px,dig:0x%llx 0x%llx,tot:%u,sgl: %u\n",
-						ctx, ctx->digcnt[1], ctx->digcnt[0],
-						ctx->total, sg->length);
-
-				length = sg->length;
-				length = ctx->total > length ? length : ctx->total;
-				ctx->dma_addr = sg_dma_address(sg);
-				dsc[i].src_addr = (uintptr_t)ctx->dma_addr;
-				dsc[i].dsc_cfg.d32 = 0;
-				dsc[i].dsc_cfg.b.length = length;
-
-				sg = sg_next(sg);
-				ctx->total -= length;
-			}
+			sg = sg_next(sg);
+			ctx->total -= length;
 		}
 		final = (ctx->flags & SHA_FLAGS_FINAL) && !ctx->total;
 		ctx->fast_nents = mapped;
@@ -544,8 +498,8 @@ void aml_sha3_finish_req(struct ahash_request *req, int err)
 
 static int aml_sha3_hw_init(struct aml_sha3_dev *dd)
 {
-	u32 dma_dsc_sz = dd->dma->dma_bus64 ? sizeof(struct dma_dsc_64) :
-					      sizeof(struct dma_dsc);
+	u32 dma_dsc_sz = aml_dma_get_dsc_sz(dd->dma->dma_bus64, 0);
+
 	if (!(dd->flags & SHA_FLAGS_INIT)) {
 		dd->descriptor =
 			dmam_alloc_coherent(dd->parent,
@@ -568,8 +522,7 @@ static int aml_sha3_state_restore(struct ahash_request *req)
 	struct aml_sha3_reqctx *ctx = ahash_request_ctx(req);
 	struct aml_sha3_ctx *tctx = crypto_tfm_ctx(req->base.tfm);
 	struct aml_sha3_dev *dd = tctx->dd;
-	struct dma_dsc *dsc = dd->descriptor;
-	struct dma_dsc_64 *dsc_64 = dd->descriptor;
+	struct dma_dsc_64 dsc;
 	s32 len = SHA3_HW_CONTEXT_SIZE;
 	u32 status = 0;
 	int err = 0;
@@ -578,24 +531,14 @@ static int aml_sha3_state_restore(struct ahash_request *req)
 		return err;
 
 	memcpy(ctx->state, ctx->state_v, SHA3_CONTEXT_LEN);
-
-	if (dd->dma->dma_bus64) {
-		dsc_64[0].src_addr = (uintptr_t)ctx->hash_ctx_addr;
-		dsc_64[0].tgt_addr = 0;
-		dsc_64[0].dsc_cfg.d32 = 0;
-		dsc_64[0].dsc_cfg.b.length = len;
-		dsc_64[0].dsc_cfg.b.mode = MODE_KEY;
-		dsc_64[0].dsc_cfg.b.eoc = 1;
-		dsc_64[0].dsc_cfg.b.owner = 1;
-	} else {
-		dsc[0].src_addr = (uintptr_t)ctx->hash_ctx_addr;
-		dsc[0].tgt_addr = 0;
-		dsc[0].dsc_cfg.d32 = 0;
-		dsc[0].dsc_cfg.b.length = len;
-		dsc[0].dsc_cfg.b.mode = MODE_KEY;
-		dsc[0].dsc_cfg.b.eoc = 1;
-		dsc[0].dsc_cfg.b.owner = 1;
-	}
+	dsc.src_addr = (uintptr_t)ctx->hash_ctx_addr;
+	dsc.tgt_addr = 0;
+	dsc.dsc_cfg.d32 = 0;
+	dsc.dsc_cfg.b.length = len;
+	dsc.dsc_cfg.b.mode = MODE_KEY;
+	dsc.dsc_cfg.b.eoc = 1;
+	dsc.dsc_cfg.b.owner = 1;
+	aml_dma_dsc_writer(dd->descriptor, 0, &dsc, dd->dma->dma_bus64, 0);
 #if DMA_IRQ_MODE
 	aml_write_crypto_reg(dd->dma, dd->thread,
 			     (uintptr_t)dd->dma_descript_tab | 2);
@@ -952,8 +895,7 @@ static int aml_shake_squeeze_dma(struct ahash_request *req)
 	struct aml_sha3_reqctx *ctx = ahash_request_ctx(req);
 	struct aml_sha3_ctx *tctx = crypto_ahash_ctx(tfm);
 	struct aml_sha3_dev *dd = tctx->dd;
-	struct dma_dsc *dsc = dd->descriptor;
-	struct dma_dsc_64 *dsc_64 = dd->descriptor;
+	struct dma_dsc_64 dsc;
 	int err = 0;
 	u32 status = 0;
 	u8 enc_sha_only = 0;
@@ -974,31 +916,19 @@ static int aml_shake_squeeze_dma(struct ahash_request *req)
 		return -EINVAL;
 	}
 
-	if (dd->dma->dma_bus64) {
-		dsc_64[0].src_addr = 0;
-		dsc_64[0].tgt_addr = (uintptr_t)ctx->hash_ctx_addr;
-		dsc_64[0].dsc_cfg.d32 = 0;
-		dsc_64[0].dsc_cfg.b.length = digest_size;
-		dsc_64[0].dsc_cfg.b.enc_sha_only = enc_sha_only;
-		dsc_64[0].dsc_cfg.b.mode = mode;
-		dsc_64[0].dsc_cfg.b.begin = 0;
-		dsc_64[0].dsc_cfg.b.end = 1;
-		dsc_64[0].dsc_cfg.b.op_mode = op_mode;
-		dsc_64[0].dsc_cfg.b.eoc = 1;
-		dsc_64[0].dsc_cfg.b.owner = 1;
-	} else {
-		dsc[0].src_addr = 0;
-		dsc[0].tgt_addr = (uintptr_t)ctx->hash_ctx_addr;
-		dsc[0].dsc_cfg.d32 = 0;
-		dsc[0].dsc_cfg.b.length = digest_size;
-		dsc[0].dsc_cfg.b.enc_sha_only = enc_sha_only;
-		dsc[0].dsc_cfg.b.mode = mode;
-		dsc[0].dsc_cfg.b.begin = 0;
-		dsc[0].dsc_cfg.b.end = 1;
-		dsc[0].dsc_cfg.b.op_mode = op_mode;
-		dsc[0].dsc_cfg.b.eoc = 1;
-		dsc[0].dsc_cfg.b.owner = 1;
-	}
+	dsc.src_addr = 0;
+	dsc.tgt_addr = (uintptr_t)ctx->hash_ctx_addr;
+	dsc.dsc_cfg.d32 = 0;
+	dsc.dsc_cfg.b.length = digest_size;
+	dsc.dsc_cfg.b.enc_sha_only = enc_sha_only;
+	dsc.dsc_cfg.b.mode = mode;
+	dsc.dsc_cfg.b.begin = 0;
+	dsc.dsc_cfg.b.end = 1;
+	dsc.dsc_cfg.b.op_mode = op_mode;
+	dsc.dsc_cfg.b.eoc = 1;
+	dsc.dsc_cfg.b.owner = 1;
+	aml_dma_dsc_writer(dd->descriptor, 0, &dsc, dd->dma->dma_bus64, 0);
+
 	aml_dma_debug(dd->descriptor, 1, __func__, dd->thread, dd->status,
 			 dd->dma->dma_bus64);
 
@@ -1464,8 +1394,7 @@ sha_dd_err:
 static int aml_sha3_remove(struct platform_device *pdev)
 {
 	static struct aml_sha3_dev *sha_dd;
-	u32 dma_dsc_sz = sha_dd->dma->dma_bus64 ? sizeof(struct dma_dsc_64) :
-						  sizeof(struct dma_dsc);
+	u32 dma_dsc_sz = aml_dma_get_dsc_sz(sha_dd->dma->dma_bus64, 0);
 
 	sha_dd = platform_get_drvdata(pdev);
 	if (!sha_dd)

@@ -203,6 +203,7 @@ u32 aml_dma_do_hw_crypto(struct aml_dma_dev *dd,
 
 	spin_lock_irqsave(&dd->dma_lock, dd->irq_flags);
 	dd->dma_busy |= dma_flags;
+	aml_write_crypto_reg(dd, dd->status, 0xff);
 	aml_write_crypto_reg(dd, dd->thread, (uintptr_t)dsc_addr | 2);
 	if (polling) {
 		while (aml_read_crypto_reg(dd->status) == 0)
@@ -226,7 +227,6 @@ u32 aml_dma_do_hw_crypto(struct aml_dma_dev *dd,
 				}
 			}
 		}
-		aml_write_crypto_reg(dd, dd->status, 0xff);
 		dd->dma_busy &= ~dma_flags;
 	}
 	spin_unlock_irqrestore(&dd->dma_lock, dd->irq_flags);
@@ -271,6 +271,85 @@ noinline int aml_dma_call_smc(u64 func_id, u64 arg0, u64 arg1, u64 arg2)
 	return res.a0;
 }
 EXPORT_SYMBOL_GPL(aml_dma_call_smc);
+
+inline void aml_dma_dsc_writer(void *base, u32 i, void *dsc,
+			       u32 dma_bus64, u32 is_sg_dsc)
+{
+	if (dma_bus64) {
+		if (!is_sg_dsc) {
+			struct dma_dsc_64 *dsc_base = base;
+			struct dma_dsc_64 *dsc_to_write = dsc;
+
+			dsc_base[i] = *dsc_to_write;
+		} else {
+			struct dma_sg_dsc_64 *dsc_base = base;
+			struct dma_sg_dsc_64 *dsc_to_write = dsc;
+
+			dsc_base[i] = *dsc_to_write;
+		}
+	} else {
+		if (!is_sg_dsc) {
+			struct dma_dsc *dsc_base = base;
+			struct dma_dsc_64 *dsc_to_write = dsc;
+
+			dsc_base[i].dsc_cfg = dsc_to_write->dsc_cfg;
+			dsc_base[i].src_addr = dsc_to_write->src_addr;
+			dsc_base[i].tgt_addr = dsc_to_write->tgt_addr;
+		} else {
+			struct dma_sg_dsc *dsc_base = base;
+			struct dma_sg_dsc_64 *dsc_to_write = dsc;
+
+			dsc_base[i].dsc_cfg = dsc_to_write->dsc_cfg;
+			dsc_base[i].addr = dsc_to_write->addr;
+		}
+	}
+}
+EXPORT_SYMBOL_GPL(aml_dma_dsc_writer);
+
+inline void aml_dma_dsc_reader(void *base, u32 i, void *dsc,
+			       u32 dma_bus64, u32 is_sg_dsc)
+{
+	if (dma_bus64) {
+		if (!is_sg_dsc) {
+			struct dma_dsc_64 *dsc_base = base;
+			struct dma_dsc_64 *dsc_read = dsc;
+
+			*dsc_read = dsc_base[i];
+		} else {
+			struct dma_sg_dsc_64 *dsc_base = base;
+			struct dma_sg_dsc_64 *dsc_read = dsc;
+
+			*dsc_read = dsc_base[i];
+		}
+	} else {
+		if (!is_sg_dsc) {
+			struct dma_dsc *dsc_base = base;
+			struct dma_dsc_64 *dsc_read = dsc;
+
+			dsc_read->dsc_cfg = dsc_base[i].dsc_cfg;
+			dsc_read->src_addr = dsc_base[i].src_addr;
+			dsc_read->tgt_addr = dsc_base[i].tgt_addr;
+		} else {
+			struct dma_sg_dsc *dsc_base = base;
+			struct dma_sg_dsc_64 *dsc_read = dsc;
+
+			dsc_read->dsc_cfg = dsc_base[i].dsc_cfg;
+			dsc_read->addr = dsc_base[i].addr;
+		}
+	}
+}
+EXPORT_SYMBOL_GPL(aml_dma_dsc_reader);
+
+inline u32 aml_dma_get_dsc_sz(u32 dma_bus64, u32 is_sg_dsc)
+{
+	if (!is_sg_dsc)
+		return dma_bus64 ? sizeof(struct dma_dsc_64) :
+				   sizeof(struct dma_dsc);
+	else
+		return dma_bus64 ? sizeof(struct dma_sg_dsc_64) :
+				   sizeof(struct dma_sg_dsc);
+}
+EXPORT_SYMBOL_GPL(aml_dma_get_dsc_sz);
 
 #if AML_CRYPTO_DMA_DBG
 void dump_buf(const s8 *name, u8 *buf, const s32 length)

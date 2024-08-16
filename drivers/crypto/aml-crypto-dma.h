@@ -95,75 +95,55 @@ enum CRYPTO_ALGO_CAPABILITY {
 #define MODE_TDES_3K 0xf
 
 #define DMA_DSC_64_BIT_MODE (0)
+
+union dsc_common {
+	u32 d32;
+	struct {
+		unsigned length:17;
+		unsigned irq:1;
+		unsigned eoc:1;
+		unsigned loop:1;
+		unsigned mode:4;
+		unsigned begin:1;
+		unsigned end:1;
+		unsigned op_mode:2;
+		unsigned enc_sha_only:1;
+		unsigned block:1;
+		unsigned link_error:1;
+		unsigned owner:1;
+	} b;
+};
+
 struct dma_dsc {
-	union {
-		u32 d32;
-		struct {
-			unsigned length:17;
-			unsigned irq:1;
-			unsigned eoc:1;
-			unsigned loop:1;
-			unsigned mode:4;
-			unsigned begin:1;
-			unsigned end:1;
-			unsigned op_mode:2;
-			unsigned enc_sha_only:1;
-			unsigned block:1;
-			unsigned link_error:1;
-			unsigned owner:1;
-		} b;
-	} dsc_cfg;
+	union dsc_common dsc_cfg;
 	u32 src_addr;
 	u32 tgt_addr;
 } __packed;
 
 struct dma_dsc_64 {
-	union {
-		u32 d32;
-		struct {
-			unsigned length:17;
-			unsigned irq:1;
-			unsigned eoc:1;
-			unsigned loop:1;
-			unsigned mode:4;
-			unsigned begin:1;
-			unsigned end:1;
-			unsigned op_mode:2;
-			unsigned enc_sha_only:1;
-			unsigned block:1;
-			unsigned link_error:1;
-			unsigned owner:1;
-		} b;
-	} dsc_cfg;
+	union dsc_common dsc_cfg;
 	u64 src_addr;
 	u64 tgt_addr;
 } __packed;
 
+union sg_dsc_common {
+	u32 d32;
+	struct {
+		unsigned valid:1;
+		unsigned eoc:1;
+		unsigned intr:1;
+		unsigned act:3;
+		unsigned length:26;
+	} b;
+};
+
 struct dma_sg_dsc {
-	union {
-		u32 d32;
-		struct {
-			unsigned valid:1;
-			unsigned eoc:1;
-			unsigned intr:1;
-			unsigned act:3;
-			unsigned length:26;
-		} b;
-	} dsc_cfg;
+	union sg_dsc_common dsc_cfg;
 	u32 addr;
 } __packed;
 
 struct dma_sg_dsc_64 {
-	union {
-		u32 d32;
-		struct {
-			unsigned valid:1;
-			unsigned eoc:1;
-			unsigned intr:1;
-			unsigned act:3;
-			unsigned length:26;
-		} b;
-	} dsc_cfg;
+	union sg_dsc_common dsc_cfg;
 	u64 addr;
 	u32 rsv;
 } __packed;
@@ -207,6 +187,10 @@ u32 aml_dma_do_hw_crypto(struct aml_dma_dev *dd,
 			 u8 polling, u8 dma_flags);
 
 noinline int aml_dma_call_smc(u64 func_id, u64 arg0, u64 arg1, u64 arg2);
+
+inline void aml_dma_dsc_writer(void *base, u32 i, void *dsc, u32 dma_bus64, u32 is_sg_dsc);
+inline void aml_dma_dsc_reader(void *base, u32 i, void *dsc, u32 dma_bus64, u32 is_sg_dsc);
+inline u32 aml_dma_get_dsc_sz(u32 dma_bus64, u32 is_sg_dsc);
 
 void aml_dma_finish_hw_crypto(struct aml_dma_dev *dd, u8 dma_flags);
 

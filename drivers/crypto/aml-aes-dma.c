@@ -137,8 +137,7 @@ static int set_aes_kl_key_iv(struct aml_aes_dev *dd, u32 *key,
 			     u32 keylen, u32 *iv, u8 swap)
 {
 	struct device *dev = dd->dev;
-	struct dma_dsc *dsc = dd->descriptor;
-	struct dma_dsc_64 *dsc_64 = dd->descriptor;
+	struct dma_dsc_64 dsc;
 	u32 *key_iv = kzalloc(DMA_KEY_IV_BUF_SIZE, GFP_ATOMIC);
 
 	s32 len = keylen;
@@ -172,46 +171,25 @@ static int set_aes_kl_key_iv(struct aml_aes_dev *dd, u32 *key,
 		kfree(key_iv);
 		return -EINVAL;
 	}
-	if (dd->dma->dma_bus64) {
-		dsc_64[0].src_addr = (u64)(0xffffffffffffff00 | dd->ctx->kte);
-		dsc_64[0].tgt_addr = 0;
-		dsc_64[0].dsc_cfg.d32 = 0;
-		dsc_64[0].dsc_cfg.b.length = keylen;
-		dsc_64[0].dsc_cfg.b.mode = MODE_KEY;
-		dsc_64[0].dsc_cfg.b.eoc = 0;
-		dsc_64[0].dsc_cfg.b.owner = 1;
 
-		if (iv) {
-			dsc_64[1].src_addr = (u64)dma_addr_key;
-			dsc_64[1].tgt_addr = 32;
-			dsc_64[1].dsc_cfg.d32 = 0;
-			dsc_64[1].dsc_cfg.b.length = 16;
-			dsc_64[1].dsc_cfg.b.mode = MODE_KEY;
-			dsc_64[1].dsc_cfg.b.eoc = 1;
-			dsc_64[1].dsc_cfg.b.owner = 1;
-		} else {
-			dsc_64[0].dsc_cfg.b.eoc = 1;
-		}
-	} else {
-		dsc[0].src_addr = (u32)(0xffffff00 | dd->ctx->kte);
-		dsc[0].tgt_addr = 0;
-		dsc[0].dsc_cfg.d32 = 0;
-		dsc[0].dsc_cfg.b.length = keylen;
-		dsc[0].dsc_cfg.b.mode = MODE_KEY;
-		dsc[0].dsc_cfg.b.eoc = 0;
-		dsc[0].dsc_cfg.b.owner = 1;
+	dsc.src_addr = (u64)(0xffffffffffffff00 | dd->ctx->kte);
+	dsc.tgt_addr = 0;
+	dsc.dsc_cfg.d32 = 0;
+	dsc.dsc_cfg.b.length = keylen;
+	dsc.dsc_cfg.b.mode = MODE_KEY;
+	dsc.dsc_cfg.b.eoc = iv ? 0 : 1;
+	dsc.dsc_cfg.b.owner = 1;
+	aml_dma_dsc_writer(dd->descriptor, 0, &dsc, dd->dma->dma_bus64, 0);
 
-		if (iv) {
-			dsc[1].src_addr = (u32)dma_addr_key;
-			dsc[1].tgt_addr = 32;
-			dsc[1].dsc_cfg.d32 = 0;
-			dsc[1].dsc_cfg.b.length = 16;
-			dsc[1].dsc_cfg.b.mode = MODE_KEY;
-			dsc[1].dsc_cfg.b.eoc = 1;
-			dsc[1].dsc_cfg.b.owner = 1;
-		} else {
-			dsc[0].dsc_cfg.b.eoc = 1;
-		}
+	if (iv) {
+		dsc.src_addr = (u64)dma_addr_key;
+		dsc.tgt_addr = 32;
+		dsc.dsc_cfg.d32 = 0;
+		dsc.dsc_cfg.b.length = 16;
+		dsc.dsc_cfg.b.mode = MODE_KEY;
+		dsc.dsc_cfg.b.eoc = 1;
+		dsc.dsc_cfg.b.owner = 1;
+		aml_dma_dsc_writer(dd->descriptor, 1, &dsc, dd->dma->dma_bus64, 0);
 	}
 	aml_write_crypto_reg(dd->dma, dd->thread,
 			     (uintptr_t)dd->dma_descript_tab | 2);
@@ -231,8 +209,7 @@ static int set_aes_key_iv(struct aml_aes_dev *dd, u32 *key,
 			  u32 keylen, u32 *iv, u8 swap)
 {
 	struct device *dev = dd->dev;
-	struct dma_dsc *dsc = dd->descriptor;
-	struct dma_dsc_64 *dsc_64 = dd->descriptor;
+	struct dma_dsc_64 dsc;
 	u32 *key_iv = kzalloc(DMA_KEY_IV_BUF_SIZE, GFP_ATOMIC);
 
 	s32 len = keylen;
@@ -270,23 +247,16 @@ static int set_aes_key_iv(struct aml_aes_dev *dd, u32 *key,
 		kfree(key_iv);
 		return -EINVAL;
 	}
-	if (dd->dma->dma_bus64) {
-		dsc_64[0].src_addr = (uintptr_t)dma_addr_key;
-		dsc_64[0].tgt_addr = 0;
-		dsc_64[0].dsc_cfg.d32 = 0;
-		dsc_64[0].dsc_cfg.b.length = len;
-		dsc_64[0].dsc_cfg.b.mode = MODE_KEY;
-		dsc_64[0].dsc_cfg.b.eoc = 1;
-		dsc_64[0].dsc_cfg.b.owner = 1;
-	} else {
-		dsc[0].src_addr = (uintptr_t)dma_addr_key;
-		dsc[0].tgt_addr = 0;
-		dsc[0].dsc_cfg.d32 = 0;
-		dsc[0].dsc_cfg.b.length = len;
-		dsc[0].dsc_cfg.b.mode = MODE_KEY;
-		dsc[0].dsc_cfg.b.eoc = 1;
-		dsc[0].dsc_cfg.b.owner = 1;
-	}
+
+	dsc.src_addr = (uintptr_t)dma_addr_key;
+	dsc.tgt_addr = 0;
+	dsc.dsc_cfg.d32 = 0;
+	dsc.dsc_cfg.b.length = len;
+	dsc.dsc_cfg.b.mode = MODE_KEY;
+	dsc.dsc_cfg.b.eoc = 1;
+	dsc.dsc_cfg.b.owner = 1;
+	aml_dma_dsc_writer(dd->descriptor, 0, &dsc, dd->dma->dma_bus64, 0);
+
 	aml_dma_debug(dd->descriptor, 1, __func__, dd->thread, dd->status,
 			 dd->dma->dma_bus64);
 #if DMA_IRQ_MODE
@@ -357,12 +327,9 @@ static size_t aml_aes_sg_dma(struct aml_aes_dev *dd, void *descriptor,
 	struct scatterlist *in_sg = dd->in_sg;
 	struct scatterlist *out_sg = dd->out_sg;
 	u32 in_nents = 0, out_nents = 0;
-	struct dma_sg_dsc *sg_dsc = NULL;
-	struct dma_sg_dsc_64 *sg_dsc_64 = NULL;
-	u32 dma_sg_sz = dd->dma->dma_bus64 ? sizeof(struct dma_sg_dsc_64) :
-					     sizeof(struct dma_sg_dsc);
-	struct dma_dsc *dsc = descriptor;
-	struct dma_dsc_64 *dsc_64 = descriptor;
+	struct dma_sg_dsc_64 sg_dsc;
+	u32 dma_sg_sz = aml_dma_get_dsc_sz(dd->dma->dma_bus64, 1);
+	struct dma_dsc_64 dsc;
 
 	in_nents = sg_nents(in_sg);
 	out_nents = sg_nents(out_sg);
@@ -431,50 +398,30 @@ static size_t aml_aes_sg_dma(struct aml_aes_dev *dd, void *descriptor,
 	}
 #endif
 	in_sg = dd->in_sg;
-	if (dd->dma->dma_bus64) {
-		sg_dsc_64 = dd->sg_dsc_in;
-		for (i = 0; i < in_nents; i++) {
-			sg_dsc_64[i].dsc_cfg.d32 = 0;
-			sg_dsc_64[i].dsc_cfg.b.valid = 1;
-			sg_dsc_64[i].dsc_cfg.b.eoc = i == (in_nents - 1) ? 1 : 0;
-			sg_dsc_64[i].dsc_cfg.b.length = in_sg->length;
-			sg_dsc_64[i].addr = in_sg->dma_address;
-			in_sg = sg_next(in_sg);
-		}
-	} else {
-		sg_dsc = dd->sg_dsc_in;
-		for (i = 0; i < in_nents; i++) {
-			sg_dsc[i].dsc_cfg.d32 = 0;
-			sg_dsc[i].dsc_cfg.b.valid = 1;
-			sg_dsc[i].dsc_cfg.b.eoc = i == (in_nents - 1) ? 1 : 0;
-			sg_dsc[i].dsc_cfg.b.length = in_sg->length;
-			sg_dsc[i].addr = in_sg->dma_address;
-			in_sg = sg_next(in_sg);
-		}
+
+	for (i = 0; i < in_nents; i++) {
+		sg_dsc.dsc_cfg.d32 = 0;
+		sg_dsc.dsc_cfg.b.valid = 1;
+		sg_dsc.dsc_cfg.b.eoc = i == (in_nents - 1) ? 1 : 0;
+		sg_dsc.dsc_cfg.b.length = in_sg->length;
+		sg_dsc.addr = in_sg->dma_address;
+		aml_dma_dsc_writer(dd->sg_dsc_in, i, &sg_dsc, dd->dma->dma_bus64, 1);
+
+		in_sg = sg_next(in_sg);
 	}
 	WARN_ON(in_sg);
 
 	out_sg = dd->out_sg;
-	if (dd->dma->dma_bus64) {
-		sg_dsc_64 = dd->sg_dsc_out;
-		for (i = 0; i < out_nents; i++) {
-			sg_dsc_64[i].dsc_cfg.d32 = 0;
-			sg_dsc_64[i].dsc_cfg.b.valid = 1;
-			sg_dsc_64[i].dsc_cfg.b.eoc = i == (out_nents - 1) ? 1 : 0;
-			sg_dsc_64[i].dsc_cfg.b.length = out_sg->length;
-			sg_dsc_64[i].addr = out_sg->dma_address;
-			out_sg = sg_next(out_sg);
-		}
-	} else {
-		sg_dsc = dd->sg_dsc_out;
-		for (i = 0; i < out_nents; i++) {
-			sg_dsc[i].dsc_cfg.d32 = 0;
-			sg_dsc[i].dsc_cfg.b.valid = 1;
-			sg_dsc[i].dsc_cfg.b.eoc = i == (out_nents - 1) ? 1 : 0;
-			sg_dsc[i].dsc_cfg.b.length = out_sg->length;
-			sg_dsc[i].addr = out_sg->dma_address;
-			out_sg = sg_next(out_sg);
-		}
+
+	for (i = 0; i < out_nents; i++) {
+		sg_dsc.dsc_cfg.d32 = 0;
+		sg_dsc.dsc_cfg.b.valid = 1;
+		sg_dsc.dsc_cfg.b.eoc = i == (out_nents - 1) ? 1 : 0;
+		sg_dsc.dsc_cfg.b.length = out_sg->length;
+		sg_dsc.addr = out_sg->dma_address;
+		aml_dma_dsc_writer(dd->sg_dsc_out, i, &sg_dsc, dd->dma->dma_bus64, 1);
+
+		out_sg = sg_next(out_sg);
 	}
 	WARN_ON(out_sg);
 
@@ -483,19 +430,12 @@ static size_t aml_aes_sg_dma(struct aml_aes_dev *dd, void *descriptor,
 	aml_dma_link_debug(dd->sg_dsc_out, dd->dma_sg_dsc_out, in_nents, __func__,
 			      dd->dma->dma_bus64);
 
-	if (dd->dma->dma_bus64) {
-		dsc_64->src_addr = dd->dma_sg_dsc_in;
-		dsc_64->tgt_addr = dd->dma_sg_dsc_out;
-		dsc_64->dsc_cfg.d32 = 0;
-		dsc_64->dsc_cfg.b.length = total;
-		dsc_64->dsc_cfg.b.link_error = 1;
-	} else {
-		dsc->src_addr = dd->dma_sg_dsc_in;
-		dsc->tgt_addr = dd->dma_sg_dsc_out;
-		dsc->dsc_cfg.d32 = 0;
-		dsc->dsc_cfg.b.length = total;
-		dsc->dsc_cfg.b.link_error = 1;
-	}
+	dsc.src_addr = dd->dma_sg_dsc_in;
+	dsc.tgt_addr = dd->dma_sg_dsc_out;
+	dsc.dsc_cfg.d32 = 0;
+	dsc.dsc_cfg.b.length = total;
+	dsc.dsc_cfg.b.link_error = 1;
+	aml_dma_dsc_writer(descriptor, 0, &dsc, dd->dma->dma_bus64, 0);
 
 	return total;
 }
@@ -552,8 +492,7 @@ static int aml_aes_crypt_dma(struct aml_aes_dev *dd, void *descriptor,
 {
 	u32 op_mode = OP_MODE_ECB;
 	u32 i = 0;
-	struct dma_dsc *dsc = descriptor;
-	struct dma_dsc_64 *dsc_64 = descriptor;
+	struct dma_dsc_64 dsc;
 #if DMA_IRQ_MODE
 	unsigned long flags;
 #else
@@ -566,29 +505,22 @@ static int aml_aes_crypt_dma(struct aml_aes_dev *dd, void *descriptor,
 	else if (dd->flags & AES_FLAGS_CTR)
 		op_mode = OP_MODE_CTR;
 
-	if (dd->dma->dma_bus64) {
-		for (i = 0; i < nents; i++) {
-			dsc_64[i].dsc_cfg.b.enc_sha_only = dd->flags & AES_FLAGS_ENCRYPT;
-			dsc_64[i].dsc_cfg.b.mode =
-				((dd->ctx->keylen == AES_KEYSIZE_128) ? MODE_AES128 :
-				((dd->ctx->keylen == AES_KEYSIZE_192) ?
-				MODE_AES192 : MODE_AES256));
-			dsc_64[i].dsc_cfg.b.op_mode = op_mode;
-			dsc_64[i].dsc_cfg.b.eoc = (i == (nents - 1));
-			dsc_64[i].dsc_cfg.b.owner = 1;
-		}
-	} else {
-		for (i = 0; i < nents; i++) {
-			dsc[i].dsc_cfg.b.enc_sha_only = dd->flags & AES_FLAGS_ENCRYPT;
-			dsc[i].dsc_cfg.b.mode =
-				((dd->ctx->keylen == AES_KEYSIZE_128) ? MODE_AES128 :
-				 ((dd->ctx->keylen == AES_KEYSIZE_192) ?
-				  MODE_AES192 : MODE_AES256));
-			dsc[i].dsc_cfg.b.op_mode = op_mode;
-			dsc[i].dsc_cfg.b.eoc = (i == (nents - 1));
-			dsc[i].dsc_cfg.b.owner = 1;
-		}
+	for (i = 0; i < nents; i++) {
+		/* some fields are already filled, read it back and update dsc */
+		aml_dma_dsc_reader(descriptor, i, &dsc, dd->dma->dma_bus64, 0);
+
+		dsc.dsc_cfg.b.enc_sha_only = dd->flags & AES_FLAGS_ENCRYPT;
+		dsc.dsc_cfg.b.mode =
+			((dd->ctx->keylen == AES_KEYSIZE_128) ? MODE_AES128 :
+			 ((dd->ctx->keylen == AES_KEYSIZE_192) ?
+			  MODE_AES192 : MODE_AES256));
+		dsc.dsc_cfg.b.op_mode = op_mode;
+		dsc.dsc_cfg.b.eoc = (i == (nents - 1));
+		dsc.dsc_cfg.b.owner = 1;
+
+		aml_dma_dsc_writer(descriptor, i, &dsc, dd->dma->dma_bus64, 0);
 	}
+
 	aml_dma_debug(descriptor, nents, __func__, dd->thread, dd->status, dd->dma->dma_bus64);
 
 	/* Start DMA transfer */
@@ -622,8 +554,7 @@ static int aml_aes_crypt_dma_start(struct aml_aes_dev *dd)
 	int err = 0;
 	size_t count = 0;
 	dma_addr_t addr_in, addr_out;
-	struct dma_dsc *dsc = dd->descriptor;
-	struct dma_dsc_64 *dsc_64 = dd->descriptor;
+	struct dma_dsc_64 dsc;
 	u32 nents;
 
 	/* slow dma */
@@ -637,25 +568,17 @@ static int aml_aes_crypt_dma_start(struct aml_aes_dev *dd)
 				   ((dd->dma_size + AES_BLOCK_SIZE - 1)
 				   / AES_BLOCK_SIZE) * AES_BLOCK_SIZE,
 				   DMA_TO_DEVICE);
-	if (dd->dma->dma_bus64) {
-		dsc_64->src_addr = (u64)addr_in;
-		dsc_64->tgt_addr = (u64)addr_out;
-		dsc_64->dsc_cfg.d32 = 0;
-		/* _64We align data to AES_BLOCK_SIZE for old aml-dma devices */
-		dsc_64->dsc_cfg.b.length = ((count + AES_BLOCK_SIZE - 1)
-				/ AES_BLOCK_SIZE) * AES_BLOCK_SIZE;
-		dbgp(1, "use slow dma: cnt:%zd, len:%d\n",
-				count, dsc_64->dsc_cfg.b.length);
-	} else {
-		dsc->src_addr = (u32)addr_in;
-		dsc->tgt_addr = (u32)addr_out;
-		dsc->dsc_cfg.d32 = 0;
-		/* We align data to AES_BLOCK_SIZE for old aml-dma devices */
-		dsc->dsc_cfg.b.length = ((count + AES_BLOCK_SIZE - 1)
-				/ AES_BLOCK_SIZE) * AES_BLOCK_SIZE;
-		dbgp(1, "use slow dma: cnt:%zd, len:%d\n",
-				count, dsc->dsc_cfg.b.length);
-	}
+
+	dsc.src_addr = (u64)addr_in;
+	dsc.tgt_addr = (u64)addr_out;
+	dsc.dsc_cfg.d32 = 0;
+	/* We align data to AES_BLOCK_SIZE for old aml-dma devices */
+	dsc.dsc_cfg.b.length = ((count + AES_BLOCK_SIZE - 1)
+			/ AES_BLOCK_SIZE) * AES_BLOCK_SIZE;
+	aml_dma_dsc_writer(dd->descriptor, 0, &dsc, dd->dma->dma_bus64, 0);
+
+	dbgp(1, "use slow dma: cnt:%zd, len:%d\n",
+			count, dsc.dsc_cfg.b.length);
 	nents = 1;
 	dd->flags &= ~AES_FLAGS_FAST;
 	dd->total -= count;
@@ -840,8 +763,7 @@ static int aml_aes_crypt_dma_stop(struct aml_aes_dev *dd)
 	int err = -EINVAL;
 	size_t count;
 	u32 in_nents = 0, out_nents = 0;
-	u32 dma_sg_dsc_sz = dd->dma->dma_bus64 ? sizeof(struct dma_sg_dsc_64) :
-						 sizeof(struct dma_sg_dsc);
+	u32 dma_sg_dsc_sz = aml_dma_get_dsc_sz(dd->dma->dma_bus64, 1);
 
 	if (dd->flags & AES_FLAGS_DMA) {
 		err = 0;
@@ -937,8 +859,7 @@ static int aml_aes_crypt_dma_stop(struct aml_aes_dev *dd)
 static int aml_aes_buff_init(struct aml_aes_dev *dd)
 {
 	struct device *dev = dd->dev;
-	u32 dma_dsc_sz = dd->dma->dma_bus64 ? sizeof(struct dma_dsc_64) :
-					      sizeof(struct dma_dsc);
+	u32 dma_dsc_sz = aml_dma_get_dsc_sz(dd->dma->dma_bus64, 0);
 	int err = -ENOMEM;
 
 	dd->buf_in = (void *)__get_free_pages(GFP_KERNEL, 0);
@@ -994,8 +915,7 @@ err_alloc:
 
 static void aml_aes_buff_cleanup(struct aml_aes_dev *dd)
 {
-	u32 dma_dsc_sz = dd->dma->dma_bus64 ? sizeof(struct dma_dsc_64) :
-					      sizeof(struct dma_dsc);
+	u32 dma_dsc_sz = aml_dma_get_dsc_sz(dd->dma->dma_bus64, 0);
 
 	dma_unmap_single(dd->parent, dd->dma_addr_out, dd->buflen,
 			 DMA_FROM_DEVICE);
