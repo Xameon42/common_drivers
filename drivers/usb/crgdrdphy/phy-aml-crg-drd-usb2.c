@@ -644,10 +644,10 @@ static int amlogic_crg_drd_usb2_phy_set_mode(struct amlogic_usb_v2 *phy, int por
 			/* Configure controller to 48M. */
 			usleep_range(20, 30);
 			val = readl(phy->regs + 0x84);
-			if (phy->clk_mux == 2) {
+			if (phy->clk_mux == 2 || phy->clk_mux == 3) {
 				/* Use SoC 48M ref_clk */
 				val |= BIT(1);
-			} else if (phy->clk_mux == 3) {
+			} else if (phy->clk_mux == 1) {
 				/* Use phy PLL hs_clk. */
 				val |= BIT(0);
 			}
@@ -943,8 +943,10 @@ static int amlogic_crg_device_usb2_init_v1(struct amlogic_usb_v2 *phy)
 	usleep_range(49, 50);
 	amlogic_crg_drd_usbphy_reg_hold_reset(phy, true);
 	usleep_range(49, 50);
-	amlogic_crg_drd_usbphy_reg_reset(phy);
-	usleep_range(49, 50);
+	if (!phy->suspend_flag) {
+		amlogic_crg_drd_usbphy_reg_reset(phy);
+		usleep_range(49, 50);
+	}
 
 	dev_dbg(phy->dev, "init r0~r2 0x%x 0x%x 0x%x.\n",
 			readl(&phy->u2p_aml_regs[0]->r0),
