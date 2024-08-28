@@ -14,11 +14,15 @@
 #include <linux/amlogic/usb-v2.h>
 #include "phy-aml-crg-drd.h"
 
+bool aml_usb_phy2_dbg;
+module_param(aml_usb_phy2_dbg, bool, 0644);
+
 /* Reset usb controller. */
 int amlogic_crg_drd_usbphy_reset(struct amlogic_usb_v2 *phy)
 {
 	static int	init_count;
-	dev_dbg(phy->dev, "initial: 0x%x.\n", readl(phy->reset_regs + phy->reset_level));
+	au2p_dbg(phy->dev, "%s initial: 0x%x.\n", __func__,
+				readl(phy->reset_regs + phy->reset_level));
 	if (!init_count) {
 		init_count++;
 		if (phy->usb_reset_bit == 2)
@@ -27,7 +31,8 @@ int amlogic_crg_drd_usbphy_reset(struct amlogic_usb_v2 *phy)
 		else
 			writel((0x1 << phy->usb_reset_bit), phy->reset_regs);
 	}
-	dev_dbg(phy->dev, "after: 0x%x.\n", readl(phy->reset_regs + phy->reset_level));
+	au2p_dbg(phy->dev, "%s after: 0x%x.\n", __func__,
+				readl(phy->reset_regs + phy->reset_level));
 	return 0;
 }
 EXPORT_SYMBOL_GPL(amlogic_crg_drd_usbphy_reset);
@@ -37,7 +42,7 @@ int amlogic_crg_drd_usbphy_usb_hold_reset(struct amlogic_usb_v2 *phy, bool on)
 	u32 val = 0;
 	size_t mask = 0;
 
-	dev_dbg(phy->dev, "%s initial: 0x%x.\n", __func__,
+	au2p_dbg(phy->dev, "%s initial: 0x%x.\n", __func__,
 			readl(phy->reset_regs + phy->reset_level));
 	mask = (size_t)phy->reset_regs & 0xf;
 
@@ -51,7 +56,9 @@ int amlogic_crg_drd_usbphy_usb_hold_reset(struct amlogic_usb_v2 *phy, bool on)
 		writel(val & ~(0x1 << phy->usb_reset_bit), (void __iomem	*)
 			((unsigned long)phy->reset_regs + (phy->reset_level - mask)));
 	}
-	dev_dbg(phy->dev, "%s after: 0x%x.\n", __func__, readl(phy->reset_regs + phy->reset_level));
+	au2p_dbg(phy->dev, "%s after: 0x%x.\n", __func__,
+			readl(phy->reset_regs + phy->reset_level));
+
 	return 0;
 }
 EXPORT_SYMBOL_GPL(amlogic_crg_drd_usbphy_usb_hold_reset);
@@ -63,7 +70,8 @@ int amlogic_crg_drd_usbphy_reset_phycfg(struct amlogic_usb_v2 *phy, int cnt)
 	u32 temp = 0;
 	size_t mask = 0;
 
-	dev_dbg(phy->dev, "initial: 0x%x.\n", readl(phy->reset_regs + phy->reset_level));
+	au2p_dbg(phy->dev, "%s initial: 0x%x.\n", __func__,
+				readl(phy->reset_regs + phy->reset_level));
 	mask = (size_t)phy->reset_regs & 0xf;
 
 	for (i = 0; i < cnt; i++)
@@ -76,13 +84,15 @@ int amlogic_crg_drd_usbphy_reset_phycfg(struct amlogic_usb_v2 *phy, int cnt)
 		((unsigned long)phy->reset_regs + (phy->reset_level - mask)));
 
 	usleep_range(99, 100);
-	dev_dbg(phy->dev, "after: 0x%x.\n", readl(phy->reset_regs + phy->reset_level));
+	au2p_dbg(phy->dev, "%s after: 0x%x.\n", __func__,
+				readl(phy->reset_regs + phy->reset_level));
 
 	val = readl((void __iomem *)
 		((unsigned long)phy->reset_regs + (phy->reset_level - mask)));
 	writel((val | temp), (void __iomem *)
 		((unsigned long)phy->reset_regs + (phy->reset_level - mask)));
-	dev_dbg(phy->dev, "after: 0x%x.\n", readl(phy->reset_regs + phy->reset_level));
+	au2p_dbg(phy->dev, "%s after: 0x%x.\n", __func__,
+				readl(phy->reset_regs + phy->reset_level));
 
 	return 0;
 }
@@ -94,7 +104,8 @@ int amlogic_crg_drd_usbphy_hold_reset(struct amlogic_usb_v2 *phy, bool on)
 	size_t mask = 0;
 	int i = 0;
 
-	dev_dbg(phy->dev, "initial: 0x%x.\n", readl(phy->reset_regs + phy->reset_level));
+	au2p_dbg(phy->dev, "%s initial: 0x%x.\n", __func__,
+				readl(phy->reset_regs + phy->reset_level));
 	mask = (size_t)phy->reset_regs & 0xf;
 
 	for (i = 0; i < phy->portnum; i++)
@@ -110,7 +121,8 @@ int amlogic_crg_drd_usbphy_hold_reset(struct amlogic_usb_v2 *phy, bool on)
 		writel(val & ~temp, (void __iomem	*)
 			((unsigned long)phy->reset_regs + (phy->reset_level - mask)));
 	}
-	dev_dbg(phy->dev, "after: 0x%x.\n", readl(phy->reset_regs + phy->reset_level));
+	au2p_dbg(phy->dev, "%s after: 0x%x.\n", __func__,
+				readl(phy->reset_regs + phy->reset_level));
 
 	return 0;
 }
@@ -122,7 +134,8 @@ int amlogic_crg_drd_usbphy_reg_hold_reset(struct amlogic_usb_v2 *phy, bool on)
 	size_t mask = 0;
 	int i = 0;
 
-	dev_dbg(phy->dev, "initial: 0x%x.\n", readl(phy->reset_regs + phy->reset_level));
+	au2p_dbg(phy->dev, "%s initial: 0x%x.\n", __func__,
+				readl(phy->reset_regs + phy->reset_level));
 	mask = (size_t)phy->reset_regs & 0xf;
 
 	for (i = 0; i < phy->portnum; i++) {
@@ -140,7 +153,8 @@ int amlogic_crg_drd_usbphy_reg_hold_reset(struct amlogic_usb_v2 *phy, bool on)
 		writel(val & ~temp, (void __iomem	*)
 			((unsigned long)phy->reset_regs + (phy->reset_level - mask)));
 	}
-	dev_dbg(phy->dev, "after: 0x%x.\n", readl(phy->reset_regs + phy->reset_level));
+	au2p_dbg(phy->dev, "%s after: 0x%x.\n", __func__,
+				readl(phy->reset_regs + phy->reset_level));
 
 	return 0;
 }
@@ -151,7 +165,6 @@ int amlogic_crg_drd_usbphy_reg_reset(struct amlogic_usb_v2 *phy)
 {
 	int ret = 0;
 
-	dev_dbg(phy->dev, "initial: 0x%x.\n", readl(phy->reset_regs + phy->reset_level));
 	ret = amlogic_crg_drd_usbphy_reg_hold_reset(phy, false);
 	if (ret)
 		goto done;
@@ -159,7 +172,6 @@ int amlogic_crg_drd_usbphy_reg_reset(struct amlogic_usb_v2 *phy)
 	if (ret)
 		goto err;
 done:
-	dev_dbg(phy->dev, "after: 0x%x.\n", readl(phy->reset_regs + phy->reset_level));
 	return ret;
 err:
 	return ret;

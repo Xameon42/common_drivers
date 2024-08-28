@@ -3100,7 +3100,7 @@ static void crg_gadget_async_callbacks(struct usb_gadget *gadget, bool enable)
 {
 	struct crg_gadget_dev *crg_udc = &crg_udc_dev;
 
-	CRG_ERROR("%s get state %d\n", __func__, enable);
+	CRG_DEBUG("%s get state %d\n", __func__, enable);
 	crg_udc->async_cb_flag = enable;
 }
 

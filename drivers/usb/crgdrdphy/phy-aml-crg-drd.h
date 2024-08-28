@@ -12,6 +12,20 @@
 #define	phy_to_amlusb(x)	container_of((x), struct amlogic_usb_v2, phy)
 #define TUNING_DISCONNECT_THRESHOLD 0x3f
 
+extern bool aml_usb_phy2_dbg;
+
+#define au2p_dbg(dev, fmt, args...)	\
+do {								\
+	if (aml_usb_phy2_dbg)			\
+		dev_err(dev, fmt, ## args);	\
+} while (0)
+
+#define au2p_info(dev, fmt, args...)	\
+		dev_info(dev, fmt, ## args)
+
+#define au2p_err(dev, fmt, args...)	\
+		dev_err(dev, fmt, ## args)
+
 int amlogic_crg_drd_usbphy_reset(struct amlogic_usb_v2 *phy);
 int amlogic_crg_drd_usbphy_usb_hold_reset(struct amlogic_usb_v2 *phy, bool on);
 int amlogic_crg_drd_usbphy_reset_phycfg(struct amlogic_usb_v2 *phy, int cnt);

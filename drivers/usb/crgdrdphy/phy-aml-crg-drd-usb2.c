@@ -53,7 +53,7 @@ static void usb_set_calibration_trim
 	u8 cali_en;
 
 	if (!phy->usb_phy_trim_reg) {
-		dev_err(phy->dev, "Not usb-phy-trim-reg\n");
+		au2p_err(phy->dev, "No usb-phy-trim-reg\n");
 		return;
 	}
 
@@ -76,7 +76,7 @@ static void usb_set_calibration_trim
 
 	writel(value, reg + 0x10);
 
-	dev_info(phy->dev, "phy trim value= 0x%08x\n", value);
+	au2p_info(phy->dev, "phy trim value= 0x%08x\n", value);
 }
 
 static void set_trim_initvalue
@@ -117,12 +117,12 @@ static void set_usb_phy_trim_tuning
 
 	if (aml_phy->suspend_flag == 1) {
 		aml_phy->phy_trim_state[port] = default_val;
-		dev_info(aml_phy->dev, "--phy has been shutdown\n");
+		au2p_info(aml_phy->dev, "--phy has been shutdown\n");
 		return;
 	}
 
 	phy_reg_base = aml_phy->phy_cfg[port];
-	dev_info(aml_phy->dev, "---%s port(%d) phy trim tuning cf(%ps)--\n",
+	au2p_info(aml_phy->dev, "---%s port(%d) phy trim tuning cf(%ps)--\n",
 		default_val ? "Recovery" : "Set",
 		port, __builtin_return_address(0));
 	if (!default_val) {
@@ -329,12 +329,12 @@ static void set_usb_pll_v3(struct amlogic_usb_v2 *phy, void __iomem *phy_reg_bas
 			if (readl(pll_cfg) & BIT(USB2_PLL_DONE))
 				goto okay;
 		}
-		dev_dbg(phy->dev, "usb2 pll not locked, retry. val: 0x%08x\n", readl(pll_cfg));
+		au2p_dbg(phy->dev, "usb2 pll not locked, retry. val: 0x%08x\n", readl(pll_cfg));
 	}
-	dev_err(phy->dev, "%s set pll failed, exit, val:0x%08x.\n", __func__, readl(pll_cfg));
+	au2p_err(phy->dev, "%s set pll failed, exit, val:0x%08x.\n", __func__, readl(pll_cfg));
 	return;
 okay:
-	dev_info(phy->dev, "usb2 pll init done, val: 0x%08x\n", readl(pll_cfg));
+	au2p_dbg(phy->dev, "usb2 pll init done, val: 0x%08x\n", readl(pll_cfg));
 
 	/* The s7d default value 0b000 of usb2_disc_trim leads to hs handshake err.
 	 * S6 shares the params with s7d.
@@ -350,23 +350,25 @@ okay:
 
 
 static void amlogic_crg_drd_usb2_set_usb_vbus_power
-	(struct gpio_desc *usb_gd, int pin, char is_power_on)
+	(struct gpio_desc **usb_gd, int pin, char is_power_on)
 {
-	pr_err("%s %d.\n", __func__, is_power_on);
+	struct amlogic_usb_v2 *phy = container_of(usb_gd, struct amlogic_usb_v2, usb_gpio_desc);
+
+	au2p_dbg(phy->dev, "%s %d.\n", __func__, is_power_on);
 
 	if (is_power_on)
 		/*set vbus on by gpio*/
-		gpiod_direction_output(usb_gd, 1);
+		gpiod_direction_output(*usb_gd, 1);
 	else
 		/*set vbus off by gpio first*/
-		gpiod_direction_output(usb_gd, 0);
+		gpiod_direction_output(*usb_gd, 0);
 }
 
 static void amlogic_crg_drd_usb2_set_vbus_power
 		(struct amlogic_usb_v2 *phy, char is_power_on)
 {
 	if (phy->vbus_power_pin != -1)
-		amlogic_crg_drd_usb2_set_usb_vbus_power(phy->usb_gpio_desc,
+		amlogic_crg_drd_usb2_set_usb_vbus_power(&phy->usb_gpio_desc,
 				   phy->vbus_power_pin, is_power_on);
 }
 
@@ -426,7 +428,7 @@ static int amlogic_crg_drd_usb2_init_v0(struct usb_phy *x)
 		if (phy->phy.flags == AML_USB2_PHY_ENABLE) {
 			ret = clk_bulk_prepare_enable(phy->clk_num, phy->clks);
 			if (ret) {
-				dev_err(phy->dev, "Failed to enable usb2 phy bus clock at %d\n",
+				au2p_err(phy->dev, "Failed to enable usb2 phy bus clock at %d\n",
 							__LINE__);
 			}
 		}
@@ -523,7 +525,7 @@ int amlogic_crg_device_usb2_init_v0(struct amlogic_usb_v2 *phy)
 		if (phy->phy.flags == AML_USB2_PHY_ENABLE) {
 			ret = clk_bulk_prepare_enable(phy->clk_num, phy->clks);
 			if (ret) {
-				dev_err(phy->dev, "Failed to enable usb2 phy bus clock at %d\n",
+				au2p_err(phy->dev, "Failed to enable usb2 phy bus clock at %d\n",
 							__LINE__);
 			}
 		}
@@ -631,7 +633,7 @@ static int amlogic_crg_drd_usb2_phy_set_mode(struct amlogic_usb_v2 *phy, int por
 		/* Default HS. */
 		break;
 	case AML_USB_PHY_MODE_USB_HSP:
-		dev_dbg(phy->dev, "%s setmode %d.\n", __func__, mode);
+		au2p_dbg(phy->dev, "%s setmode %d.\n", __func__, mode);
 		switch (phy->ic_ver) {
 		case MESON_CPU_MAJOR_ID_T6D:
 #define USB2_SEL_STRENGTH ((u32)GENMASK(30, 29))
@@ -795,7 +797,7 @@ static void amlogic_crg_drd_usb2_phy_set_pll(struct amlogic_usb_v2 *phy, int por
 				if (readl(pll_cfg) & USBPLL_LOCK_FLAG)
 					goto okay;
 			}
-			dev_dbg(phy->dev, "usb2 pll not locked, retry. val: 0x%08x\n",
+			au2p_dbg(phy->dev, "usb2 pll not locked, retry. val: 0x%08x\n",
 							readl(pll_cfg));
 		}
 		break;
@@ -803,10 +805,10 @@ static void amlogic_crg_drd_usb2_phy_set_pll(struct amlogic_usb_v2 *phy, int por
 		break;
 	}
 
-	dev_err(phy->dev, "%s set pll failed, exit, val:0x%08x.\n", __func__, readl(pll_cfg));
+	au2p_err(phy->dev, "%s set pll failed, exit, val:0x%08x.\n", __func__, readl(pll_cfg));
 	return;
 okay:
-	dev_info(phy->dev, "usb2 pll init done, val: 0x%08x\n", readl(pll_cfg));
+	au2p_dbg(phy->dev, "usb2 pll init done, val: 0x%08x\n", readl(pll_cfg));
 }
 
 static int amlogic_crg_drd_usb2_phy_wait_ready(struct amlogic_usb_v2 *phy,
@@ -843,7 +845,7 @@ static int amlogic_crg_drd_usb2_init_v1(struct usb_phy *x)
 		if (phy->phy.flags == AML_USB2_PHY_ENABLE) {
 			ret = clk_bulk_prepare_enable(phy->clk_num, phy->clks);
 			if (ret) {
-				dev_err(phy->dev, "Failed to enable usb2 phy bus clock at %d\n",
+				au2p_err(phy->dev, "Failed to enable usb2 phy bus clock at %d\n",
 							__LINE__);
 			}
 		}
@@ -856,7 +858,7 @@ static int amlogic_crg_drd_usb2_init_v1(struct usb_phy *x)
 	amlogic_crg_drd_usbphy_reg_reset(phy);
 	usleep_range(49, 50);
 
-	dev_dbg(phy->dev, "init r0~r2 0x%x 0x%x 0x%x.\n",
+	au2p_dbg(phy->dev, "init r0~r2 0x%x 0x%x 0x%x.\n",
 			readl(&phy->u2p_aml_regs[0]->r0),
 			readl(&phy->u2p_aml_regs[0]->r1),
 			readl(&phy->u2p_aml_regs[0]->r2));
@@ -880,13 +882,13 @@ static int amlogic_crg_drd_usb2_init_v1(struct usb_phy *x)
 	for (i = 0; i < phy->portnum; i++) {
 		ret = amlogic_crg_drd_usb2_phy_wait_ready(phy, i, 200);
 		if (ret)
-			dev_err(phy->dev, " wait for ready timeout.\n");
+			au2p_err(phy->dev, " wait for ready timeout.\n");
 	}
 
 	for (i = 0; i < phy->portnum; i++)
 		amlogic_crg_drd_usb2_phy_set_pll(phy, i);
 
-	dev_dbg(phy->dev, "end r0~r2 0x%x 0x%x 0x%x.\n",
+	au2p_dbg(phy->dev, "end r0~r2 0x%x 0x%x 0x%x.\n",
 			readl(&phy->u2p_aml_regs[0]->r0),
 			readl(&phy->u2p_aml_regs[0]->r1),
 			readl(&phy->u2p_aml_regs[0]->r2));
@@ -933,7 +935,7 @@ static int amlogic_crg_device_usb2_init_v1(struct amlogic_usb_v2 *phy)
 		if (phy->phy.flags == AML_USB2_PHY_ENABLE) {
 			ret = clk_bulk_prepare_enable(phy->clk_num, phy->clks);
 			if (ret) {
-				dev_err(phy->dev, "Failed to enable usb2 phy bus clock at %d\n",
+				au2p_err(phy->dev, "Failed to enable usb2 phy bus clock at %d\n",
 							__LINE__);
 			}
 		}
@@ -948,7 +950,7 @@ static int amlogic_crg_device_usb2_init_v1(struct amlogic_usb_v2 *phy)
 		usleep_range(49, 50);
 	}
 
-	dev_dbg(phy->dev, "init r0~r2 0x%x 0x%x 0x%x.\n",
+	au2p_dbg(phy->dev, "init r0~r2 0x%x 0x%x 0x%x.\n",
 			readl(&phy->u2p_aml_regs[0]->r0),
 			readl(&phy->u2p_aml_regs[0]->r1),
 			readl(&phy->u2p_aml_regs[0]->r2));
@@ -972,13 +974,13 @@ static int amlogic_crg_device_usb2_init_v1(struct amlogic_usb_v2 *phy)
 	for (i = 0; i < phy->portnum; i++) {
 		ret = amlogic_crg_drd_usb2_phy_wait_ready(phy, i, 200);
 		if (ret)
-			dev_err(phy->dev, " wait for ready timeout.\n");
+			au2p_err(phy->dev, " wait for ready timeout.\n");
 	}
 
 	for (i = 0; i < phy->portnum; i++)
 		amlogic_crg_drd_usb2_phy_set_pll(phy, i);
 
-	dev_dbg(phy->dev, "end r0~r2 0x%x 0x%x 0x%x.\n",
+	au2p_dbg(phy->dev, "end r0~r2 0x%x 0x%x 0x%x.\n",
 			readl(&phy->u2p_aml_regs[0]->r0),
 			readl(&phy->u2p_aml_regs[0]->r1),
 			readl(&phy->u2p_aml_regs[0]->r2));
@@ -1242,9 +1244,11 @@ static int amlogic_crg_drd_usb2_probe(struct platform_device *pdev)
 	if (retval < 0)
 		phy->clk_mux = 0;
 
-	dev_info(&pdev->dev, "USB2 phy probe:phy_mem:0x%lx, iomap phy_base:0x%lx\n",
-			(unsigned long)phy_mem->start, (unsigned long)phy_base);
-	dev_info(&pdev->dev, "USB2 phy mode: %d, clk mux: %d\n", phy->portspeed, phy->clk_mux);
+	au2p_info(&pdev->dev, "USB2 phy probe:phy_mem:0x%lx, iomap phy_base:0x%lx\n"
+						 "USB2 phy mode: %d, clk mux: %d\n",
+						(unsigned long)phy_mem->start,
+						(unsigned long)phy_base,
+						phy->portspeed, phy->clk_mux);
 
 	phy->dev		= dev;
 	phy->regs		= phy_base;
@@ -1292,14 +1296,14 @@ static int amlogic_crg_drd_usb2_probe(struct platform_device *pdev)
 	}
 
 	if (phy->clk_mux != 0 && phy->portspeed != USB_SPEED_HIGH_PLUS) {
-		dev_warn(dev, "wrong clk-mux=%d in normal HS mode, default to 0.",
+		au2p_info(dev, "wrong clk-mux=%d in normal HS mode, default to 0.",
 						phy->clk_mux);
 		phy->clk_mux = 0;
 	}
 
 	if (phy->portspeed == USB_SPEED_HIGH_PLUS && phy->clk_mux == 0) {
 		phy->clk_mux = 2;
-		dev_warn(dev, "clk-mux=0 in HSP mode, default to %d.", phy->clk_mux);
+		au2p_info(dev, "clk-mux=0 in HSP mode, default to %d.", phy->clk_mux);
 	}
 
 	/* Don't touch any clks not used. */
@@ -1332,12 +1336,12 @@ static int amlogic_crg_drd_usb2_probe(struct platform_device *pdev)
 
 	retval = devm_clk_bulk_get(dev, phy->clk_num, phy->clks);
 	if (retval) {
-		dev_err(dev, "Failed to get usb2 phy bus clock\n");
+		au2p_err(dev, "Failed to get usb2 phy bus clock\n");
 		return retval;
 	}
 
 	for (i = 0; i < AML_USB_PHY_MAX_CLK_NUMBER; i++)
-		dev_dbg(dev, "%px %s.\n", (void *)phy->clks[i].clk, phy->clks[i].id);
+		au2p_dbg(dev, "%px %s.\n", (void *)phy->clks[i].clk, phy->clks[i].id);
 
 	if (phy->clk_mux == 2) {
 		if (phy->clks[1].clk)
@@ -1346,7 +1350,7 @@ static int amlogic_crg_drd_usb2_probe(struct platform_device *pdev)
 
 	retval = clk_bulk_prepare_enable(phy->clk_num, phy->clks);
 	if (retval) {
-		dev_err(dev, "Failed to enable usb2 phy bus clock\n");
+		au2p_err(dev, "Failed to enable usb2 phy bus clock\n");
 		return retval;
 	}
 
@@ -1366,7 +1370,7 @@ static int amlogic_crg_drd_usb2_probe(struct platform_device *pdev)
 		phy->set_usb_pll = set_usb_pll_v3;
 		break;
 	default:
-		dev_err(phy->dev, "No matching pll-version.");
+		au2p_err(phy->dev, "No matching pll-version.");
 		return -EINVAL;
 	}
 

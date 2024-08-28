@@ -170,7 +170,7 @@ static void amlogic_crg_otg_work(struct work_struct *work)
 	writel(reg2.d32, phy->usb2_phy_cfg + 8);
 	amlogic_crg_otg_init(phy);
 
-	dev_dbg(phy->dev, "otg_work r0, r1, r2: 0x%x 0x%x 0x%x.\n",
+	au2p_dbg(phy->dev, "otg_work r0, r1, r2: 0x%x 0x%x 0x%x.\n",
 			readl(phy->usb2_phy_cfg),
 			readl(phy->usb2_phy_cfg + 4),
 			readl(phy->usb2_phy_cfg + 8));
@@ -295,7 +295,7 @@ static int amlogic_crg_otg_probe(struct platform_device *pdev)
 		udc_name = "fdd00000.crgudc2";
 	len = strlen(udc_name);
 	if (len >= 128) {
-		dev_info(&pdev->dev, "udc_name is too long: %d\n", len);
+		au2p_info(&pdev->dev, "udc_name is too long: %d\n", len);
 		return -EINVAL;
 	}
 	strncpy(crg_UDC_name, udc_name, len);
@@ -304,18 +304,16 @@ static int amlogic_crg_otg_probe(struct platform_device *pdev)
 	if (controller_type == USB_OTG)
 		otg = 1;
 
-	dev_info(&pdev->dev, "controller_type is %d\n", controller_type);
-	dev_info(&pdev->dev, "crg_force_device_mode is %d\n", get_otg_mode());
-	dev_info(&pdev->dev, "otg is %d\n", otg);
-	dev_info(&pdev->dev, "udc_name: %s\n", crg_UDC_name);
-
-	dev_info(&pdev->dev, "phy2_mem:0x%lx, iomap phy2_base:0x%lx\n",
-		 (unsigned long)usb2_phy_mem,
-		 (unsigned long)usb2_phy_base);
-
-	dev_info(&pdev->dev, "phy3_mem:0x%lx, iomap phy3_base:0x%lx\n",
-		 (unsigned long)usb3_phy_mem,
-		 (unsigned long)usb3_phy_base);
+	au2p_info(&pdev->dev,
+				"controller_type is %d\n"
+				"crg_force_device_mode is %d\n"
+				"otg is %d\n"
+				"udc_name: %s\n"
+				"phy2_mem:0x%lx, iomap phy2_base:0x%lx\n"
+				"phy3_mem:0x%lx, iomap phy3_base:0x%lx\n",
+				controller_type,  get_otg_mode(), otg, crg_UDC_name,
+				(unsigned long)usb2_phy_mem, (unsigned long)usb2_phy_base,
+				(unsigned long)usb3_phy_mem, (unsigned long)usb3_phy_base);
 
 	phy->dev		= dev;
 	phy->usb2_phy_cfg	= usb2_phy_base;
@@ -367,7 +365,7 @@ NO_M31:
 				 IRQF_SHARED, "amlogic_botg_detect", phy);
 
 		if (retval) {
-			dev_err(&pdev->dev, "request of irq%d failed\n", irq);
+			au2p_err(&pdev->dev, "request of irq%d failed\n", irq);
 			retval = -EBUSY;
 			return retval;
 		}
@@ -488,7 +486,7 @@ static int amlogic_crg_otg_pm_cb(struct notifier_block *notifier,
 	struct amlogic_crg_otg *phy =
 		container_of(notifier, struct amlogic_crg_otg, pm_notifier);
 
-	pr_info("%s called. pm_event:%lu.\n", __func__, pm_event);
+	au2p_info(phy->dev, "%s called. pm_event:%lu.\n", __func__, pm_event);
 
 	switch (pm_event) {
 	case PM_HIBERNATION_PREPARE:
