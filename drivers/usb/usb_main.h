@@ -5,6 +5,10 @@
 
 #ifndef _USB_MAIN_H__
 #define _USB_MAIN_H__
+#include <linux/debugfs.h>
+#include <linux/usb.h>
+
+extern struct dentry *amlogic_usb_debugfs_root;
 
 #if IS_ENABLED(CONFIG_AMLOGIC_USBPHY)
 int __init amlogic_new_usb3_v2_driver_init(void);

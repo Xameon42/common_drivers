@@ -27,6 +27,7 @@
 #include <linux/amlogic/gki_module.h>
 #define HOST_MODE	0
 #define DEVICE_MODE	1
+#define OTG_MODE	2
 
 static int UDC_exist_flag = -1;
 static char crg_UDC_name[128];
@@ -58,10 +59,12 @@ struct amlogic_crg_otg {
 		union u2p_r1_v2 usb_r1;
 	} pm_buf;
 	struct notifier_block pm_notifier;
+	u32 mode;
+#define HOST_MODE_MASK BIT(HOST_MODE)
+#define DEVICE_MODE_MASK BIT(DEVICE_MODE)
+#define OTG_MODE_MASK BIT(OTG_MODE)
+	struct dentry *debugfs_root;
 };
-
-static void set_mode
-	(unsigned long reg_addr, int mode, unsigned long phy3_addr);
 
 static int amlogic_crg_otg_pm_cb(struct notifier_block *notifier,
 			      unsigned long pm_event,
@@ -107,12 +110,12 @@ static int amlogic_crg_otg_init(struct amlogic_crg_otg *phy)
 	return 0;
 }
 
-static void set_mode(unsigned long reg_addr, int mode, unsigned long phy3_addr)
+static void set_mode(struct amlogic_crg_otg *phy, u8 mode)
 {
 	struct u2p_aml_regs_v2 u2p_aml_regs;
 	union u2p_r0_v2 reg0;
 
-	u2p_aml_regs.u2p_r_v2[0] = (void __iomem *)((unsigned long)reg_addr);
+	u2p_aml_regs.u2p_r_v2[0] = (void __iomem *)((unsigned long)phy->usb2_phy_cfg);
 
 	reg0.d32 = readl(u2p_aml_regs.u2p_r_v2[0]);
 	if (mode == DEVICE_MODE) {
@@ -123,9 +126,109 @@ static void set_mode(unsigned long reg_addr, int mode, unsigned long phy3_addr)
 		reg0.b.POR = 0;
 	}
 	writel(reg0.d32, u2p_aml_regs.u2p_r_v2[0]);
-
 	usleep_range(500, 600);
+
+	phy->mode &= ~(HOST_MODE_MASK | DEVICE_MODE_MASK);
+	phy->mode |= BIT(mode);
 }
+
+static int mode_show(struct seq_file *s, void *unused)
+{
+	struct amlogic_crg_otg *phy = s->private;
+	int cnt;
+	char tmp[8] = {'\0'};
+	char buf[16];
+
+	if (phy->mode & HOST_MODE_MASK)
+		cnt = sprintf(tmp, "%s", "host");
+	if (phy->mode & DEVICE_MODE_MASK)
+		cnt = sprintf(tmp, "%s", "device");
+	if (phy->mode & OTG_MODE_MASK)
+		cnt = sprintf(buf, "%s-%s\n", "otg", tmp);
+	else
+		cnt = sprintf(buf, "%s-%s\n", "notg", tmp);
+
+	seq_printf(s, "%s", buf);
+
+	return 0;
+}
+
+static int mode_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, mode_show, inode->i_private);
+}
+
+static ssize_t mode_write(struct file *file,  const char __user *ubuf,
+			       size_t count, loff_t *ppos)
+{
+	struct seq_file         *s = file->private_data;
+	struct amlogic_crg_otg *phy = s->private;
+	u8 i_mode = (u8)-1;
+	int ret = -EINVAL;
+	char                    buf[32];
+
+	if (copy_from_user(&buf, ubuf, min_t(size_t, sizeof(buf) - 1, count)))
+		return ret;
+
+	buf[count - 1] = '\0';
+
+	if (phy->mode & OTG_MODE_MASK)
+		return ret;
+
+	au2p_dbg(phy->dev, "%s %lu", buf, (unsigned long)count);
+
+	if (!strncmp("host", buf, count))
+		i_mode = HOST_MODE;
+
+	if (!strncmp("device", buf, count))
+		i_mode = DEVICE_MODE;
+
+	if (i_mode == (u8)-1 || phy->mode & BIT(i_mode))
+		return ret;
+
+	if (i_mode == HOST_MODE) {
+		crg_gadget_exit();
+		amlogic_m31_set_vbus_power(phy, 1);
+		set_mode(phy, HOST_MODE);
+		crg_init();
+		ret = count;
+	} else if (i_mode == DEVICE_MODE) {
+		crg_exit();
+		set_mode(phy, DEVICE_MODE);
+		amlogic_m31_set_vbus_power(phy, 0);
+		crg_gadget_init();
+		if (UDC_exist_flag != 1) {
+			ret = crg_otg_write_UDC(crg_UDC_name);
+			if (ret == 0 || ret == -EBUSY)
+				UDC_exist_flag = 1;
+		}
+		ret = count;
+	}
+
+	return ret;
+}
+
+static const struct file_operations mode_fops = {
+	.open			= mode_open,
+	.write          = mode_write,
+	.read			= seq_read,
+	.llseek			= seq_lseek,
+	.release		= single_release,
+};
+
+void amlogic_crg_otg_debugfs_init(struct amlogic_crg_otg *phy)
+{
+	phy->debugfs_root =
+			debugfs_create_dir("crg-drd-otg", amlogic_usb_debugfs_root);
+
+	debugfs_create_file("mode", 0644, phy->debugfs_root, phy, &mode_fops);
+}
+
+//void amlogic_crg_otg_debugfs_exit(struct amlogic_crg_otg *phy)
+//{
+//	debugfs_remove_recursive(phy->debugfs_root);
+//	phy->debugfs_root = NULL;
+//}
 
 static void amlogic_crg_otg_work(struct work_struct *work)
 {
@@ -133,7 +236,6 @@ static void amlogic_crg_otg_work(struct work_struct *work)
 		container_of(work, struct amlogic_crg_otg, work.work);
 	union u2p_r2_v2 reg2;
 	unsigned long reg_addr = ((unsigned long)phy->usb2_phy_cfg);
-	unsigned long phy3_addr = ((unsigned long)phy->phy3_cfg);
 	int ret;
 	bool curr;
 
@@ -147,11 +249,11 @@ static void amlogic_crg_otg_work(struct work_struct *work)
 	if (reg2.b.iddig_curr == 0) {
 		crg_gadget_exit();
 		amlogic_m31_set_vbus_power(phy, 1);
-		set_mode(reg_addr, HOST_MODE, phy3_addr);
+		set_mode(phy, HOST_MODE);
 		crg_init();
 	} else {
 		crg_exit();
-		set_mode(reg_addr, DEVICE_MODE, phy3_addr);
+		set_mode(phy, DEVICE_MODE);
 		amlogic_m31_set_vbus_power(phy, 0);
 		crg_gadget_init();
 		if (UDC_exist_flag != 1) {
@@ -184,17 +286,16 @@ static void amlogic_crg_otg_set_m_work(struct work_struct *work)
 		container_of(work, struct amlogic_crg_otg, set_mode_work.work);
 	union u2p_r2_v2 reg2;
 	unsigned long reg_addr = ((unsigned long)phy->usb2_phy_cfg);
-	unsigned long phy3_addr = ((unsigned long)phy->phy3_cfg);
 
 	mutex_lock(phy->otg_mutex);
 	phy->mode_work_flag = 0;
 	reg2.d32 = readl((void __iomem *)(reg_addr + 8));
 	if (reg2.b.iddig_curr == 0) {
 		amlogic_m31_set_vbus_power(phy, 1);
-		set_mode(reg_addr, HOST_MODE, phy3_addr);
+		set_mode(phy, HOST_MODE);
 		crg_init();
 	} else {
-		set_mode(reg_addr, DEVICE_MODE, phy3_addr);
+		set_mode(phy, DEVICE_MODE);
 		amlogic_m31_set_vbus_power(phy, 0);
 		crg_gadget_init();
 	}
@@ -375,13 +476,11 @@ NO_M31:
 
 	if (otg == 0) {
 		if (get_otg_mode() || controller_type == USB_DEVICE_ONLY) {
-			set_mode((unsigned long)phy->usb2_phy_cfg,
-				DEVICE_MODE, (unsigned long)phy->phy3_cfg);
+			set_mode(phy, DEVICE_MODE);
 			amlogic_m31_set_vbus_power(phy, 0);
 			crg_gadget_init();
 		} else if (controller_type == USB_HOST_ONLY) {
-			set_mode((unsigned long)phy->usb2_phy_cfg,
-				HOST_MODE, (unsigned long)phy->phy3_cfg);
+			set_mode(phy, HOST_MODE);
 			amlogic_m31_set_vbus_power(phy, 1);
 			crg_init();
 		}
@@ -391,9 +490,12 @@ NO_M31:
 		 * excess host mode init.
 		 */
 		phy->mode_work_flag = 1;
+		phy->mode |= OTG_MODE_MASK;
 		INIT_DELAYED_WORK(&phy->set_mode_work, amlogic_crg_otg_set_m_work);
 		schedule_delayed_work(&phy->set_mode_work, msecs_to_jiffies(500));
 	}
+
+	amlogic_crg_otg_debugfs_init(phy);
 
 	return 0;
 }

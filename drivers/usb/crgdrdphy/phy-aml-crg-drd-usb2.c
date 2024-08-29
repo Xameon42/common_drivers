@@ -373,37 +373,12 @@ static void amlogic_crg_drd_usb2_set_vbus_power
 }
 
 static void amlogic_crg_drd_usb2_set_controller_power
-		(struct amlogic_usb_v2 *phy, bool on)
+		(struct amlogic_usb_v2 *phy, bool force, bool on)
 {
-	u32 val;
-	u32 temp = 0;
-	size_t mask = 0;
-
-	if (!phy->pm_controller)
+	if (!phy->pm_controller && !force)
 		return;
 
-	mask = (size_t)phy->reset_regs & 0xf;
-
-	val = readl((void __iomem		*)
-		((unsigned long)phy->reset_regs + (phy->reset_level - mask)));
-
-	if (phy->usb_reset_bit != -1U)
-		temp |= BIT(phy->usb_reset_bit);
-	if (phy->usb_comb_reset_bit != -1U)
-		temp |= BIT(phy->usb_comb_reset_bit);
-
-	if (on)
-		val |= temp;
-	else
-		val &= ~temp;
-
-	writel(val, (void __iomem	*)
-			((unsigned long)phy->reset_regs + (phy->reset_level - mask)));
-
-	val = readl((void __iomem		*)
-		((unsigned long)phy->reset_regs + (phy->reset_level - mask)));
-
-	temp = 0;
+	amlogic_crg_drd_usbphy_usb_hold_reset(phy, on);
 }
 
 static int amlogic_crg_drd_usb2_init_v0(struct usb_phy *x)
@@ -434,7 +409,7 @@ static int amlogic_crg_drd_usb2_init_v0(struct usb_phy *x)
 		}
 	}
 
-	amlogic_crg_drd_usb2_set_controller_power(phy, true);
+	amlogic_crg_drd_usb2_set_controller_power(phy, false, true);
 
 	for (i = 0; i < portnum; i++)
 		temp = temp | (1 << phy->phy_reset_level_bit[i]);
@@ -915,8 +890,13 @@ static int amlogic_crg_drd_usb2_init(struct usb_phy *x)
 static void amlogic_crg_drd_usb2phy_shutdown(struct usb_phy *x)
 {
 	struct amlogic_usb_v2 *phy = phy_to_amlusb(x);
+	int ret;
 
-	amlogic_crg_drd_usbphy_hold_reset(phy, false);
+	if (local_pdata(phy)->ver == AML_CRG_DRD_USB2_PHY_V0)
+		amlogic_crg_drd_usb2_set_controller_power(phy, false, false);
+
+	ret = amlogic_crg_drd_usbphy_hold_reset(phy, false);
+	ret = amlogic_crg_drd_usbphy_reg_hold_reset(phy, false);
 
 	if (phy->suspend_flag  == 0)
 		if (phy->phy.flags == AML_USB2_PHY_ENABLE)
@@ -1009,10 +989,12 @@ EXPORT_SYMBOL(amlogic_crg_device_usb2_init);
 int amlogic_crg_device_usb2_shutdown(u32 phy_id)
 {
 	struct amlogic_usb_v2 *phy;
+	int ret = 0;
 
 	phy = g_crg_drd_phy2[phy_id];
 
-	amlogic_crg_drd_usbphy_hold_reset(phy, false);
+	ret = amlogic_crg_drd_usbphy_hold_reset(phy, false);
+	ret = amlogic_crg_drd_usbphy_reg_hold_reset(phy, false);
 
 	if (phy->suspend_flag  == 0)
 		if (phy->phy.flags == AML_USB2_PHY_ENABLE)
@@ -1020,9 +1002,25 @@ int amlogic_crg_device_usb2_shutdown(u32 phy_id)
 
 	phy->suspend_flag = 1;
 
-	return 0;
+	return ret;
 }
 EXPORT_SYMBOL(amlogic_crg_device_usb2_shutdown);
+
+int amlogic_crg_host_power(struct usb_phy *p, bool force, bool on)
+{
+	struct amlogic_usb_v2 *phy = phy_to_amlusb(p);
+
+	amlogic_crg_drd_usb2_set_controller_power(phy, force, on);
+	return 0;
+}
+
+int amlogic_crg_device_power(u32 phy_id, bool force, bool on)
+{
+	struct amlogic_usb_v2 *phy = g_crg_drd_phy2[phy_id];
+
+	amlogic_crg_drd_usb2_set_controller_power(phy, force, on);
+	return 0;
+}
 
 static int amlogic_crg_drd_usb2_probe(struct platform_device *pdev)
 {

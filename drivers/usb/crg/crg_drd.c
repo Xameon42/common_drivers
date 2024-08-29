@@ -27,6 +27,7 @@
 #include <linux/clk.h>
 #include <linux/phy/phy.h>
 #include <linux/amlogic/aml_gpio_consumer.h>
+#include <linux/amlogic/usb-v2.h>
 
 #include <linux/kthread.h>
 #include <linux/amlogic/cpu_version.h>
@@ -87,11 +88,15 @@ static int crg_core_soft_reset(struct crg_drd *crg)
 	if (crg->usb3_phy)
 		usb_phy_init(crg->usb3_phy);
 
+	amlogic_crg_host_power(crg->usb2_phy, false, true);
+
 	return 0;
 }
 
 static void crg_core_exit(struct crg_drd	*crg)
 {
+	amlogic_crg_host_power(crg->usb2_phy, false, false);
+
 	if (crg->usb2_phy)
 		usb_phy_shutdown(crg->usb2_phy);
 	if (crg->usb3_phy)
@@ -511,7 +516,6 @@ static void crg_shutdown(struct platform_device *pdev)
 	pm_runtime_get_sync(&pdev->dev);
 
 	crg_host_exit(crg);
-	/* wait for unregister. */
 	crg_core_exit(crg);
 
 	pm_runtime_put_sync(&pdev->dev);
@@ -528,6 +532,7 @@ static int crg_remove(struct platform_device *pdev)
 	pm_runtime_get_sync(&pdev->dev);
 
 	crg_host_exit(crg);
+	crg_core_exit(crg);
 
 	pm_runtime_put_sync(&pdev->dev);
 	pm_runtime_allow(&pdev->dev);

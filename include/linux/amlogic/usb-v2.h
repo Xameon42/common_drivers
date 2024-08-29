@@ -533,8 +533,12 @@ void cr_bus_write(unsigned int addr, unsigned int data);
 
 int aml_new_otg_get_mode(void);
 int aml_new_usb_get_mode(void);
+
+int amlogic_crg_host_power(struct usb_phy *p, bool force, bool on);
 int amlogic_crg_device_usb2_init(u32 phy_id);
 int amlogic_crg_device_usb2_shutdown(u32 phy_id);
+int amlogic_crg_device_power(u32 phy_id, bool force, bool on);
+
 #ifdef CONFIG_AMLOGIC_USB3PHY
 void aml_new_otg_init(void);
 #endif

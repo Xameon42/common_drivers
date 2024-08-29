@@ -41,21 +41,29 @@ int amlogic_crg_drd_usbphy_usb_hold_reset(struct amlogic_usb_v2 *phy, bool on)
 {
 	u32 val = 0;
 	size_t mask = 0;
+	u32 tmp = 0;
 
 	au2p_dbg(phy->dev, "%s initial: 0x%x.\n", __func__,
 			readl(phy->reset_regs + phy->reset_level));
+
 	mask = (size_t)phy->reset_regs & 0xf;
 
-	val = readl((void __iomem		*)
+	if (phy->usb_reset_bit != -1U)
+		tmp |= BIT(phy->usb_reset_bit);
+	if (phy->usb_comb_reset_bit != -1U)
+		tmp |= BIT(phy->usb_comb_reset_bit);
+
+	val = readl((void __iomem *)
 		((unsigned long)phy->reset_regs + (phy->reset_level - mask)));
 
 	if (on) {
-		writel(val | (0x1 << phy->usb_reset_bit), (void __iomem	*)
+		writel(val | tmp, (void __iomem	*)
 			((unsigned long)phy->reset_regs + (phy->reset_level - mask)));
 	} else {
-		writel(val & ~(0x1 << phy->usb_reset_bit), (void __iomem	*)
+		writel(val & ~tmp, (void __iomem *)
 			((unsigned long)phy->reset_regs + (phy->reset_level - mask)));
 	}
+
 	au2p_dbg(phy->dev, "%s after: 0x%x.\n", __func__,
 			readl(phy->reset_regs + phy->reset_level));
 

@@ -20,8 +20,9 @@
 bool force_device_mode;
 module_param_named(otg_device, force_device_mode,
 		bool, 0644);
-
 static char otg_mode_string[2] = "0";
+struct dentry *amlogic_usb_debugfs_root;
+
 static int force_otg_mode(char *s)
 {
 	if (s)
@@ -40,9 +41,21 @@ int get_otg_mode(void)
 }
 EXPORT_SYMBOL(get_otg_mode);
 
+static inline void __init amlogic_usb_debugfs_create_root(void)
+{
+	amlogic_usb_debugfs_root = debugfs_create_dir("amlogic", usb_debug_root);
+}
+
+//void __exit amlogic_usb_debugfs_remove_root(void)
+//{
+//	debugfs_remove_recursive(amlogic_usb_debugfs_root);
+//	amlogic_usb_debugfs_root = NULL;
+//}
+
 static int __init usb_main_init(void)
 {
 	pr_debug("### %s() start\n", __func__);
+	amlogic_usb_debugfs_create_root();
 	call_sub_init(amlogic_new_c2_usb2_v2_driver_init);//usbc2phy
 	call_sub_init(amlogic_new_c2_usb3_v2_driver_init);//usbc2phy
 	call_sub_init(amlogic_new_usb3_v3_driver_init); //usb3v3phy
