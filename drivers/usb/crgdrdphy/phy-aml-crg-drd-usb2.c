@@ -375,7 +375,7 @@ static void amlogic_crg_drd_usb2_set_vbus_power
 static void amlogic_crg_drd_usb2_set_controller_power
 		(struct amlogic_usb_v2 *phy, bool force, bool on)
 {
-	if (!phy->pm_controller && !force)
+	if (!phy || !(phy->pm_controller || force))
 		return;
 
 	amlogic_crg_drd_usbphy_usb_hold_reset(phy, on);
@@ -1008,7 +1008,12 @@ EXPORT_SYMBOL(amlogic_crg_device_usb2_shutdown);
 
 int amlogic_crg_host_power(struct usb_phy *p, bool force, bool on)
 {
-	struct amlogic_usb_v2 *phy = phy_to_amlusb(p);
+	struct amlogic_usb_v2 *phy;
+
+	if (!p->label || strcmp("amlogic-crg-drd-phy2", p->label))
+		return -EINVAL;
+
+	phy = phy_to_amlusb(p);
 
 	amlogic_crg_drd_usb2_set_controller_power(phy, force, on);
 	return 0;
@@ -1017,6 +1022,9 @@ int amlogic_crg_host_power(struct usb_phy *p, bool force, bool on)
 int amlogic_crg_device_power(u32 phy_id, bool force, bool on)
 {
 	struct amlogic_usb_v2 *phy = g_crg_drd_phy2[phy_id];
+
+	if (!phy)
+		return -EINVAL;
 
 	amlogic_crg_drd_usb2_set_controller_power(phy, force, on);
 	return 0;
