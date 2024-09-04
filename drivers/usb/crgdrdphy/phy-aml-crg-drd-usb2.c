@@ -4,6 +4,7 @@
  */
 
 #include <linux/module.h>
+#include <linux/amlogic/gki_module.h>
 #include <linux/platform_device.h>
 #include <linux/of_device.h>
 #include <linux/slab.h>
@@ -44,6 +45,23 @@ struct aml_crg_drd_usb2_pdata {
 
 struct amlogic_usb_v2	*g_crg_drd_phy2[3];
 char name_crg[32];
+static bool aml_usb2_phy_960m;
+
+static int get_u2phy_speed(char *str)
+{
+	int ret;
+
+	ret = kstrtobool(str, &aml_usb2_phy_960m);
+
+	return ret;
+}
+
+__setup("usb2t_mode=", get_u2phy_speed);
+
+static inline bool aml_crg_drd_usb2_hsp(struct amlogic_usb_v2 *phy)
+{
+	return phy->sw_hsp && aml_usb2_phy_960m;
+}
 
 static void usb_set_calibration_trim
 	(void __iomem *reg, struct amlogic_usb_v2 *phy)
@@ -1068,6 +1086,7 @@ static int amlogic_crg_drd_usb2_probe(struct platform_device *pdev)
 	int gpio_vbus_power_pin = -1;
 	struct gpio_desc *usb_gd = NULL;
 	bool pm_controller = false;
+	bool sw_hsp = false;
 
 	gpio_name = of_get_property(dev->of_node, "gpio-vbus-power", NULL);
 	if (gpio_name) {
@@ -1245,16 +1264,12 @@ static int amlogic_crg_drd_usb2_probe(struct platform_device *pdev)
 	if (retval < 0)
 		portspeed = USB_SPEED_HIGH;
 
+	sw_hsp = of_property_read_bool(dev->of_node, "sw-hsp");
+
 	retval = of_property_read_u32(dev->of_node,
 			"clk-mux", &phy->clk_mux);
 	if (retval < 0)
 		phy->clk_mux = 0;
-
-	au2p_info(&pdev->dev, "USB2 phy probe:phy_mem:0x%lx, iomap phy_base:0x%lx\n"
-						 "USB2 phy mode: %d, clk mux: %d\n",
-						(unsigned long)phy_mem->start,
-						(unsigned long)phy_base,
-						phy->portspeed, phy->clk_mux);
 
 	phy->dev		= dev;
 	phy->regs		= phy_base;
@@ -1286,6 +1301,7 @@ static int amlogic_crg_drd_usb2_probe(struct platform_device *pdev)
 	phy->usb_reset_bit = usb_reset_bit;
 	phy->usb_comb_reset_bit = usb_comb_reset_bit;
 	phy->pm_controller = pm_controller;
+	phy->sw_hsp = sw_hsp;
 	phy->usb_phy_trim_reg = usb_phy_trim_reg;
 	phy->phy_id = phy_id;
 	phy->portspeed = portspeed;
@@ -1299,6 +1315,15 @@ static int amlogic_crg_drd_usb2_probe(struct platform_device *pdev)
 		phy->phy_reset_level_bit[i] = phy_reset_level_bit[i];
 		phy->phy_reg_reset_level_bit[i] = phy_reg_reset_level_bit[i];
 		phy->u2p_aml_regs[i] = phy->regs + 0x20 * i;
+	}
+
+	if  (aml_crg_drd_usb2_hsp(phy)) {
+		phy->portspeed = USB_SPEED_HIGH_PLUS;
+		/* Choose 48M soc digital clk src when the port is at HS mode. */
+		if (phy->clk_mux == 0)
+			phy->clk_mux = 2;
+		au2p_info(dev, "usb2t_mode %d forces portspeed to %d.",
+						aml_usb2_phy_960m, portspeed);
 	}
 
 	if (phy->clk_mux != 0 && phy->portspeed != USB_SPEED_HIGH_PLUS) {
@@ -1339,6 +1364,12 @@ static int amlogic_crg_drd_usb2_probe(struct platform_device *pdev)
 		phy->clk_num = 2;
 		break;
 	}
+
+	au2p_info(&pdev->dev, "USB2 phy probe:phy_mem:0x%lx, iomap phy_base:0x%lx\n"
+						 "USB2 phy mode: %d, clk mux: %d\n",
+						(unsigned long)phy_mem->start,
+						(unsigned long)phy_base,
+						phy->portspeed, phy->clk_mux);
 
 	retval = devm_clk_bulk_get(dev, phy->clk_num, phy->clks);
 	if (retval) {

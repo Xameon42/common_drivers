@@ -73,7 +73,8 @@ struct amlogic_usb_v2 {
 	u32 phy_reg_reset_level_bit[USB_PHY_MAX_NUMBER];
 	u32 usb_reset_bit;
 	u32 usb_comb_reset_bit;
-	bool pm_controller;
+	u32 pm_controller:1;
+	u32 sw_hsp:1;
 	u32 otg_phy_index;
 	u32 reset_level;
 	struct clk_bulk_data clks[AML_USB_PHY_MAX_CLK_NUMBER];
