@@ -20,6 +20,7 @@
 #include <linux/interrupt.h>
 #include <linux/debugfs.h>
 #include <linux/amlogic/gki_module.h>
+#include <linux/syscore_ops.h>
 
 #define DRIVER_NAME		"meson_gxbb_wdt"
 #endif
@@ -316,8 +317,6 @@ static int meson_gxbb_wdt_freeze(struct device *dev)
 
 static const struct dev_pm_ops meson_gxbb_wdt_pm_ops = {
 #if defined(CONFIG_AMLOGIC_MODIFY)
-	.suspend = meson_gxbb_wdt_suspend,
-	.resume = meson_gxbb_wdt_resume,
 	.freeze = meson_gxbb_wdt_freeze,
 	.thaw = meson_gxbb_wdt_resume,
 	.poweroff = meson_gxbb_wdt_suspend,
@@ -359,13 +358,33 @@ static void meson_clk_disable_unprepare(void *data)
 }
 
 #ifdef CONFIG_AMLOGIC_MODIFY
-static void meson_gxbb_wdt_shutdown(struct platform_device *pdev)
+static struct device *gdev;
+
+static void meson_gxbb_wdt_syscore_shutdown(void)
 {
-	struct meson_gxbb_wdt *data = platform_get_drvdata(pdev);
+	struct meson_gxbb_wdt *data = dev_get_drvdata(gdev);
 
 	if (watchdog_active(&data->wdt_dev) ||
 	    watchdog_hw_running(&data->wdt_dev))
 		meson_gxbb_wdt_stop(&data->wdt_dev);
+
+	pr_info("watchdog shutdown\n");
+}
+
+static int meson_gxbb_wdt_syscore_suspend(void)
+{
+	return meson_gxbb_wdt_suspend(gdev);
+}
+
+static void meson_gxbb_wdt_syscore_resume(void)
+{
+	meson_gxbb_wdt_resume(gdev);
+}
+
+static struct syscore_ops meson_gxbb_wdt_syscore_ops = {
+	.shutdown = meson_gxbb_wdt_syscore_shutdown,
+	.suspend = meson_gxbb_wdt_syscore_suspend,
+	.resume = meson_gxbb_wdt_syscore_resume,
 };
 
 #if IS_ENABLED(CONFIG_DEBUG_FS)
@@ -606,7 +625,14 @@ static int meson_gxbb_wdt_probe(struct platform_device *pdev)
 	atomic_notifier_chain_register(&panic_notifier_list,
 				       &data->notifier);
 
-	return ret;
+	/*
+	 * Put the watchdog's suspend, resume, and shutdown functions into
+	 * syscore to cover a wider time period.
+	 */
+	gdev = dev;
+	register_syscore_ops(&meson_gxbb_wdt_syscore_ops);
+
+	return 0;
 #else
 	watchdog_stop_on_reboot(&data->wdt_dev);
 	return devm_watchdog_register_device(dev, &data->wdt_dev);
@@ -620,9 +646,6 @@ static struct platform_driver meson_gxbb_wdt_driver = {
 		.pm = &meson_gxbb_wdt_pm_ops,
 		.of_match_table	= meson_gxbb_wdt_dt_ids,
 	},
-#ifdef CONFIG_AMLOGIC_MODIFY
-	.shutdown = meson_gxbb_wdt_shutdown,
-#endif
 };
 
 module_platform_driver(meson_gxbb_wdt_driver);
