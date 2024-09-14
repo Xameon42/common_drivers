@@ -51,6 +51,9 @@
 #ifdef CONFIG_AMLOGIC_MEDIA_ENHANCEMENT_DOLBYVISION
 #include <linux/amlogic/media/amdolbyvision/dolby_vision.h>
 #endif
+#ifdef CONFIG_AMLOGIC_MEDIA_ENHANCEMENT_PRIME_SL
+#include <linux/amlogic/media/amprime_sl/prime_sl.h>
+#endif
 #include <linux/amlogic/media/video_sink/video_signal_notify.h>
 #include <linux/amlogic/media/video_sink/video.h>
 #include "hdr/am_hdr10_plus.h"
@@ -9037,8 +9040,12 @@ static int vpp_matrix_update(struct vframe_s *vf,
 	    (get_cpu_type() != MESON_CPU_MAJOR_ID_TL1)) {
 		if (hdr_process_mode[vd_path] == PROC_HDR_TO_SDR &&
 		    csc_type == VPP_MATRIX_BT2020YUV_BT2020RGB &&
-			!(get_hdr_type() & HLG_FLAG))
-			hdr10_tm_process_update(p, vd_path, vpp_index);
+			!(get_hdr_type() & HLG_FLAG)) {
+			if (vf && vf->src_fmt.fmt != VFRAME_SIGNAL_FMT_HDR10PRIME) {
+				hdr10_tm_process_update(p, vd_path, vpp_index);
+				pr_csc(1, "%s: ahdr not hdr10_tm_process\n", __func__);
+			}
+		}
 		if (hdr10p_meta_updated &&
 		    hdr10_plus_process_mode[vd_path] == PROC_HDRP_TO_SDR)
 			hdr10_plus_process_update(0, vd_path, vpp_index);
@@ -9121,6 +9128,31 @@ int amvecm_matrix_process(struct vframe_s *vf,
 	#endif
 	else
 		vinfo = get_current_vinfo();
+
+#ifdef CONFIG_AMLOGIC_MEDIA_ENHANCEMENT_PRIME_SL
+		if (vf && vf->src_fmt.fmt == VFRAME_SIGNAL_FMT_HDR10PRIME) {
+			int size = 0;
+			char *aux_buf = (char *)get_sei_from_src_fmt(vf, &size);
+			int aux_size = size;
+
+			if (!aux_buf || !aux_size ||
+				!is_valid_prime_sl_metadata(aux_buf, aux_size)) {
+				set_prime_sl_frame(0);
+				vf->src_fmt.fmt = VFRAME_SIGNAL_FMT_HDR10;
+				pr_csc(1, "update ahdr fmt in advanced as %d\n",
+					vf->src_fmt.fmt);
+			} else {
+				if (!get_prime_sl_frame()) {
+					set_prime_sl_frame(1);
+					pr_csc(1, "ahdr fmt should update every vsync\n");
+				}
+			}
+		} else if (vd_path == VD1_PATH && get_prime_sl_frame() &&
+		vf && vf->src_fmt.fmt != VFRAME_SIGNAL_FMT_HDR10PRIME) {
+			set_prime_sl_frame(0);
+			pr_csc(1, "vd1 metadata loss frame\n");
+		}
+#endif
 
 	if (is_vpp1(VD2_PATH) &&
 		((vd_path == VD2_PATH &&
@@ -9468,6 +9500,7 @@ int amvecm_matrix_process(struct vframe_s *vf,
 				      get_source_type(VD1_PATH, vpp_index) == HDRTYPE_MVC ||
 				      get_source_type(VD1_PATH, vpp_index) == HDRTYPE_CUVA_HDR ||
 				      get_source_type(VD1_PATH, vpp_index) == HDRTYPE_CUVA_HLG ||
+				      get_source_type(VD1_PATH, vpp_index) == HDRTYPE_PRIMESL ||
 				      ((get_dv_support_info() & 7) != 7) ||
 				      (get_source_type(VD1_PATH, vpp_index) == HDRTYPE_HDR10 &&
 				       !(dv_hdr_policy & 1)) ||

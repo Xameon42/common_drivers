@@ -15,6 +15,8 @@
 #include <linux/platform_device.h>
 #include <linux/amlogic/media/vfm/vframe.h>
 #include <linux/amlogic/media/video_sink/video.h>
+#include <linux/amlogic/media/video_sink/video_signal_notify.h>
+#include <linux/amlogic/media/registers/register_map.h>
 #include <linux/amlogic/media/vout/vout_notify.h>
 #include <linux/amlogic/media/vfm/vframe_provider.h>
 #include <linux/amlogic/media/vfm/vframe_receiver.h>
@@ -34,6 +36,13 @@
 #include <linux/ctype.h>
 #include <linux/string.h>
 #include <linux/vmalloc.h>
+#ifdef CONFIG_AMLOGIC_MEDIA_ENHANCEMENT_VECM
+#include "../amvecm/amcsc.h"
+#include "../amvecm/reg_helper.h"
+#endif
+#ifdef CONFIG_AMLOGIC_MEDIA_ENHANCEMENT_DOLBYVISION
+#include <linux/amlogic/media/amdolbyvision/dolby_vision.h>
+#endif
 
 #include <linux/amlogic/cpu_version.h>
 #include <linux/amlogic/media/amprime_sl/prime_sl.h>
@@ -43,12 +52,7 @@
 /*======================================*/
 #define AMPRIME_SL_NAME               "amprime_sl"
 #define AMPRIME_SL_CLASS_NAME         "amprime_sl"
-
-#define pr_sl(lvl, fmt, args...)\
-	do {\
-		if (prime_sl_debug & (lvl))\
-			pr_info("Prime_SL: " fmt, ## args);\
-	} while (0)
+#define SEI_VERSION 1
 
 #define signal_color_primaries ((vf->signal_type >> 16) & 0xff)
 #define signal_transfer_characteristic ((vf->signal_type >> 8) & 0xff)
@@ -57,6 +61,8 @@
 #define NAL_UNIT_SEI_SUFFIX 40
 #define SEI_ITU_T_T35 4
 #define PRIME_SL_T35_PROV_CODE 0x003A
+
+#define MAX_PARAM   8
 
 static const struct hdr_prime_sl_func_s *p_funcs;
 struct prime_sl_device_data_s prime_sl_meson_dev;
@@ -76,7 +82,8 @@ static u32 prime_sl_enable = ENABLE;
 module_param(prime_sl_enable, uint, 0664);
 MODULE_PARM_DESC(prime_sl_enable, "\n prime_sl_enable\n");
 
-static u32 prime_sl_running;
+/* 0:module off; 1:module on */
+u32 prime_sl_running;
 module_param(prime_sl_running, uint, 0444);
 MODULE_PARM_DESC(prime_sl_running, "\n prime_sl_running\n");
 
@@ -84,21 +91,43 @@ static u32 prime_sl_probe;
 module_param(prime_sl_probe, uint, 0664);
 MODULE_PARM_DESC(prime_sl_probe, "\n prime_sl_probe\n");
 
-static u32 prime_sl_display_brightness = 150;
+/* DA */
+static u32 prime_sl_display_brightness = 550;
 module_param(prime_sl_display_brightness, uint, 0664);
 MODULE_PARM_DESC(prime_sl_display_brightness, "\n prime_sl_display_brightness\n");
 
-static u32 prime_sl_output_mode = PRIME_SL_DISPLAY_OETF_PQ;
-module_param(prime_sl_output_mode, uint, 0664);
-MODULE_PARM_DESC(prime_sl_output_mode, "\n prime_sl_output_mode\n");
+static u32 prime_sl_output_curve = PRIME_SL_DISPLAY_OETF_BT1886;
+module_param(prime_sl_output_curve, uint, 0664);
+MODULE_PARM_DESC(prime_sl_output_curve, "\n prime_sl_output_curve\n");
 
-static u32 prime_sl_debug;
+#define DAT_OFF 0
+#define DAT_LOW 1
+#define DAT_MEDIAN 2
+#define DAT_HIGH 3
+static u32 prime_sl_display_adaptation_tuning = DAT_MEDIAN;
+module_param(prime_sl_display_adaptation_tuning, uint, 0664);
+MODULE_PARM_DESC(prime_sl_display_adaptation_tuning, "\n prime_sl_display_adaptation_tuning\n");
+
+u32 prime_sl_debug;
 module_param(prime_sl_debug, uint, 0664);
 MODULE_PARM_DESC(prime_sl_debug, "\n prime_sl_debug\n");
 
-static u32 prime_sl_mode;
-module_param(prime_sl_mode, uint, 0664);
-MODULE_PARM_DESC(prime_sl_mode, "\n prime_sl_mode\n");
+/* use prime_sl_debug_run_mode for test */
+static u32 prime_sl_debug_run_mode;
+module_param(prime_sl_debug_run_mode, uint, 0664);
+MODULE_PARM_DESC(prime_sl_debug_run_mode, "\n prime_sl_debug_run_mode\n");
+
+static u32 prime_sl_hdr_mode = PRIME_SL_HDR_MODE_BYPASS_2020;
+module_param(prime_sl_hdr_mode, uint, 0664);
+MODULE_PARM_DESC(prime_sl_hdr_mode, "\n prime_sl_hdr_mode\n");
+
+/* 0:off;1:on */
+static u32 prime_sl_certification_mode;
+module_param(prime_sl_certification_mode, uint, 0664);
+MODULE_PARM_DESC(prime_sl_certification_mode, "\n prime_sl_certification_mode\n");
+
+static u32 prime_sl_encode_type; /* 0:HEVC, 1:AVC */
+static bool is_prime_sl_frame;/* 0:no, 1:yes */
 
 static const int shadow_gain[201] = {
 	255, 255, 255, 253, 227, 208, 194, 182,
@@ -165,22 +194,170 @@ bool is_meson_sc2(void)
 		return false;
 }
 
+bool is_meson_t7(void)
+{
+	if (prime_sl_meson_dev.cpu_id == _CPU_MAJOR_ID_T7)
+		return true;
+	else
+		return false;
+}
+
+bool is_meson_s4d(void)
+{
+	if (prime_sl_meson_dev.cpu_id == _CPU_MAJOR_ID_S4D)
+		return true;
+	else
+		return false;
+}
+
+bool is_meson_t5w(void)
+{
+	if (prime_sl_meson_dev.cpu_id == _CPU_MAJOR_ID_T5W)
+		return true;
+	else
+		return false;
+}
+
+bool is_meson_t5m(void)
+{
+	if (prime_sl_meson_dev.cpu_id == _CPU_MAJOR_ID_T5M)
+		return true;
+	else
+		return false;
+}
+
+bool is_meson_s7d(void)
+{
+	if (prime_sl_meson_dev.cpu_id == _CPU_MAJOR_ID_S7D)
+		return true;
+	else
+		return false;
+}
+
+bool is_meson_s6(void)
+{
+	if (prime_sl_meson_dev.cpu_id == _CPU_MAJOR_ID_S6)
+		return true;
+	else
+		return false;
+}
+
 bool is_prime_sl_enable(void)
 {
 	return prime_sl_enable &&
-		((prime_sl_probe && p_funcs) || prime_sl_mode);
+		((prime_sl_probe && p_funcs) || prime_sl_debug_run_mode);
 }
 EXPORT_SYMBOL(is_prime_sl_enable);
 
 bool is_prime_sl_on(void)
 {
-	return prime_sl_enable &&
-		prime_sl_running &&
-		((prime_sl_probe && p_funcs) || prime_sl_mode);
+	return prime_sl_enable && prime_sl_running &&
+		((prime_sl_probe && p_funcs) || prime_sl_debug_run_mode);
 }
 EXPORT_SYMBOL(is_prime_sl_on);
 
+bool get_prime_sl_frame(void)
+{
+	pr_sl(1, "%s:%d\n", __func__, is_prime_sl_frame);
+	return is_prime_sl_frame;
+}
+EXPORT_SYMBOL(get_prime_sl_frame);
+
+void set_prime_sl_frame(bool val)
+{
+	pr_sl(1, "%s:%d\n", __func__, val);
+	is_prime_sl_frame = val;
+}
+EXPORT_SYMBOL(set_prime_sl_frame);
+
+static int sink_support_hdr(const struct vinfo_s *vinfo)
+{
+	return sink_hdr_support(vinfo) & HDR_SUPPORT;
+}
+
+int get_prime_sl_hdr_process_policy(struct vframe_s *vf)
+{
+	const struct vinfo_s *vinfo;
+
+	vinfo = get_current_vinfo();
+	if (sink_support_hdr(vinfo)) {
+		if (signal_transfer_characteristic == 16 &&
+			(signal_color_primaries == 9 || signal_color_primaries == 2)) {
+			prime_sl_hdr_mode = PRIME_SL_HDR_MODE_BYPASS_2020;/* SL-HDR2 */
+		} else if (signal_transfer_characteristic == 14 ||
+			signal_transfer_characteristic == 1 ||
+			signal_transfer_characteristic == 2) {
+			if (signal_color_primaries == 9)
+				prime_sl_hdr_mode = PRIME_SL_HDR_MODE_BYPASS_2020;/* HDR1 BT2020 */
+			else
+				prime_sl_hdr_mode = PRIME_SL_HDR_MODE_709_TO_2020;/* HDR1 BT709 */
+		} else {
+			prime_sl_hdr_mode = PRIME_SL_HDR_MODE_709_TO_2020;/* HDR1 BT709 */
+		}
+	} else {
+		if (signal_transfer_characteristic == 16 &&
+			(signal_color_primaries == 9 || signal_color_primaries == 2)) {
+			prime_sl_hdr_mode = PRIME_SL_HDR_MODE_2020_TO_709;/* SL-HDR2 */
+		} else if (signal_transfer_characteristic == 14 ||
+			signal_transfer_characteristic == 1 ||
+			signal_transfer_characteristic == 2) {
+			if (signal_color_primaries == 9)
+				prime_sl_hdr_mode = PRIME_SL_HDR_MODE_2020_TO_709;/* HDR1 BT2020 */
+			else
+				prime_sl_hdr_mode = PRIME_SL_HDR_MODE_BYPASS_709;/* HDR1 BT709 */
+		} else {
+			prime_sl_hdr_mode = PRIME_SL_HDR_MODE_BYPASS_709;/* HDR1 BT709 */
+		}
+	}
+	return prime_sl_hdr_mode;
+}
+
+int get_prime_sl_output_curve(void)
+{
+	const struct vinfo_s *vinfo;
+
+	vinfo = get_current_vinfo();
+	if (sink_support_hdr(vinfo))
+		prime_sl_output_curve = PRIME_SL_DISPLAY_OETF_PQ;
+	else
+		prime_sl_output_curve = PRIME_SL_DISPLAY_OETF_BT1886;
+	return prime_sl_output_curve;
+}
+
+int get_prime_sl_display_brightness(void)
+{
+	const struct vinfo_s *vinfo;
+
+	vinfo = get_current_vinfo();
+	if (prime_sl_certification_mode)
+		return prime_sl_display_brightness;
+	if (vinfo && vinfo->hdr_info.lumi_max) {
+		prime_sl_display_brightness = vinfo->hdr_info.lumi_max;
+	} else {
+		if (sink_support_hdr(vinfo))
+			prime_sl_display_brightness = 1000;
+		else
+			prime_sl_display_brightness = 150;
+	}
+	return prime_sl_display_brightness;
+}
+
 #define SEI_VERSION 1
+
+/* return false: invalid metadata */
+bool is_valid_prime_sl_metadata(char *buf, int size)
+{
+	int i;
+	int check_size = 8;
+
+	if (size <= check_size)
+		return false;
+	for (i = 0; i <= check_size; i++) {
+		if (buf[i])
+			return true;
+	}
+	return false;
+}
 
 /* just debug now */
 #ifdef RAW_META
@@ -484,6 +661,7 @@ static int parser_metadata_from_sei(struct sei_parser_s *p, bool hevc)
 		pr_sl(1, "Invalid terminal_provider_oriented_code_message_idc:%d\n", m);
 		return -3;
 	}
+	prime_sl_encode_type = m;
 	pr_sl(0x20, "terminal_provider_oriented_code_message_idc:%d\n", m);
 
 	/* sl_hdr_mode_value_minus1 */
@@ -518,40 +696,26 @@ static int parser_metadata_from_sei(struct sei_parser_s *p, bool hevc)
 	}
 	pr_sl(0x20, "sl_hdr_cancel_flag:%d\n", m);
 
-#ifdef VER_1_4_0
-	/* sl_hdr_persistence_flag */
-	m = readU(p, 1);
-	pr_sl(0x20, "sl_hdr_persistence_flag:%d\n", m);
-	/* coded_picture_info_present_flag */
-	m = readU(p, 1);
-	pr_sl(0x20, "coded_picture_info_present_flag:%d\n", m);
-	/* target_picture_info_present_flag */
-	m = readU(p, 1);
-	pr_sl(0x20, "target_picture_info_present_flag:%d\n", m);
-	/* src_mdcv_info_present_flag */
-	m = readU(p, 1);
-	pr_sl(0x20, "src_mdcv_info_present_flag:%d\n", m);
-	/* sl_hdr_extension_present_flag */
-	m = readU(p, 1);
-	pr_sl(0x20, "sl_hdr_extension_present_flag:%d\n", m);
-#else
-	if (hevc) {
+	if (!prime_sl_encode_type) {
 		/* sl_hdr_persistence_flag */
+		pr_sl(1, "265 encode type:%d\n", m);
 		m = readU(p, 1);
 		if (m) {
 			pr_sl(1, "Unsupported sl_hdr_persistence_flag:%d\n", m);
 			return -7;
 		}
+		pr_sl(0x20, "sl_hdr_persistence_flag:%d\n", m);
 	} else {
 		/* sl_hdr_repetition_period */
+		pr_sl(1, "264 encode type:%d\n", m);
 		m = readU(p, 17);
 		if (m) {
 			pr_sl(1, "Unsupported sl_hdr_repetition_period:%d\n", m);
 			return -7;
 		}
+		pr_sl(0x20, "sl_hdr_repetition_period:%d\n", m);
 	}
 
-	/* TODO: check sei spec */
 	/* original_picture_info_present_flag */
 	m = readU(p, 1);
 	if (m) {
@@ -579,7 +743,6 @@ static int parser_metadata_from_sei(struct sei_parser_s *p, bool hevc)
 
 	/* sl_hdr_extension_present_flag */
 	readU(p, 1);
-#endif
 
 	/* sl_hdr_payload_mode */
 	metadata->payload_mode = readU(p, 3);
@@ -864,12 +1027,6 @@ static int parser_metadata_from_sei(struct sei_parser_s *p, bool hevc)
 		if (metadata->part_id == 2)
 			metadata->sdr_pic_colour_space = 1;
 	}
-
-	if (!is_parser_success(p)) {
-		pr_sl(1, "parser is not completed: %px, size:%d, used:%d\n",
-			p->buffer_ptr, p->buffer_size, p->readbytes);
-		return -26;
-	}
 	return 1;
 }
 
@@ -886,6 +1043,20 @@ static int parser_prime_sei(struct sei_parser_s *parser,
 
 	if (size < 2)
 		return ret;
+
+	if (*p == 0xB5	&& ((*(p + 1) << 8) | *(p + 2)) == PRIME_SL_T35_PROV_CODE) {
+		pr_sl(1, "start h264 ahdr metadata parser\n");
+		p_sei = p;
+		init_sei_parser(parser, p_sei, size - (p_sei - sei_buf));
+		ret = parser_metadata_from_sei(parser, true);
+		if (ret < 0) {
+			pr_sl(0x20,
+				"Invalid or Unsupported metadata : recovery mode is used\n");
+			return 0;
+		}
+		return ret;
+	}
+
 	header = *p++;
 	header <<= 8;
 	header += *p++;
@@ -911,6 +1082,11 @@ static int parser_prime_sei(struct sei_parser_s *parser,
 					p, payload_size);
 				init_sei_parser(parser, p_sei, size - (p_sei - sei_buf));
 				ret = parser_metadata_from_sei(parser, true);
+				if (ret < 0) {
+					pr_sl(0x20,
+						"Invalid or Unsupported metadata : recovery mode is used\n");
+					return 0;
+				}
 				break;
 			default:
 				break;
@@ -942,11 +1118,24 @@ static int prime_sl_parser_metadata(struct vframe_s *vf)
 		vf->compHeight : vf->height;
 	cfg->bit_depth = vf->bitdepth;
 	cfg->yuv_range = (vf->signal_type >> 25) & 0x1;
-	cfg->display_brightness = prime_sl_display_brightness;
-	if (prime_sl_output_mode < PRIME_SL_DISPLAY_BYPASS)
-		cfg->display_oetf = prime_sl_output_mode;
-	else
-		cfg->display_oetf = 1;
+	cfg->display_brightness = get_prime_sl_display_brightness();
+	cfg->display_oetf = get_prime_sl_output_curve();
+	switch (prime_sl_display_adaptation_tuning) {
+	case DAT_OFF:
+		cfg->display_adaptation_tuning = 65536;
+		break;
+	case DAT_LOW:
+		cfg->display_adaptation_tuning = 81002;
+		break;
+	case DAT_MEDIAN:
+		cfg->display_adaptation_tuning = 131072;
+		break;
+	case DAT_HIGH:
+		cfg->display_adaptation_tuning = 212074;
+		break;
+	default:
+		pr_sl(1, "Invalid display_adaptation_tuning value\n");
+	}
 
 	req.vf = vf;
 	req.bot_flag = 0;
@@ -960,6 +1149,21 @@ static int prime_sl_parser_metadata(struct vframe_s *vf)
 		req.aux_buf = (char *)get_sei_from_src_fmt(vf, &size);
 		req.aux_size = size;
 		prime_sl_video = true;
+		if (vf)
+			pr_sl(1, "[%s]:index=%d,magic_code=%x,fmt=%d,sei_ptr=%p,sei_size=%d\n",
+				__func__, vf->frame_index, vf->src_fmt.sei_magic_code,
+				vf->src_fmt.fmt, vf->src_fmt.sei_ptr, vf->src_fmt.sei_size);
+		if (!req.aux_buf || !req.aux_size ||
+			!is_valid_prime_sl_metadata(req.aux_buf, req.aux_size)) {
+			set_prime_sl_frame(0);
+			if (signal_transfer_characteristic == 0x10)
+				vf->src_fmt.fmt = VFRAME_SIGNAL_FMT_HDR10;
+			else
+				vf->src_fmt.fmt = VFRAME_SIGNAL_FMT_SDR;
+			pr_sl(1, "empty or invalid metadata , update fmt\n");
+			prime_sl_video = false;
+			return ret;
+		}
 	} else {
 		vf_notify_provider_by_name("vdec.h265.00",
 			   VFRAME_EVENT_RECEIVER_GET_AUX_DATA,
@@ -1060,23 +1264,31 @@ void prime_sl_process(struct vframe_s *vf)
 	static struct vframe_s *last_vf;
 	bool new_vf = false;
 
-	if (!prime_sl_probe && !prime_sl_mode)
+	if (!prime_sl_probe || !prime_sl_enable || !p_funcs)
 		return;
 
 	/* skip mode */
-	if (prime_sl_mode == 3)
+	if (prime_sl_debug_run_mode == 3)
 		return;
+
+	if (vf && vf->src_fmt.fmt != VFRAME_SIGNAL_FMT_HDR10PRIME) {
+		if (prime_sl_running) {
+			prime_sl_close();
+			prime_sl_running = 0;
+		}
+		return;
+	}
 
 	if (last_vf != vf && vf)
 		new_vf = true;
 	last_vf = vf;
 
-	if (prime_sl_enable && prime_sl_mode && new_vf) {
+	if (prime_sl_enable && prime_sl_debug_run_mode && new_vf) {
 		if (!prime_sl_parser_metadata(vf))
 			pr_sl(2, "parser meta success in debug mode\n");
 		else
 			pr_sl(1, "parser meta fail in debug mode\n");
-		if (prime_sl_mode == 2 && p_funcs) {
+		if (prime_sl_debug_run_mode == 2 && p_funcs) {
 			p_funcs->prime_metadata_parser_process(&prime_sl_setting);
 			if (prime_sl_debug & 0x10) {
 				dbg_metadata(&prime_sl_setting.prime_metadata);
@@ -1087,21 +1299,26 @@ void prime_sl_process(struct vframe_s *vf)
 		return;
 	}
 
-	if (prime_sl_enable && p_funcs && new_vf &&
-		prime_sl_output_mode < PRIME_SL_DISPLAY_BYPASS &&
-	    !prime_sl_parser_metadata(vf)) {
-		p_funcs->prime_metadata_parser_process(&prime_sl_setting);
-		if (!prime_sl_running)
-			dv_mem_power_on(VPU_PRIME_DOLBY_RAM);
-		prime_sl_set_reg(&prime_sl_setting.prime_sl);
-		prime_sl_running = 1;
+	if (prime_sl_enable && p_funcs && new_vf) {
+		if (!prime_sl_parser_metadata(vf)) {
+			p_funcs->prime_metadata_parser_process(&prime_sl_setting);
+			if (!prime_sl_running)
+				dv_mem_power_on(VPU_PRIME_DOLBY_RAM);
+			prime_sl_set_reg(&prime_sl_setting.prime_sl);
+			prime_sl_running = 1;
+		} else {
+			if (prime_sl_running) {
+				prime_sl_close();
+				prime_sl_running = 0;
+			}
+		}
 	} else if (prime_sl_running &&
-			(!get_video_enabled(0) || !vf ||
-			 prime_sl_output_mode == PRIME_SL_DISPLAY_BYPASS)) {
-		/* TODO: need close? */
+			(!get_video_enabled(0) || !vf)) {
+		/* exit play primesl need close */
 		prime_sl_close();
-		dv_mem_power_off(VPU_PRIME_DOLBY_RAM);
 		prime_sl_running = 0;
+		set_prime_sl_frame(0);
+		dv_mem_power_off(VPU_PRIME_DOLBY_RAM);
 	}
 }
 EXPORT_SYMBOL(prime_sl_process);
@@ -1110,89 +1327,150 @@ static void dbg_setting(struct prime_sl_t *prime_sl)
 {
 	unsigned int i;
 
-	pr_info("\t %s: legacy_mode_en\t%d\n", __func__, prime_sl->legacy_mode_en);
-	pr_info("\t clip_en\t%d\n", prime_sl->clip_en);
-	pr_info("\t reg_gclk_ctrl\t%d\n", prime_sl->reg_gclk_ctrl);
-	pr_info("\t gclk_ctrl\t%d\n", prime_sl->gclk_ctrl);
-	pr_info("\t primesl_en\t%d\n",
+	pr_info("\t legacy_mode_en\t %d\n", prime_sl->legacy_mode_en);
+	pr_info("\t clip_en\t %d\n", prime_sl->clip_en);
+	pr_info("\t reg_gclk_ctrl\t %d\n", prime_sl->reg_gclk_ctrl);
+	pr_info("\t gclk_ctrl\t %d\n", prime_sl->gclk_ctrl);
+	pr_info("\t primesl_en\t %d\n",
 		prime_sl->primesl_en);
-	pr_info("\t inv_chroma_ratio\t%d\n",
+	pr_info("\t inv_chroma_ratio\t %d\n",
 		prime_sl->inv_chroma_ratio);
-	pr_info("\t inv_y_ratio\t%d\n", prime_sl->inv_y_ratio);
-	pr_info("\t l_headroom\t%d\n", prime_sl->l_headroom);
-	pr_info("\t footroom\t%d\n", prime_sl->footroom);
-	pr_info("\t c_headroom\t%d\n", prime_sl->c_headroom);
-	pr_info("\t mub\t%d\n",
+	pr_info("\t inv_y_ratio\t %d\n", prime_sl->inv_y_ratio);
+	pr_info("\t l_headroom\t %d\n", prime_sl->l_headroom);
+	pr_info("\t footroom\t %d\n", prime_sl->footroom);
+	pr_info("\t c_headroom\t %d\n", prime_sl->c_headroom);
+	pr_info("\t mub\t %d\n",
 		prime_sl->mub);
-	pr_info("\t mua\t%d\n", prime_sl->mua);
+	pr_info("\t mua\t %d\n", prime_sl->mua);
 
 	for (i = 0; i < 7; i++)
-		pr_info("\t oct[%d]\t%d\n", i, prime_sl->oct[i]);
+		pr_info("\t oct[%d]\t %d\n", i, prime_sl->oct[i]);
 	for (i = 0; i < 3; i++)
-		pr_info("\t d_lut_threshold[%d]\t%d\n", i,
+		pr_info("\t d_lut_threshold[%d]\t %d\n", i,
 		prime_sl->d_lut_threshold[i]);
 	for (i = 0; i < 4; i++)
-		pr_info("\t d_lut_step[%d]\t%d\n", i, prime_sl->d_lut_step[i]);
+		pr_info("\t d_lut_step[%d]\t %d\n", i, prime_sl->d_lut_step[i]);
 	for (i = 0; i < 9; i++)
-		pr_info("\t rgb2yuv[%d]\t%d\n", i, prime_sl->rgb2yuv[i]);
+		pr_info("\t rgb2yuv[%d]\t %d\n", i, prime_sl->rgb2yuv[i]);
 	for (i = 0; i < 65; i++)
-		pr_info("\t lut_c[%d]\t%d\n", i, prime_sl->lut_c[i]);
+		pr_info("\t lut_c[%d]\t %d\n", i, prime_sl->lut_c[i]);
 	for (i = 0; i < 65; i++)
-		pr_info("\t lut_p[%d]\t%d\n", i, prime_sl->lut_p[i]);
+		pr_info("\t lut_p[%d]\t %d\n", i, prime_sl->lut_p[i]);
 	for (i = 0; i < 65; i++)
-		pr_info("\t lut_d[%d]\t%d\n", i, prime_sl->lut_d[i]);
+		pr_info("\t lut_d[%d]\t %d\n", i, prime_sl->lut_d[i]);
 }
 
 static void dbg_config(struct prime_cfg_t *cfg)
 {
-	pr_info("\t %s:width\t%d\n", __func__, cfg->width);
-	pr_info("\t height\t%d\n", cfg->height);
-	/* pr_info("\t bit_depth\t%d\n", cfg->bit_depth); */
-	pr_info("\t display_oetf\t%d\n", cfg->display_oetf);
-	pr_info("\t display_brightness\t%d\n",
+	pr_info("\t width\t %d\n", cfg->width);
+	pr_info("\t height\t %d\n", cfg->height);
+	pr_info("\t bit_depth\t %d\n", cfg->bit_depth);
+	pr_info("\t display_oetf\t %d\n", cfg->display_oetf);
+	pr_info("\t yuv_range\t %d\n", cfg->yuv_range);
+	pr_info("\t display_brightness\t %d\n",
 		cfg->display_brightness);
-	pr_info("\t yuv_range\t%d\n", cfg->yuv_range);
+	pr_info("\t display_adaptation_tuning \t %d\n",
+		cfg->display_adaptation_tuning);
 }
 
 static void dbg_metadata(struct sl_hdr_metadata *pmetadata)
 {
-	pr_info("\t %s:partID\t%d\n", __func__, pmetadata->part_id);
-	pr_info("\t majorSpecVersionID\t%d\n",
-		pmetadata->major_spec_version_id);
-	pr_info("\t minorSpecVersionID\t%d\n",
-		pmetadata->minor_spec_version_id);
-	pr_info("\t payloadMode\t%d\n",
-		pmetadata->payload_mode);
-	pr_info("\t hdrPicColourSpace\t%d\n",
-		pmetadata->hdr_pic_colour_space);
-	pr_info("\t hdrDisplayColourSpace\t%d\n",
-		pmetadata->hdr_display_colour_space);
-	pr_info("\t hdrDisplayMaxLuminance\t%d\n",
-		pmetadata->hdr_display_max_luminance);
+	unsigned int i;
 
-	pr_info("\t hdrDisplayMinLuminance\t%d\n",
+	pr_info("\t partID\t %d\n", pmetadata->part_id);
+	pr_info("\t majorSpecVersionID\t %d\n",
+		pmetadata->major_spec_version_id);
+	pr_info("\t minorSpecVersionID\t %d\n",
+		pmetadata->minor_spec_version_id);
+	pr_info("\t payloadMode\t %d\n",
+		pmetadata->payload_mode);
+	pr_info("\t hdrPicColourSpace\t %d\n",
+		pmetadata->hdr_pic_colour_space);
+	pr_info("\t hdrDisplayColourSpace\t %d\n",
+		pmetadata->hdr_display_colour_space);
+	pr_info("\t hdrDisplayMaxLuminance\t %d\n",
+		pmetadata->hdr_display_max_luminance);
+	pr_info("\t hdrDisplayMinLuminance\t %d\n",
 		pmetadata->hdr_display_min_luminance);
-	pr_info("\t sdrPicColourSpace\t%d\n",
+	pr_info("\t sdrPicColourSpace\t %d\n",
 		pmetadata->sdr_pic_colour_space);
-	pr_info("\t sdrDisplayColourSpace\t%d\n",
+	pr_info("\t sdrDisplayColourSpace\t %d\n",
 		pmetadata->sdr_display_colour_space);
-	pr_info("\t sdrDisplayMaxLuminance\t%d\n",
+	pr_info("\t sdrDisplayMaxLuminance\t %d\n",
 		pmetadata->sdr_display_max_luminance);
-	pr_info("\t sdrDisplayMinLuminance\t%d\n",
+	pr_info("\t sdrDisplayMinLuminance\t %d\n",
 		pmetadata->sdr_display_min_luminance);
+	for (i = 0; i < 4; i++)
+		pr_info("\t matrix_coefficient[%d]\t %d\n",
+			i, pmetadata->matrix_coefficient[i]);
+	for (i = 0; i < 2; i++)
+		pr_info("\t chroma_to_luma_injection[%d]\t %d\n",
+			i, pmetadata->chroma_to_luma_injection[i]);
+	for (i = 0; i < 3; i++)
+		pr_info("\t kcoefficient[%d]\t %d\n",
+			i, pmetadata->kcoefficient[i]);
+	pr_info("\t tm_input_signal_blacklevel_offset\t %d\n",
+		pmetadata->u.variables.tm_input_signal_blacklevel_offset);
+	pr_info("\t tm_input_signal_whitelevel_offset\t %d\n",
+		pmetadata->u.variables.tm_input_signal_whitelevel_offset);
+	pr_info("\t shadow_gain\t %d\n",
+		pmetadata->u.variables.shadow_gain);
+	pr_info("\t highlight_gain\t %d\n",
+		pmetadata->u.variables.highlight_gain);
+	pr_info("\t mid_tone_width_adj_factor\t %d\n",
+		pmetadata->u.variables.mid_tone_width_adj_factor);
+	pr_info("\t tm_output_finetuning_num_val\t %d\n",
+		pmetadata->u.variables.tm_output_finetuning_num_val);
+	for (i = 0; i < 10; i++)
+		pr_info("\t tm_output_finetuning_x[%d]\t %d\n",
+			i, pmetadata->u.variables.tm_output_finetuning_x[i]);
+	for (i = 0; i < 10; i++)
+		pr_info("\t tm_output_finetuning_y[%d]\t %d\n",
+			i, pmetadata->u.variables.tm_output_finetuning_y[i]);
+	pr_info("\t saturation_gain_num_val\t%d\n",
+		pmetadata->u.variables.saturation_gain_num_val);
+	for (i = 0; i < 6; i++) {
+		pr_info("\t saturation_gain_x[%d]\t %d\n",
+			i, pmetadata->u.variables.saturation_gain_x[i]);
+		pr_info("\t saturation_gain_y[%d]\t %d\n",
+			i, pmetadata->u.variables.saturation_gain_y[i]);
+	}
+}
+
+void parse_param_amprime_sl(char *buf_orig, char **parm)
+{
+	char *ps, *token;
+	unsigned int n = 0;
+	char delim1[3] = " ";
+	char delim2[2] = "\n";
+
+	ps = buf_orig;
+	strcat(delim1, delim2);
+	while (1) {
+		token = strsep(&ps, delim1);
+		if (!token)
+			break;
+		if (*token == '\0')
+			continue;
+		parm[n++] = token;
+		if (n >= MAX_PARAM)
+			break;
+	}
 }
 
 static ssize_t amprime_sl_debug_store(struct class *cla,
 			struct class_attribute *attr,
 			const char *buf, size_t count)
 {
+	char *buf_orig, *parm[MAX_PARAM] = {NULL};
 	if (!buf)
 		return count;
-
-	if (!strcmp(buf, "metadata")) {
+	buf_orig = kstrdup(buf, GFP_KERNEL);
+	parse_param_amprime_sl(buf_orig, (char **)&parm);
+	if (!strcmp(parm[0], "metadata")) {
 		dbg_metadata(&prime_sl_setting.prime_metadata);
 		dbg_config(&prime_sl_setting.cfg);
-	} else if (!strcmp(buf, "setting")) {
+	} else if (!strcmp(parm[0], "setting")) {
 		dbg_setting(&prime_sl_setting.prime_sl);
 	} else {
 		pr_info("unsupport commands\n");
@@ -1250,6 +1528,34 @@ static struct prime_sl_device_data_s prime_sl_sc2 = {
 	.cpu_id = _CPU_MAJOR_ID_SC2,
 };
 
+static struct prime_sl_device_data_s prime_sl_t7 = {
+	.cpu_id = _CPU_MAJOR_ID_T7,
+};
+
+static struct prime_sl_device_data_s prime_sl_t3 = {
+	.cpu_id = _CPU_MAJOR_ID_T3,
+};
+
+static struct prime_sl_device_data_s prime_sl_s4d = {
+	.cpu_id = _CPU_MAJOR_ID_S4D,
+};
+
+static struct prime_sl_device_data_s prime_sl_t5w = {
+	.cpu_id = _CPU_MAJOR_ID_T5W,
+};
+
+static struct prime_sl_device_data_s prime_sl_t5m = {
+	.cpu_id = _CPU_MAJOR_ID_T5M,
+};
+
+static struct prime_sl_device_data_s prime_sl_s7d = {
+	.cpu_id = _CPU_MAJOR_ID_S7D,
+};
+
+static struct prime_sl_device_data_s prime_sl_s6 = {
+	.cpu_id = _CPU_MAJOR_ID_S6,
+};
+
 static const struct of_device_id amprime_sl_match[] = {
 	{
 		.compatible = "amlogic, prime_sl_g12",
@@ -1266,6 +1572,34 @@ static const struct of_device_id amprime_sl_match[] = {
 	{
 		.compatible = "amlogic, prime_sl_sc2",
 		.data = &prime_sl_sc2,
+	},
+	{
+		.compatible = "amlogic, prime_sl_t7",
+		.data = &prime_sl_t7,
+	},
+	{
+		.compatible = "amlogic, prime_sl_t3",
+		.data = &prime_sl_t3,
+	},
+	{
+		.compatible = "amlogic, prime_sl_s4d",
+		.data = &prime_sl_s4d,
+	},
+	{
+		.compatible = "amlogic, prime_sl_t5w",
+		.data = &prime_sl_t5w,
+	},
+	{
+		.compatible = "amlogic, prime_sl_t5m",
+		.data = &prime_sl_t5m,
+	},
+	{
+		.compatible = "amlogic, prime_sl_s7d",
+		.data = &prime_sl_s7d,
+	},
+	{
+		.compatible = "amlogic, prime_sl_s6",
+		.data = &prime_sl_s6,
 	},
 	{},
 };
@@ -1393,8 +1727,5 @@ int __init amprime_sl_init(void)
 void __exit amprime_sl_exit(void)
 {
 	pr_info("prime_sl module exit\n");
+	platform_driver_unregister(&amprime_sl_driver);
 }
-
-//MODULE_DESCRIPTION("Amlogic HDR Prime SL driver");
-//MODULE_LICENSE("GPL");
-

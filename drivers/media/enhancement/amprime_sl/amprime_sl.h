@@ -6,7 +6,15 @@
 #ifndef __AMPRIME_SL_H__
 #define __AMPRIME_SL_H__
 
+#include <linux/types.h>
 #include <linux/amlogic/media/vpu/vpu.h>
+#include <linux/amlogic/media/utils/vdec_reg.h>
+
+#define pr_sl(lvl, fmt, args...)\
+		do {\
+			if (prime_sl_debug & (lvl))\
+				pr_info("Prime_SL: " fmt, ## args);\
+		} while (0)
 
 #define DRIVER_VER "20220401"
 
@@ -18,11 +26,30 @@
 #define PRIME_SL_DISPLAY_OETF_LINERA	2
 #define PRIME_SL_DISPLAY_BYPASS			3
 
+#ifndef CONFIG_AMLOGIC_MEDIA_VSYNC_RDMA
+#define SL_VSYNC_WR_MPEG_REG(adr, val) WRITE_VPP_REG(adr, val)
+#define SL_VSYNC_RD_MPEG_REG(adr) READ_VPP_REG(adr)
+#define SL_VSYNC_WR_MPEG_REG_BITS(adr, val, start, len) \
+	WRITE_VPP_REG_BITS(adr, val, start, len)
+#else
+#define SL_VSYNC_RD_MPEG_REG(adr) VSYNC_RD_MPEG_REG(adr)
+#define SL_VSYNC_WR_MPEG_REG(adr, val) VSYNC_WR_MPEG_REG(adr, val)
+#define SL_VSYNC_WR_MPEG_REG_BITS(adr, val, start, len) \
+	VSYNC_WR_MPEG_REG_BITS(adr, val, start, len)
+#endif
+
 enum cpu_id_e {
 	_CPU_MAJOR_ID_G12,
 	_CPU_MAJOR_ID_TL1,
 	_CPU_MAJOR_ID_TM2,
 	_CPU_MAJOR_ID_SC2,
+	_CPU_MAJOR_ID_T7,
+	_CPU_MAJOR_ID_T3,
+	_CPU_MAJOR_ID_S4D,
+	_CPU_MAJOR_ID_T5W,
+	_CPU_MAJOR_ID_T5M,
+	_CPU_MAJOR_ID_S7D,
+	_CPU_MAJOR_ID_S6,
 	_CPU_MAJOR_ID_UNKNOWN,
 };
 
@@ -37,6 +64,9 @@ struct prime_sl_device_data_s {
 #define PRIMESL_LUTD_ADDR_PORT		(0x3984)
 #define PRIMESL_LUTD_DATA_PORT		(0x3985)
 #define PRIMESL_CTRL0		        (0x3990)
+#define AMDV_PATH_SWAP_CTRL1        (0x1a70)
+#define AMDV_PATH_SWAP_CTRL2        (0x1a71)
+
 union PRIMESL_CTRL0_BITS {
 	unsigned int d32;
 	struct {
@@ -381,6 +411,7 @@ struct prime_cfg_t {
 	int display_oetf;	/**/
 	int yuv_range;
 	int display_brightness;
+	int display_adaptation_tuning;
 };
 
 struct prime_t {
@@ -419,6 +450,12 @@ bool is_meson_g12(void);
 bool is_meson_tl1(void);
 bool is_meson_tm2(void);
 bool is_meson_sc2(void);
+bool is_meson_t7(void);
+bool is_meson_s4d(void);
+bool is_meson_t5w(void);
+bool is_meson_t5m(void);
+bool is_meson_s7d(void);
+bool is_meson_s6(void);
 
 void prime_api_init(void);
 void prime_api_exit(void);
@@ -449,4 +486,6 @@ void dv_mem_power_on(enum vpu_mod_e mode);
 void dv_mem_power_off(enum vpu_mod_e mode);
 u32 get_video_enabled(u8 layer_id);
 
+extern u32 prime_sl_running;
+extern u32 prime_sl_debug;
 #endif	/* __AMPRIME_SL_H__ */

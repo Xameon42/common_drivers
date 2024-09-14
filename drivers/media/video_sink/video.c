@@ -110,6 +110,9 @@ MODULE_AMLOG(LOG_LEVEL_ERROR, 0, LOG_DEFAULT_LEVEL_DESC, LOG_MASK_DESC);
 #ifdef CONFIG_AMLOGIC_MEDIA_ENHANCEMENT_DOLBYVISION
 #include <linux/amlogic/media/amdolbyvision/dolby_vision.h>
 #endif
+#ifdef CONFIG_AMLOGIC_MEDIA_ENHANCEMENT_PRIME_SL
+#include <linux/amlogic/media/amprime_sl/prime_sl.h>
+#endif
 #ifdef CONFIG_AMLOGIC_MEDIA_DEINTERLACE
 #include <linux/amlogic/media/di/di.h>
 #endif
@@ -118,9 +121,6 @@ MODULE_AMLOG(LOG_LEVEL_ERROR, 0, LOG_DEFAULT_LEVEL_DESC, LOG_MASK_DESC);
 #endif
 #ifdef CONFIG_AMLOGIC_MEDIA_SECURITY
 #include <linux/amlogic/media/vpu_secure/vpu_secure.h>
-#endif
-#ifdef CONFIG_AMLOGIC_MEDIA_ENHANCEMENT_PRIME_SL
-#include <linux/amlogic/media/amprime_sl/prime_sl.h>
 #endif
 #include <linux/amlogic/media/video_processor/video_pp_common.h>
 
@@ -5628,6 +5628,10 @@ static char *check_media_sei(char *sei, u32 sei_size, u32 fmt_type, u32 *ret_siz
 				sei_type == type) {
 			if (p >= sei + sei_size - 7)
 				break;
+			if (*p == 0xB5  && ((*(p + 1) << 8) | *(p + 2)) == PRIME_SL_T35_PROV_CODE) {
+				ret = cur_p;
+				break;
+			}
 			nal_type = ((*p) & 0x7E) >> 1;
 			if (nal_type == PREFIX_SEI_NUT ||
 			    nal_type == SUFFIX_SEI_NUT) {
@@ -5833,10 +5837,12 @@ s32 update_vframe_src_fmt(struct vframe_s *vf,
 		}
 #ifdef CONFIG_AMLOGIC_MEDIA_ENHANCEMENT_PRIME_SL
 		if (is_prime_sl_enable() && sei && size &&
-		    vf->src_fmt.fmt != VFRAME_SIGNAL_FMT_HDR10PLUS &&
-		    !signal_cuva) {
-			if (check_media_sei(sei, size, FMT_TYPE_PRIME, NULL))
+			vf->src_fmt.fmt != VFRAME_SIGNAL_FMT_HDR10PLUS &&
+			!signal_cuva) {
+			if (check_media_sei(sei, size, FMT_TYPE_PRIME, NULL)) {
 				vf->src_fmt.fmt = VFRAME_SIGNAL_FMT_HDR10PRIME;
+				set_prime_sl_frame(1);
+			}
 		}
 #endif
 	}

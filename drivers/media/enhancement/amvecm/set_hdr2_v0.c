@@ -27,6 +27,9 @@
 #ifdef CONFIG_AMLOGIC_MEDIA_ENHANCEMENT_DOLBYVISION
 #include <linux/amlogic/media/amdolbyvision/dolby_vision.h>
 #endif
+#ifdef CONFIG_AMLOGIC_MEDIA_ENHANCEMENT_PRIME_SL
+#include <linux/amlogic/media/amprime_sl/prime_sl.h>
+#endif
 #include "set_hdr2_v0.h"
 #ifndef CONFIG_AMLOGIC_ZAPPER_CUT
 #include "s5_set_hdr2_v0.h"
@@ -2149,6 +2152,12 @@ void set_hdr_matrix(enum hdr_module_sel module_sel,
 		} else if (hdr_mtx_param->p_sel == HDR_HDR) {
 			adpscl_shift[0] = hdr_lut_param->adp_scal_x_shift;
 			adpscl_shift[1] = OO_NOR - _log2((1 << OO_NOR) / 64);
+#ifdef CONFIG_AMLOGIC_MEDIA_ENHANCEMENT_PRIME_SL
+			if (get_prime_sl_frame()) {
+				adpscl_shift[1] = OO_NOR;
+				pr_csc(1, "%s: test fix shift\n", __func__);
+			}
+#endif
 		} else {
 			adpscl_shift[0] = hdr_lut_param->adp_scal_x_shift;
 			adpscl_shift[1] = OO_NOR;
@@ -3589,6 +3598,12 @@ enum hdr_process_sel hdr_func(enum hdr_module_sel module_sel,
 			hdr_lut_param.ogain_lut[i] = oo_y_lut_sbtm[i];
 			if (i < HDR2_EOTF_LUT_SIZE)
 				hdr_lut_param.eotf_lut[i] = eo_y_lut_pq[i];
+#ifdef CONFIG_AMLOGIC_MEDIA_ENHANCEMENT_PRIME_SL
+			if (get_prime_sl_frame()) {
+				hdr_lut_param.ogain_lut[i] = oo_y_lut_bypass[i];
+				pr_csc(1, "%s: prime_sl frame,HDR_HDR bypass ootf\n", __func__);
+			}
+#endif
 			if (i < HDR2_CGAIN_LUT_SIZE)
 				hdr_lut_param.cgain_lut[i] = cgain_lut1[i] - 1;
 		}
@@ -3597,6 +3612,7 @@ enum hdr_process_sel hdr_func(enum hdr_module_sel module_sel,
 		hdr_lut_param.cgain_en = LUT_OFF;
 		hdr_lut_param.hist_en = LUT_ON;
 	} else if (hdr_process_select & SDR_GMT_CONVERT) {
+		pr_csc(128, "%s: prime_sl on,run into SDR_GMT_CONVERT\n", __func__);
 		for (i = 0; i < HDR2_OETF_LUT_SIZE; i++) {
 			hdr_lut_param.oetf_lut[i]  = oe_y_lut_sdr[i];
 			hdr_lut_param.ogain_lut[i] = oo_y_lut_bypass[i];
@@ -4031,9 +4047,24 @@ enum hdr_process_sel hdr_func(enum hdr_module_sel module_sel,
 			hdr_mtx_param.mtx_cgain[i] = rgb2ycbcr_ncl2020[i];
 			hdr_mtx_param.mtx_ogain[i] = rgb2ycbcr_ncl2020[i];
 			hdr_mtx_param.mtx_out[i] = rgb2ycbcr_ncl2020[i];
-			if (i < 9)
+#ifdef CONFIG_AMLOGIC_MEDIA_ENHANCEMENT_PRIME_SL
+			if (get_prime_sl_frame()) {
+				hdr_mtx_param.mtx_in[i] = ycbcr2rgb_709[i];
+				hdr_mtx_param.mtx_cgain[i] = bypass_coeff[i];
+				hdr_mtx_param.mtx_ogain[i] = bypass_coeff[i];
+				pr_csc(1, "%s: prime_sl frame,HDR_HDR mtx change\n", __func__);
+			}
+#endif
+			if (i < 9) {
 				hdr_mtx_param.mtx_gamut[i] =
 					gamut_bypass[i];
+#ifdef CONFIG_AMLOGIC_MEDIA_ENHANCEMENT_PRIME_SL
+				if (get_prime_sl_frame()) {
+					hdr_mtx_param.mtx_gamut[i] =
+						ncl_709_2020[i];
+				}
+#endif
+			}
 		}
 		pr_csc(12, "%s sbtm: HDR_HDR.  mtx_gamut is gamut_bypass\n", __func__);
 
@@ -4322,6 +4353,30 @@ enum hdr_process_sel hdr_func(enum hdr_module_sel module_sel,
 					oft_post_out[i];
 			}
 		}
+#ifdef CONFIG_AMLOGIC_MEDIA_ENHANCEMENT_PRIME_SL
+		if (get_prime_sl_frame()) {
+			for (i = 0; i < MTX_NUM_PARAM; i++) {
+				hdr_mtx_param.mtx_in[i] = ycbcr2rgb_ncl2020[i];
+				hdr_mtx_param.mtx_cgain[i] = bypass_coeff[i];
+				hdr_mtx_param.mtx_ogain[i] = bypass_coeff[i];
+				hdr_mtx_param.mtx_out[i] = rgb2ycbcr_709[i];
+				if (i < 3) {
+					hdr_mtx_param.mtxi_pre_offset[i] =
+						yuv2rgbpre[i];
+					hdr_mtx_param.mtxi_pos_offset[i] =
+						yuv2rgbpos[i];
+					hdr_mtx_param.mtxo_pre_offset[i] =
+						rgb2yuvpre[i];
+					hdr_mtx_param.mtxo_pos_offset[i] =
+						rgb2yuvpos[i];
+				}
+			}
+			for (i = 0; i < 9; i++)
+				hdr_mtx_param.mtx_gamut[i] =
+					ncl_2020_709[i];
+			pr_csc(1, "%s: prime_sl frame,SDR_GMT_CONVERT mtx change\n", __func__);
+		}
+#endif
 		hdr_mtx_param.mtx_on = MTX_ON;
 		hdr_mtx_param.p_sel = SDR_GMT_CONVERT;
 		if (eo_gmt_bit_mode)

@@ -35,6 +35,9 @@
 #include "../amvecm/amcsc.h"
 #include "../amvecm/reg_helper.h"
 #endif
+#ifdef CONFIG_AMLOGIC_MEDIA_ENHANCEMENT_PRIME_SL
+#include <linux/amlogic/media/amprime_sl/prime_sl.h>
+#endif
 #include <linux/amlogic/media/registers/regs/viu_regs.h>
 #include <linux/amlogic/media/amdolbyvision/dolby_vision.h>
 #include <linux/cma.h>
@@ -3380,7 +3383,6 @@ bool is_primesl_frame(struct vframe_s *vf)
 	fmt = get_vframe_src_fmt(vf);
 	if (fmt == VFRAME_SIGNAL_FMT_HDR10PRIME)
 		return true;
-
 	return false;
 }
 
@@ -7410,6 +7412,16 @@ bool check_vf_changed(struct vframe_s *vf)
 	return changed;
 }
 
+int is_primesl_output_amdv_std(struct vframe_s *vf)
+{
+	if (is_primesl_frame(vf) && is_amdv_enable() &&
+		get_amdv_policy() == 0 && get_amdv_ll_policy() == 0) {
+		pr_dv_dbg("format is primesl, treat as hdr10, output amdv_std\n");
+		return true;
+	}
+	return false;
+}
+
 int amdv_parse_metadata_v1(struct vframe_s *vf,
 					      u8 toggle_mode,
 					      bool bypass_release,
@@ -9447,7 +9459,7 @@ int amdv_parse_metadata_v2_stb(struct vframe_s *vf,
 			src_bdp = 10;
 		}
 
-		if (src_format != FORMAT_DOVI && is_hdr10_frame(vf)) {
+		if (src_format != FORMAT_DOVI && !is_primesl_frame(vf) && is_hdr10_frame(vf)) {
 			src_format = FORMAT_HDR10;
 			/* prepare parameter from SEI for hdr10 */
 			p_mdc = &vf->prop.master_display_colour;

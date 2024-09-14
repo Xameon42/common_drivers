@@ -14,7 +14,7 @@ config AMLOGIC_MEDIA_ENHANCEMENT
 if AMLOGIC_MEDIA_ENHANCEMENT
 source "$(COMMON_DRIVERS_DIR)/drivers/media/enhancement/amdolby_vision/Kconfig"
 source "$(COMMON_DRIVERS_DIR)/drivers/media/enhancement/amvecm/Kconfig"
-#source "$(COMMON_DRIVERS_DIR)/drivers/media/enhancement/amprime_sl/Kconfig"
+source "$(COMMON_DRIVERS_DIR)/drivers/media/enhancement/amprime_sl/Kconfig"
 endif
 
 endmenu

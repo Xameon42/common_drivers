@@ -70,6 +70,9 @@
 #ifdef CONFIG_AMLOGIC_MEDIA_FRC
 #include <linux/amlogic/media/frc/frc_common.h>
 #endif
+#ifdef CONFIG_AMLOGIC_MEDIA_ENHANCEMENT_PRIME_SL
+#include <linux/amlogic/media/amprime_sl/prime_sl.h>
+#endif
 #include <linux/amlogic/media/video_processor/video_pp_common.h>
 #include "video_common.h"
 #include "video_hw.h"
@@ -3828,6 +3831,10 @@ static void do_vd1_swap_frame(u8 layer_id,
 	else
 		vd_layer[0].keep_frame_id = 0xff;
 
+#ifdef CONFIG_AMLOGIC_MEDIA_ENHANCEMENT_PRIME_SL
+	prime_sl_process(vd_layer[0].dispbuf);
+#endif
+
 #if defined(CONFIG_AMLOGIC_MEDIA_ENHANCEMENT_VECM)
 	struct vpp_frame_par_s *frame_par = NULL;
 
@@ -3868,9 +3875,6 @@ static void do_vd1_swap_frame(u8 layer_id,
 		0,
 		VD1_PATH,
 		vd_layer[0].vpp_index);
-#endif
-#ifdef CONFIG_AMLOGIC_MEDIA_ENHANCEMENT_PRIME_SL
-	prime_sl_process(vd_layer[0].dispbuf);
 #endif
 
 	if ((new_frame || vd_layer[0].dispbuf) &&

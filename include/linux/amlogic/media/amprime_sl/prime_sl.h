@@ -7,23 +7,19 @@
 #define _PRIMSE_SL_H_
 
 #include <linux/types.h>
-#include <linux/amlogic/media/utils/vdec_reg.h>
 #include <linux/amlogic/media/vfm/vframe.h>
 
-#ifndef CONFIG_AMLOGIC_MEDIA_VSYNC_RDMA
-#define SL_VSYNC_WR_MPEG_REG(adr, val) WRITE_VPP_REG(adr, val)
-#define SL_VSYNC_RD_MPEG_REG(adr) READ_VPP_REG(adr)
-#define SL_VSYNC_WR_MPEG_REG_BITS(adr, val, start, len) \
-	WRITE_VPP_REG_BITS(adr, val, start, len)
-#else
-#define SL_VSYNC_RD_MPEG_REG(adr) VSYNC_RD_MPEG_REG(adr)
-#define SL_VSYNC_WR_MPEG_REG(adr, val) VSYNC_WR_MPEG_REG(adr, val)
-#define SL_VSYNC_WR_MPEG_REG_BITS(adr, val, start, len) \
-	VSYNC_WR_MPEG_REG_BITS(adr, val, start, len)
-#endif
+#define PRIME_SL_HDR_MODE_2020_TO_709 0
+#define PRIME_SL_HDR_MODE_709_TO_2020 1
+#define PRIME_SL_HDR_MODE_BYPASS_2020 2
+#define PRIME_SL_HDR_MODE_BYPASS_709 3
 
 void prime_sl_process(struct vframe_s *vf);
 bool is_prime_sl_enable(void);
 bool is_prime_sl_on(void);
+int get_prime_sl_hdr_process_policy(struct vframe_s *vf);
+bool is_valid_prime_sl_metadata(char *buf, int size);
+bool get_prime_sl_frame(void);
+void set_prime_sl_frame(bool val);
 
 #endif

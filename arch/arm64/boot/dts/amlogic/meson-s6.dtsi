@@ -1506,6 +1506,12 @@
 		tx_op_color_primary = <0>;
 	};
 
+	aml_primesl {
+		compatible = "amlogic, prime_sl_s6";
+		dev_name = "amprime_sl";
+		status = "okay";
+	};
+
 	multi-di {
 		compatible = "amlogic, dim-s7d";
 		/* s6 same as s7d */
