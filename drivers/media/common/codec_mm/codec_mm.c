@@ -974,7 +974,7 @@ static int codec_mm_alloc_in(struct codec_mm_mgt_s *mgt, struct codec_mm_s *mem)
 		    mem->page_count <= mgt->alloc_from_sys_pages_max &&
 		    align_2n <= PAGE_SHIFT) {
 			alloc_trace_mask |= 1 << 0;
-			mem->mem_handle = (void *)__get_free_pages(GFP_KERNEL,
+			mem->mem_handle = (void *)__get_free_pages((GFP_KERNEL | GFP_DMA32),
 				get_order(mem->buffer_size));
 			mem->from_flags =
 				AMPORTS_MEM_FLAGS_FROM_GET_FROM_PAGES;
