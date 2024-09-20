@@ -76,18 +76,6 @@ static int distinguish_module(void)
 	return 0;
 }
 
-void host_wake_bt(int bit)
-{
-	pr_info("%s bit : %d\n", __func__, bit);
-	if (bit == 0)
-		gpio_direction_output(global_pdata.gpio_hostwake,
-				global_pdata.power_low_level);
-	else if (bit == 1)
-		gpio_direction_output(global_pdata.gpio_hostwake,
-				!global_pdata.power_low_level);
-}
-EXPORT_SYMBOL(host_wake_bt);
-
 static ssize_t value_show(struct class *cls,
 	struct class_attribute *attr, char *_buf)
 {
@@ -282,8 +270,10 @@ static void bt_device_deinit(struct bt_dev_data *pdata)
 		gpio_free(pdata->gpio_en);
 
 	btpower_evt = 0;
+/*
 	if (pdata->gpio_hostwake > 0)
 		gpio_free(pdata->gpio_hostwake);
+*/
 }
 
 static void bt_device_on(struct bt_dev_data *pdata, unsigned long down_time, unsigned long up_time)
@@ -309,7 +299,19 @@ static void bt_device_on(struct bt_dev_data *pdata, unsigned long down_time, uns
 	}
 }
 
-/*The system calls this function when GPIOC_14 interrupt occurs*/
+void host_wake_bt(int bit)
+{
+	pr_info("%s bit : %d\n", __func__, bit);
+	if (bit == 0)
+		gpio_direction_output(global_pdata.gpio_hostwake,
+				global_pdata.power_low_level);
+	else if (bit == 1)
+		gpio_direction_output(global_pdata.gpio_hostwake,
+				!global_pdata.power_low_level);
+}
+EXPORT_SYMBOL(host_wake_bt);
+
+/*
 static irqreturn_t bt_interrupt(int irq, void *dev_id)
 {
 	struct bt_dev_data *pdata = (struct bt_dev_data *)dev_id;
@@ -377,7 +379,7 @@ static void get_btwakeup_irq_work(struct work_struct *work)
 	hrtimer_start(&pdata->timer,
 			ktime_set(0, 100 * 1000000), HRTIMER_MODE_REL);
 }
-
+*/
 static int bt_set_block(void *data, bool blocked)
 {
 	struct bt_dev_data *pdata = data;
@@ -424,22 +426,24 @@ static void bt_lateresume(struct early_suspend *h)
 static int bt_suspend(struct platform_device *pdev,
 		      pm_message_t state)
 {
-	struct bt_dev_runtime_data *prdata = platform_get_drvdata(pdev);
+	//struct bt_dev_runtime_data *prdata = platform_get_drvdata(pdev);
 
 	btwake_evt = 0;
 
 	pr_debug("bt suspend\n");
-	disable_irq(prdata->pdata->irqno_wakeup);
+//	disable_irq(prdata->pdata->irqno_wakeup);
 
 	return 0;
 }
 
 static int bt_resume(struct platform_device *pdev)
 {
+#ifndef CONFIG_AMLOGIC_BT_WAKE_NOT_REPORT
 	struct bt_dev_runtime_data *prdata = platform_get_drvdata(pdev);
+#endif
 
 	pr_debug("bt resume\n");
-	enable_irq(prdata->pdata->irqno_wakeup);
+//	enable_irq(prdata->pdata->irqno_wakeup);
 	btwake_evt = 0;
 
 	if ((get_resume_method() == RTC_WAKEUP) ||
@@ -537,7 +541,7 @@ static int bt_probe(struct platform_device *pdev)
 							"hostwake-gpios",
 							0, NULL);
 		}
-		/*gpio_btwakeup = BT_WAKE_HOST*/
+		/*
 		ret = of_property_read_string(pdev->dev.of_node,
 			"btwakeup-gpios", &str);
 		if (ret) {
@@ -549,6 +553,7 @@ static int bt_probe(struct platform_device *pdev)
 							"btwakeup-gpios",
 							0, NULL);
 		}
+		*/
 
 		prop = of_get_property(pdev->dev.of_node,
 				       "power_low_level", NULL);
@@ -650,26 +655,24 @@ static int bt_probe(struct platform_device *pdev)
 #endif
 
 	/*1.Set BT_WAKE_HOST to the input state;*/
-	/*2.Get interrupt number(irqno_wakeup).*/
+	/*
 	pdata->irqno_wakeup = gpio_to_irq(pdata->gpio_btwakeup);
 
-	/*Register interrupt service function*/
 	ret = request_irq(pdata->irqno_wakeup, bt_interrupt,
 			IRQF_TRIGGER_FALLING, "bt-irq", (void *)pdata);
 	if (ret < 0)
 		pr_err("request_irq error ret=%d\n", ret);
 
-	//disable_irq(pdata->irqno_wakeup);
-
 	ret = device_init_wakeup(&pdev->dev, 1);
 	if (ret)
 		pr_err("device_init_wakeup failed: %d\n", ret);
-	/*Wake up the interrupt*/
+
 	ret = dev_pm_set_wake_irq(&pdev->dev, pdata->irqno_wakeup);
 	if (ret)
 		pr_err("dev_pm_set_wake_irq failed: %d\n", ret);
 
 	INIT_WORK(&pdata->btwakeup_work, get_btwakeup_irq_work);
+  */
 
 	//input
 	input_dev = input_allocate_device();
@@ -701,7 +704,7 @@ static int bt_probe(struct platform_device *pdev)
 	pdata->input_dev = input_dev;
 
 	hrtimer_init(&pdata->timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
-	pdata->timer.function = btwakeup_timer_handler;
+	//pdata->timer.function = btwakeup_timer_handler;
 
 	return 0;
 
