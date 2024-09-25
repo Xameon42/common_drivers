@@ -34,6 +34,8 @@ static struct aml_efuse_lockable_check efusecheck = {
 };
 
 struct efuse_obj_field_t efuse_field;
+static char mrk_name[16] = {};
+static unsigned int mrk_checksum[6] = {-1, -1, -1, -1, -1, -1};
 
 struct aml_efuse_cmd efuse_cmd;
 unsigned int efuse_pattern_size;
@@ -1153,12 +1155,70 @@ static ssize_t efuse_obj_show(struct class *class,
 	return len;
 }
 
+static ssize_t efuse_mrk_store(struct class *cla,
+	struct class_attribute *attr, const char *buf, size_t count)
+{
+	int ret = 0;
+
+	mutex_lock(&efuse_obj_mutex);
+	memset(mrk_name, 0, sizeof(mrk_name));
+	memset(mrk_checksum, 0, sizeof(mrk_checksum));
+	strncpy(mrk_name, buf, count);
+	for (ret = 0; ret < sizeof(mrk_name); ret++)
+		if (mrk_name[ret] == '\n') {	/* remove enter key */
+			mrk_name[ret] = '\0';
+			break;
+		}
+
+	/* short checknum */
+	ret = efuse_mrk_get_checknum(mrk_name, 0, mrk_checksum);
+	if (ret)
+		goto err;
+
+	/* long checknum */
+	ret = efuse_mrk_get_checknum(mrk_name, 1, mrk_checksum + 1);
+err:
+	mrk_checksum[5] = ret;
+	mutex_unlock(&efuse_obj_mutex);
+	return count;
+}
+
+static ssize_t efuse_mrk_show(struct class *class,
+	struct class_attribute *attr, char *buf)
+{
+	int ret;
+	int count = 0;
+
+	mutex_lock(&efuse_obj_mutex);
+	ret = mrk_checksum[5];
+	switch (ret) {
+	case 0:
+		count = sprintf(buf, "%s Short checknum:%08x, long checknum:%08x %08x %08x %08x\n",
+				mrk_name, mrk_checksum[0], mrk_checksum[1],
+				mrk_checksum[2], mrk_checksum[3], mrk_checksum[4]);
+		break;
+	case EFUSE_MRK_CHECKNUM_NOT_SUPPORTED:
+		count = sprintf(buf, "MRK field %s not supported\n", mrk_name);
+		break;
+	case EFUSE_MRK_CHECKNUM_INVALID_ARGUMENT:
+		count = sprintf(buf, "get mrk checknum for %s failed, MRK field may not be written\n",
+				mrk_name);
+		break;
+	default:
+		count = -1;
+		break;
+	}
+	mutex_unlock(&efuse_obj_mutex);
+	return count;
+}
+
 static EFUSE_CLASS_ATTR(userdata);
 static EFUSE_CLASS_ATTR(mac);
 static EFUSE_CLASS_ATTR(mac_bt);
 static EFUSE_CLASS_ATTR(mac_wifi);
 static EFUSE_CLASS_ATTR(usid);
 static EFUSE_CLASS_ATTR(efuse_obj);
+static EFUSE_CLASS_ATTR(efuse_mrk);
 static CLASS_ATTR_WO(amlogic_set);
 static CLASS_ATTR_RO(secureboot_check);
 static EFUSE_CLASS_ATTR(checkburn);
@@ -1171,6 +1231,7 @@ static struct attribute *efuse_class_attrs[] = {
 	&class_attr_mac_wifi.attr,
 	&class_attr_usid.attr,
 	&class_attr_efuse_obj.attr,
+	&class_attr_efuse_mrk.attr,
 	&class_attr_amlogic_set.attr,
 	&class_attr_secureboot_check.attr,
 	&class_attr_checkburn.attr,

@@ -573,3 +573,29 @@ ssize_t efuse_write_usr(char *buf, size_t count, loff_t *ppos)
 
 	return ret;
 }
+
+uint32_t efuse_mrk_get_checknum(const char *name, uint32_t longmrk, uint32_t *result)
+{
+	u32 rc = EFUSE_OBJ_ERR_UNKNOWN;
+	struct arm_smccc_res res;
+
+	meson_sm_mutex_lock();
+
+	strncpy((void *)sharemem_input_base, name, 16);
+	do {
+		arm_smccc_smc((unsigned long)EFUSE_MRK_GET_CHECKNUM,
+			      (unsigned long)longmrk,
+			      0, 0, 0, 0, 0, 0, &res);
+
+	} while (0);
+
+	rc = res.a0;
+	if (longmrk == 1)
+		memcpy((void *)result, (void *)sharemem_output_base, 16);
+	else
+		*result = res.a1;
+
+	meson_sm_mutex_unlock();
+
+	return rc;
+}

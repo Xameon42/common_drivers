@@ -42,6 +42,7 @@ struct aml_efuse_key {
 #define EFUSE_PATTERN_SIZE      (0x400)
 #define EFUSE_OBJ_READ          (0x8200003B)
 #define EFUSE_OBJ_WRITE         (0x8200003C)
+#define EFUSE_MRK_GET_CHECKNUM	(0x8200003F)
 
 enum efuse_obj_status_e {
 	EFUSE_OBJ_SUCCESS		= 0,
@@ -68,6 +69,12 @@ enum efuse_obj_info_e {
 	EFUSE_OBJ_LOCK_STATUS,
 	EFUSE_OBJ_EFUSE_ENC_DATA,
 };
+
+typedef enum efuse_mrk_checknum_status_s {
+	EFUSE_MRK_CHECKNUM_SUCCESS             = 0,
+	EFUSE_MRK_CHECKNUM_NOT_SUPPORTED       = 1,
+	EFUSE_MRK_CHECKNUM_INVALID_ARGUMENT    = 2,
+} efuse_mrk_checknum_status_e;
 
 struct efuse_obj_field_t {
 	char name[48];
@@ -130,6 +137,8 @@ uint32_t efuse_obj_set_license(char *name);
 uint32_t efuse_obj_lock(char *name);
 uint32_t efuse_obj_get_data(char *name);
 uint32_t efuse_obj_get_lock(char *name);
+uint32_t efuse_mrk_get_checknum(const char *name,
+				uint32_t longmrk, uint32_t *checknum);
 
 /*return: 0:is configurated, -1: don't cfg*/
 int efuse_burn_lockable_is_cfg(char *itemname);
