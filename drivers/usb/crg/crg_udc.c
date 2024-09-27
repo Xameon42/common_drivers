@@ -486,10 +486,7 @@ static struct usb_endpoint_descriptor crg_udc_ep0_desc = {
 
 void crg_gadget_hold(struct crg_udc_lock *lock)
 {
-	struct crg_gadget_dev *crg_udc =
-		container_of(lock, struct crg_gadget_dev, crg_gadget_lock);
-
-	if (!crg_udc_suspend_reinit(crg_udc) && !lock->held) {
+	if (!lock->held) {
 		__pm_stay_awake(lock->wakesrc);
 		lock->held = true;
 	}
@@ -497,10 +494,7 @@ void crg_gadget_hold(struct crg_udc_lock *lock)
 
 void crg_gadget_drop(struct crg_udc_lock *lock)
 {
-	struct crg_gadget_dev *crg_udc =
-		container_of(lock, struct crg_gadget_dev, crg_gadget_lock);
-
-	if (!crg_udc_suspend_reinit(crg_udc) && lock->held) {
+	if (lock->held) {
 		__pm_relax(lock->wakesrc);
 		lock->held = false;
 	}
@@ -4771,7 +4765,7 @@ static int crg_udc_probe(struct platform_device *pdev)
 		goto errfile;
 	}
 
-	if (!crg_udc->crg_gadget_lock.wakesrc && !crg_udc_suspend_reinit(crg_udc)) {
+	if (!crg_udc->crg_gadget_lock.wakesrc) {
 		crg_udc->crg_gadget_lock.wakesrc =
 			wakeup_source_register(NULL, "crg-gadget-connect");
 		if (!crg_udc->crg_gadget_lock.wakesrc)
