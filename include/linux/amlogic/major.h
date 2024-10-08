@@ -48,4 +48,5 @@
 #define AMEDIA_INFO_MAJOR       (30 + (AML_BASE))
 #define VICP_MAJOR              (31 + (AML_BASE))
 #define DI_PROCESS_MAJOR	(32 + (AML_BASE))
+#define AML_DHP_MAJOR		(33 + (AML_BASE))
 #endif
