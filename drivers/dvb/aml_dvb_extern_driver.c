@@ -23,7 +23,7 @@
 #include "aml_dvb_extern_driver.h"
 
 #define AML_DVB_EXTERN_DEVICE_NAME "aml_dvb_extern"
-#define AML_DVB_EXTERN_VERSION     "V1.23"
+#define AML_DVB_EXTERN_VERSION     "V1.24"
 
 static struct dvb_extern_device *dvb_extern_dev;
 static struct mutex dvb_extern_mutex;
@@ -84,12 +84,6 @@ static void aml_dvb_extern_set_power(struct gpio_config *pin_cfg, int on)
 	struct demod_ops *dtops = NULL;
 	struct dvb_demod *demod = get_dvb_demods();
 
-	if (!aml_gpio_is_valid(pin_cfg->pin)) {
-		pr_err("dvb power gpio invalid");
-
-		return;
-	}
-
 	if (!on) {
 		list_for_each_entry(dtops, &demod->list, list) {
 			if (dtops->fe && dtops->fe->ops.release)
@@ -97,12 +91,18 @@ static void aml_dvb_extern_set_power(struct gpio_config *pin_cfg, int on)
 		}
 	}
 
+	if (!aml_gpio_is_valid(pin_cfg->pin)) {
+		pr_err("dvb power gpio invalid");
+
+		return;
+	}
+
 	/* OD pin[No output capacity], set direction output as low output. */
 	if (pin_cfg->dir == GPIOF_DIR_OUT) {
 		if (on)
-			aml_gpio_set_value(pin_cfg->pin, pin_cfg->value);
+			aml_gpio_direction_output(pin_cfg->pin, pin_cfg->value);
 		else
-			aml_gpio_set_value(pin_cfg->pin, !(pin_cfg->value));
+			aml_gpio_direction_output(pin_cfg->pin, !(pin_cfg->value));
 	} else {
 		if (on) {
 			aml_gpio_direction_input(pin_cfg->pin);
@@ -111,6 +111,8 @@ static void aml_dvb_extern_set_power(struct gpio_config *pin_cfg, int on)
 			aml_gpio_direction_output(pin_cfg->pin, !(pin_cfg->value));
 		}
 	}
+
+	pr_debug("%s %d OK\n", __func__, on);
 }
 
 void aml_dvb_extern_resume_work(struct work_struct *work)
@@ -1347,7 +1349,7 @@ static void aml_dvb_early_suspend(struct early_suspend *h)
 
 	aml_dvb_extern_set_power(&dvbdev->dvb_power, 0);
 
-	pr_info("%s: OK.\n", __func__);
+	pr_debug("%s: OK.\n", __func__);
 }
 
 static void aml_dvb_early_resume(struct early_suspend *h)
@@ -1361,7 +1363,7 @@ static void aml_dvb_early_resume(struct early_suspend *h)
 
 	schedule_work(&dvbdev->resume_work);
 
-	pr_info("%s: OK.\n", __func__);
+	pr_debug("%s: OK.\n", __func__);
 }
 #endif
 #endif
@@ -1646,7 +1648,7 @@ static int aml_dvb_extern_remove(struct platform_device *pdev)
 	dvbdev = NULL;
 	dvb_extern_dev = NULL;
 
-	pr_info("%s OK\n", __func__);
+	pr_debug("%s OK\n", __func__);
 
 	return 0;
 }
@@ -1675,6 +1677,8 @@ static void aml_dvb_extern_shutdown(struct platform_device *pdev)
 	}
 
 	aml_dvb_extern_set_power(&dvbdev->dvb_power, 0);
+
+	pr_debug("%s OK\n", __func__);
 }
 
 static int aml_dvb_extern_suspend(struct platform_device *pdev,
@@ -1703,6 +1707,8 @@ static int aml_dvb_extern_suspend(struct platform_device *pdev,
 
 	aml_dvb_extern_set_power(&dvbdev->dvb_power, 0);
 
+	pr_debug("%s OK\n", __func__);
+
 	return 0;
 }
 
@@ -1716,6 +1722,8 @@ static int aml_dvb_extern_resume(struct platform_device *pdev)
 	aml_dvb_extern_set_power(&dvbdev->dvb_power, 1);
 
 	schedule_work(&dvbdev->resume_work);
+
+	pr_debug("%s OK\n", __func__);
 
 	return 0;
 }
