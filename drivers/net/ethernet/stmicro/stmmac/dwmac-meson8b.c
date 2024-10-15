@@ -744,6 +744,8 @@ static int meson8b_suspend(struct device *dev)
 	struct phy_device *phydev = ndev->phydev;
 	int ret;
 
+	if (!phydev)
+		return 0;
 	/*open wol, shutdown phy when not link*/
 	if ((wol_switch_from_user) && phydev->link) {
 		set_wol_notify_bl31(true);
@@ -783,6 +785,9 @@ static int meson8b_resume(struct device *dev)
 	struct meson8b_dwmac *dwmac = priv->plat->bsp_priv;
 	struct phy_device *phydev = ndev->phydev;
 	int ret;
+
+	if (!phydev)
+		return 0;
 
 	priv->wolopts = 0;
 
