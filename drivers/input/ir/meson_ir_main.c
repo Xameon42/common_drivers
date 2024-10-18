@@ -96,11 +96,15 @@ void meson_ir_report_wakeup_event(struct meson_ir_chip *chip, u32 framecode)
 	keycode = wt[i].report_val;
 	chip->r_dev->cur_hardcode = framecode;
 	chip->r_dev->is_valid_custom(chip->r_dev);
-	input_device = meson_ir_match_input_dev(chip->r_dev, chip->cur_tab);
+
+	if (chip->cur_tab)
+		input_device = meson_ir_match_input_dev(chip->r_dev,
+							chip->cur_tab);
 input_report:
 	if (!input_device) {
 		input_device = chip->r_dev->input_devs[0];
-		dev_err(chip->dev, "Input ID not found\n");
+		dev_err(chip->dev, "Input ID not found, framecode = 0x%x\n",
+			framecode);
 	}
 
 	spin_lock_irqsave(&chip->slock, flags);
