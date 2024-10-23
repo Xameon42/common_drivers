@@ -520,6 +520,7 @@ static int crg_issue_command(struct crg_gadget_dev *crg_udc,
 	u32 status;
 	bool check_complete = false;
 	u32 tmp;
+	u32 times = 4000;
 
 	tmp = reg_read(&uccr->control);
 	if (tmp & CRG_U3DC_CTRL_RUN)
@@ -549,6 +550,12 @@ static int crg_issue_command(struct crg_gadget_dev *crg_udc,
 	if (check_complete) {
 		do {
 			tmp = reg_read(&uccr->cmd_control);
+			udelay(5);
+			if (!--times) {
+				CRG_ERROR("%s time out, cmd_control: 0x%x\n",
+							__func__, tmp);
+				return -EIO;
+			}
 		} while (tmp & CRG_U3DC_CMD_CTRL_ACTIVE);
 
 		status = CRG_U3DC_CMD_CTRL_STATUS_GET(tmp);
