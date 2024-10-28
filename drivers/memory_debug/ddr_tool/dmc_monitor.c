@@ -1569,6 +1569,14 @@ static void __init get_dmc_ops(int chip, struct dmc_monitor *mon)
 /* Asynchronous Serror*/
 static void arm64_serror_panic(void *data, struct pt_regs *regs, unsigned int esr)
 {
+	/*
+	 * arm64 calls nmi_enter() before do_serror(),
+	 * it will cause printk entered deferred mode
+	 * and not outputs to console immediately.
+	 */
+	if (in_nmi())
+		__preempt_count_sub(NMI_OFFSET + HARDIRQ_OFFSET);
+
 	serror_dump_dmc_reg();
 	oops_in_progress++;
 }
@@ -1581,6 +1589,14 @@ static void do_sea(void *data, unsigned long addr, unsigned int esr, struct pt_r
 #else
 static void do_serror(void *data, struct pt_regs *regs, unsigned int esr, int *ret)
 {
+	/*
+	 * arm64 calls nmi_enter() before do_serror(),
+	 * it will cause printk entered deferred mode
+	 * and not outputs to console immediately.
+	 */
+	if (in_nmi())
+		__preempt_count_sub(NMI_OFFSET + HARDIRQ_OFFSET);
+
 	serror_dump_dmc_reg();
 	oops_in_progress++;
 }
