@@ -1108,8 +1108,6 @@ void stop_ep_cmd_work(struct work_struct *work)
 	struct aml_xhci_virt_ep		*eps =
 		container_of(work, struct aml_xhci_virt_ep, stop_work);
 
-	if (!eps)
-		return;
 	xhci = eps->xhci;
 	if (eps->q_status_count == 0)
 		eps->q_status_count = 12;
@@ -1118,13 +1116,9 @@ void stop_ep_cmd_work(struct work_struct *work)
 			u16 stat;
 
 			udev = eps->udev;
-			if (!udev)
-				return;
 			if (udev->state == USB_STATE_NOTATTACHED)
 				return;
 			for (i = 0; i < eps->q_status_count; i++) {
-				if (!udev)
-					return;
 				if (udev->state == USB_STATE_NOTATTACHED)
 					return;
 				aml_xhci_usb_get_status(udev, USB_RECIP_ENDPOINT,
