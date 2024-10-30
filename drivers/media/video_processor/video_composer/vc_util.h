@@ -38,7 +38,7 @@ struct dst_buf_t {
 	struct composer_info_t componser_info;
 	enum com_buffer_used buf_used;
 	bool dirty;
-	u32 phy_addr;
+	ulong phy_addr;
 	u32 buf_w;
 	u32 buf_h;
 	u32 buf_size;
@@ -59,16 +59,16 @@ struct composer_vf_para {
 	int src_vf_height;
 	int src_vf_plane_count;
 	int src_vf_angle;
-	u32 src_buf_addr0;
+	ulong src_buf_addr0;
 	int src_buf_stride0;
-	u32 src_buf_addr1;
+	ulong src_buf_addr1;
 	int src_buf_stride1;
 	int src_endian;
 	int dst_vf_format;
 	int dst_vf_width;
 	int dst_vf_height;
 	int dst_vf_plane_count;
-	u32 dst_buf_addr;
+	ulong dst_buf_addr;
 	int dst_buf_stride;
 	int dst_endian;
 	bool is_tvp;
@@ -79,7 +79,7 @@ struct pic_struct_t {
 	int format;
 	u32 width;
 	u32 height;
-	int addr[2];
+	ulong addr[2];
 	u32 align_w;
 	u32 align_h;
 	int plane_count;

@@ -433,7 +433,7 @@ int config_dewarp_vframe(struct composer_vf_para *vframe_para,
 	}
 
 	if (dewarp_print) {
-		pr_info("vc:[%d]: src_vf: addr0:0x%x, addr1:0x%x, width:%d, height:%d, format:%d ",
+		pr_info("vc:[%d]: src_vf: addr0:0x%lx, addr1:0x%lx, width:%d, height:%d, format:%d ",
 			call_index,
 			vframe_para->src_buf_addr0,
 			vframe_para->src_buf_addr1,

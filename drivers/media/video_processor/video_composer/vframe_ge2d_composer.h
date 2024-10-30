@@ -54,7 +54,7 @@ struct ge2d_composer_para {
 	int plane_num;
 	int canvas_scr[3];
 	int canvas_dst[3];
-	u32 phy_addr[3];
+	ulong phy_addr[3];
 	u32 canvas0_addr;
 	struct ge2d_context_s *context;
 	int angle;

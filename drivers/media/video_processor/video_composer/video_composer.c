@@ -641,7 +641,7 @@ static int vc_init_ge2d_buffer(struct composer_dev *dev, bool is_tvp, size_t usa
 			dev->dst_buf[i].phy_addr = codec_mm_alloc_for_dma(ports[dev->index].name,
 				buf_size / PAGE_SIZE, 0, flags);
 		vc_print(dev->index, PRINT_ERROR,
-			 "%s: cma memory is %x , size is  %x\n",
+			 "%s: cma memory is %lx , size is  %x\n",
 			 ports[dev->index].name,
 			 (unsigned int)dev->dst_buf[i].phy_addr,
 			 (unsigned int)buf_size);
@@ -711,9 +711,9 @@ static int vc_init_dewarp_buffer(struct composer_dev *dev, bool is_tvp, size_t u
 			dev->dst_buf[i].phy_addr = codec_mm_alloc_for_dma(ports[dev->index].name,
 				buf_size / PAGE_SIZE, 0, flags);
 		vc_print(dev->index, PRINT_ERROR,
-			 "%s: cma memory is %x , size is  %x\n",
+			 "%s: cma memory is %lx , size is  %x\n",
 			 ports[dev->index].name,
-			 (unsigned int)dev->dst_buf[i].phy_addr,
+			 (unsigned long)dev->dst_buf[i].phy_addr,
 			 (unsigned int)buf_size);
 
 		if (dev->dst_buf[i].phy_addr == 0) {
@@ -816,7 +816,7 @@ static int vc_init_vicp_buffer(struct composer_dev *dev, bool is_tvp, size_t usa
 
 		dev->dst_buf[i].phy_addr = buf_addr;
 		vc_print(dev->index, PRINT_ERROR,
-			"%s: cma memory is 0x%x , size is 0x%x.\n",
+			"%s: cma memory is 0x%lx , size is 0x%x.\n",
 			ports[dev->index].name, dev->dst_buf[i].phy_addr, buf_size);
 
 		dev->dst_buf[i].index = i;
@@ -935,9 +935,9 @@ static void video_composer_uninit_buffer(struct composer_dev *dev)
 	dev->buffer_status = UNINITIAL;
 	for (i = 0; i < BUFFER_LEN; i++) {
 		if (dev->dst_buf[i].phy_addr != 0) {
-			pr_info("%s: cma free addr is %x\n",
+			pr_info("%s: cma free addr is %lx\n",
 				ports[dev->index].name,
-				(unsigned int)dev->dst_buf[i].phy_addr);
+				(unsigned long)dev->dst_buf[i].phy_addr);
 			codec_mm_free_for_dma(ports[dev->index].name,
 					      dev->dst_buf[i].phy_addr);
 			dev->dst_buf[i].phy_addr = 0;
@@ -1649,13 +1649,13 @@ static u32 need_switch_buffer(struct dst_buf_t *buf, bool is_tvp, struct compose
 		vicp_fbc_out_en = true;
 
 	if (buf->phy_addr > 0) {
-		vc_print(dev->index, PRINT_OTHER, "free buffer 0x%x\n", buf->phy_addr);
+		vc_print(dev->index, PRINT_OTHER, "free buffer 0x%lx\n", buf->phy_addr);
 		codec_mm_free_for_dma(ports[dev->index].name, buf->phy_addr);
 	}
 
 	buf->phy_addr = codec_mm_alloc_for_dma(ports[dev->index].name,
 					buf->buf_size / PAGE_SIZE, 0, flags);
-	vc_print(dev->index, PRINT_ERROR, "%s: alloc buffer 0x%x\n", __func__, buf->phy_addr);
+	vc_print(dev->index, PRINT_ERROR, "%s: alloc buffer 0x%lx\n", __func__, buf->phy_addr);
 
 	if (vicp_fbc_out_en) {
 		buf->afbc_body_addr = buf->phy_addr + buf->dw_size;
@@ -2439,7 +2439,8 @@ static void check_composer_buffer_status(struct composer_dev *dev, bool is_tvp,
 			vc_print(dev->index, PRINT_ERROR, "free small buffer success.\n");
 		dst_buf->phy_addr = codec_mm_alloc_for_dma(ports[dev->index].name,
 						buf_size / PAGE_SIZE, 0, flags);
-		vc_print(dev->index, PRINT_ERROR, "%s:alloc big buffer success,addr:0x%x size:%d\n",
+		vc_print(dev->index, PRINT_ERROR,
+			"%s:alloc big buffer success,addr:0x%lx size:%d\n",
 			__func__, dst_buf->phy_addr, buf_size);
 	}
 
