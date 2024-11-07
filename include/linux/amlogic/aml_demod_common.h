@@ -243,6 +243,12 @@ int aml_platform_device_register(struct platform_device *pdev);
 void aml_platform_device_unregister(struct platform_device *pdev);
 int demod_attach_register_cb(const enum dtv_demod_type type, dm_attach_cb funcb);
 void aml_dvb_extern_attach(void);
+
+int aml_dvb_extern_i2c_write(struct i2c_client *client,
+		unsigned char *buff, unsigned int len);
+int aml_dvb_extern_i2c_read(struct i2c_client *client,
+		unsigned char *wbuf, unsigned int wlen,
+		unsigned char *rbuf, unsigned int rlen);
 #else
 
 static inline __maybe_unused void aml_dvb_extern_attach(void)
@@ -356,6 +362,20 @@ static inline __maybe_unused int demod_attach_register_cb(const enum dtv_demod_t
 {
 	return -ENODEV;
 }
+
+static inline __maybe_unused int aml_dvb_extern_i2c_write(struct i2c_client *client,
+		unsigned char *buff, unsigned int len)
+{
+	return -ENODEV;
+}
+
+static inline __maybe_unused int aml_dvb_extern_i2c_read(struct i2c_client *client,
+		unsigned char *wbuf, unsigned int wlen,
+		unsigned char *rbuf, unsigned int rlen)
+{
+	return -ENODEV;
+}
+
 #endif
 
 #endif /* __AML_DEMOD_COMMON_H__ */

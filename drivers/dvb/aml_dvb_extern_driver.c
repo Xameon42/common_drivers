@@ -21,9 +21,10 @@
 #endif
 
 #include "aml_dvb_extern_driver.h"
+#include "aml_dvb_extern_i2c.h"
 
 #define AML_DVB_EXTERN_DEVICE_NAME "aml_dvb_extern"
-#define AML_DVB_EXTERN_VERSION     "V1.25"
+#define AML_DVB_EXTERN_VERSION     "V1.26"
 
 static struct dvb_extern_device *dvb_extern_dev;
 static struct mutex dvb_extern_mutex;
@@ -370,6 +371,8 @@ static ssize_t tuner_debug_store(struct class *class,
 					ops->cfg.detect ? (ops->valid ? "" : "un") : "no ");
 		}
 
+		aml_dvb_extern_i2c_debug_show(NULL);
+
 		if (tuner->used) {
 			name = tuner->used->fe.ops.tuner_ops.info.name;
 			pr_err("current use tuner%d, id %d (%s), fe type %d\n",
@@ -561,6 +564,8 @@ static ssize_t tuner_debug_show(struct class *class,
 				ops->cfg.detect ? (ops->valid ? "" : "un") : "no ");
 	}
 
+	n += aml_dvb_extern_i2c_debug_show(buff);
+
 	if (tuner->used) {
 		name = tuner->used->fe.ops.tuner_ops.info.name;
 		n += sprintf(buff + n, "current use tuner%d, id %d (%s), fe type %d\n",
@@ -603,7 +608,7 @@ static ssize_t tuner_debug_show(struct class *class,
 		}
 
 		if (tuner->used->fe.ops.tuner_ops.calc_regs)
-			tuner->used->fe.ops.tuner_ops.calc_regs(NULL, NULL, 0);
+			n += tuner->used->fe.ops.tuner_ops.calc_regs(NULL, buff, 0);
 	}
 
 	n += sprintf(buff + n, "\n");
@@ -763,6 +768,8 @@ static ssize_t demod_debug_store(struct class *class,
 					ops->cfg.tuner0.name ? ops->cfg.tuner0.name : "NONE",
 					ops->cfg.tuner1.name ? ops->cfg.tuner1.name : "NONE");
 		}
+
+		aml_dvb_extern_i2c_debug_show(NULL);
 
 		if (demod->used && demod->used->fe) {
 			name = ops->fe->ops.info.name;
@@ -961,6 +968,8 @@ static ssize_t demod_debug_show(struct class *class,
 			ops->cfg.tuner0.name ? ops->cfg.tuner0.name : "NONE",
 			ops->cfg.tuner1.name ? ops->cfg.tuner1.name : "NONE");
 	}
+
+	n += aml_dvb_extern_i2c_debug_show(buff);
 
 	if (demod->used && demod->used->fe) {
 		name = demod->used->fe->ops.info.name;
@@ -1374,6 +1383,7 @@ static int aml_dvb_extern_probe(struct platform_device *pdev)
 	unsigned int val = 0;
 	char buf[32] = { 0 };
 	const char *str = NULL;
+	struct i2c_client *client = NULL;
 	struct tuner_ops *tops = NULL;
 	struct demod_ops *dops = NULL;
 	struct dvb_extern_device *dvbdev = NULL;
@@ -1498,8 +1508,15 @@ static int aml_dvb_extern_probe(struct platform_device *pdev)
 				i, tops->cfg.id, tops->cfg.i2c_addr);
 
 			ret = dvb_tuner_ops_add(tops);
-			if (ret)
+			if (ret) {
 				pr_err("add tuner ops fail %d\n", ret);
+			} else {
+				if (!tops->cfg.i2c_adap && tops->cfg.i2c_addr) {
+					client = aml_dvb_extern_get_i2c_client(tops->cfg.i2c_addr);
+					if (client)
+						tops->cfg.i2c_adap = client->adapter;
+				}
+			}
 		}
 	}
 
@@ -1546,6 +1563,12 @@ PROPERTY_DEMOD:
 			pr_err("add demod ops fail %d\n", ret);
 
 			continue;
+		} else {
+			if (!dops->cfg.i2c_adap && dops->cfg.i2c_addr) {
+				client = aml_dvb_extern_get_i2c_client(dops->cfg.i2c_addr);
+				if (client)
+					dops->cfg.i2c_adap = client->adapter;
+			}
 		}
 
 		/* Tuner configuration for the external demod.
@@ -1745,6 +1768,10 @@ int __init aml_dvb_extern_init(void)
 {
 	int ret = 0;
 
+	ret = aml_dvb_extern_i2c_init();
+	if (ret)
+		pr_err("aml_dvb_extern_i2c_init fail %d\n", ret);
+
 	ret = platform_driver_register(&aml_dvb_extern_driver);
 	if (ret) {
 		pr_err("%s: register driver error %d\n",
@@ -1759,6 +1786,8 @@ int __init aml_dvb_extern_init(void)
 
 void __exit aml_dvb_extern_exit(void)
 {
+	aml_dvb_extern_i2c_exit();
+
 	platform_driver_unregister(&aml_dvb_extern_driver);
 
 	pr_info("%s OK\n", __func__);
