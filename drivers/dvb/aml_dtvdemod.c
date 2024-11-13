@@ -27,6 +27,18 @@ static const struct demod_module demod_modules[] = {
 		.register_frontend = aml_dvb_register_frontend,
 		.unregister_frontend = aml_dvb_unregister_frontend
 	},
+	{
+		.name = "dummy",
+		.id = AM_DTV_DEMOD_DUMMY,
+		.type = { },
+		.attach_symbol = NULL,
+		.attach = aml_demod_attach,
+		.detach = aml_demod_detach,
+		.match = aml_demod_match,
+		.detect = aml_demod_detect,
+		.register_frontend = aml_dvb_register_frontend,
+		.unregister_frontend = aml_dvb_unregister_frontend
+	},
 #ifdef DEMOD_UNUSED
 	{
 		.name = "m1",

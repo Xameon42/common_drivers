@@ -204,7 +204,9 @@ static int _dmx_init_input_id(void)
 
 	memset(&record_input_sid, 0, sizeof(record_input_sid));
 	for (i = 0; i < FE_DEV_COUNT; i++) {
-		if (advb->ts[i].ts_sid != -1 && advb->ts[i].ts_sid < MAX_INPUT_NUM)
+		if (advb->ts[i].ts_sid != -1 &&
+			advb->ts[i].ts_sid < MAX_INPUT_NUM &&
+			advb->ts[i].ts_sid >= 0x10)
 			record_input_sid[advb->ts[i].ts_sid] = 1;
 	}
 	return 0;

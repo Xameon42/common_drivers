@@ -480,6 +480,9 @@ CONFIG_AMLOGIC_AUCPU=y
 CONFIG_AMLOGIC_DVB_DSM=y
 CONFIG_AMLOGIC_SMARTCARD=y
 
+# dummy_fe.ko
+CONFIG_AMLOGIC_DVB_DUMMY_FRONTEND=n //m/y only for test, will not enable in trunk
+
 # amlogic-dvb-demux.ko
 CONFIG_AMLOGIC_DVB_DMX=m
 

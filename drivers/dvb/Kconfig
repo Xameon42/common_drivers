@@ -48,3 +48,8 @@ config AMLOGIC_DVB_DMX
 	depends on AMLOGIC_TEE
 	help
 		support dmx/dsc driver.
+
+config AMLOGIC_DVB_DUMMY_FRONTEND
+	tristate "AMLOGIC DVB DUMMY FRONTEND"
+	help
+		Amlogic DVB Dummy Frontend

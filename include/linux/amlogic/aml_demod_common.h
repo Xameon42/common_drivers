@@ -90,7 +90,8 @@ enum dtv_demod_type {
 	AM_DTV_DEMOD_SI2169   = 27,
 	AM_DTV_DEMOD_AVL6221C = 28,
 	AM_DTV_DEMOD_CXD2878  = 29,
-	AM_DTV_DEMOD_MAX      = 30
+	AM_DTV_DEMOD_DUMMY    = 30,
+	AM_DTV_DEMOD_MAX      = 31
 };
 
 enum aml_fe_dev_type {
