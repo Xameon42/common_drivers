@@ -96,6 +96,11 @@ static long meson_ir_ioctl(struct file *file, unsigned int cmd,
 			/*scancode sort*/
 			meson_ir_scancode_sort(&ir_map->tab);
 
+			ir_map->tab.id.vendor = 0x0001;
+			ir_map->tab.id.product = 0x0001;
+			ir_map->tab.id.version = 0x0100;
+			ir_map->tab.id.bustype = BUS_ISA;
+
 			/*overwrite the old map table or insert new map table*/
 			spin_lock_irqsave(&chip->slock, flags);
 			ptable = meson_ir_seek_map_tab(chip,
