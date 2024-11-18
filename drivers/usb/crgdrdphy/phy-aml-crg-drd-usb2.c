@@ -679,6 +679,13 @@ static int amlogic_crg_drd_usb2_phy_cali_disc_squelch
  */
 #define SQUELCH_960M ((u32)GENMASK(31, 28))
 #define SQUELCH_960M_VAL(x) ((0xf & (x)) << 28)
+#define DISCONNECT_MASK ((u32)GENMASK(6, 4))
+#define DISCONNECT_VAL(x) ((0x7 & (x)) << 4)
+
+		val = readl(cfg + 0xc);
+		val = (val & ~DISCONNECT_MASK) | DISCONNECT_VAL(0x5);
+		writel(val, cfg + 0xc);
+
 		if (phy->portspeed == USB_SPEED_HIGH_PLUS) {
 			/* Trimming for squelch(960M) detect threshold. */
 			val = readl(cfg + 0x5c);
