@@ -23,7 +23,7 @@
 #include "aml_dvb_extern_driver.h"
 
 #define AML_DVB_EXTERN_DEVICE_NAME "aml_dvb_extern"
-#define AML_DVB_EXTERN_VERSION     "V1.24"
+#define AML_DVB_EXTERN_VERSION     "V1.25"
 
 static struct dvb_extern_device *dvb_extern_dev;
 static struct mutex dvb_extern_mutex;
@@ -241,7 +241,7 @@ static ssize_t tuner_debug_store(struct class *class,
 		goto EXIT;
 	}
 
-	if (!strncmp(parm[0], "init", 4)) {
+	if (fe && !strncmp(parm[0], "init", 4)) {
 		if (parm[1] && !kstrtoul(parm[1], 0, &val))
 			fe->ops.info.type = val;
 		else
@@ -261,7 +261,7 @@ static ssize_t tuner_debug_store(struct class *class,
 
 		if (fe->ops.tuner_ops.set_config)
 			fe->ops.tuner_ops.set_config(fe, NULL);
-	} else if (!strncmp(parm[0], "tune", 4)) {
+	} else if (fe && !strncmp(parm[0], "tune", 4)) {
 		if (parm[1] && !kstrtoul(parm[1], 0, &freq)) {
 			p->frequency = freq;
 		} else {
@@ -414,7 +414,7 @@ static ssize_t tuner_debug_store(struct class *class,
 			if (tuner->used->fe.ops.tuner_ops.calc_regs)
 				tuner->used->fe.ops.tuner_ops.calc_regs(NULL, NULL, 0);
 		}
-	} else if (!strncmp(parm[0], "uninit", 6)) {
+	} else if (fe && !strncmp(parm[0], "uninit", 6)) {
 		if (fe->ops.tuner_ops.release)
 			fe->ops.tuner_ops.release(fe);
 	} else if (!strncmp(parm[0], "attach", 6)) {
@@ -656,7 +656,7 @@ static ssize_t demod_debug_store(struct class *class,
 		goto EXIT;
 	}
 
-	if (!strncmp(parm[0], "init", 4)) {
+	if (fe && !strncmp(parm[0], "init", 4)) {
 		if (parm[1] && !kstrtoul(parm[1], 0, &val))
 			delsys = val;
 		else
@@ -682,7 +682,7 @@ static ssize_t demod_debug_store(struct class *class,
 
 		if (fe->ops.set_property)
 			fe->ops.set_property(fe, &tvp);
-	} else if (!strncmp(parm[0], "tune", 4)) {
+	} else if (fe && !strncmp(parm[0], "tune", 4)) {
 		if (parm[1] && !kstrtoul(parm[1], 0, &val))
 			freq = val;
 		else
@@ -749,7 +749,7 @@ static ssize_t demod_debug_store(struct class *class,
 					!ret ? "Locked" : "Unlocked");
 		}
 
-	} else if (!strncmp(parm[0], "status", 6)) {
+	} else if (fe && !strncmp(parm[0], "status", 6)) {
 		pr_err("demod numbers: %d\n", dev->demod_num);
 		pr_err("all demods:\n");
 		list_for_each_entry(ops, &demod->list, list) {
@@ -777,7 +777,7 @@ static ssize_t demod_debug_store(struct class *class,
 				demod->used->cfg.id != AM_DTV_DEMOD_AMLDTV)
 				fe->ops.read_status(NULL, NULL);
 		}
-	} else if (!strncmp(parm[0], "uninit", 6)) {
+	} else if (fe && !strncmp(parm[0], "uninit", 6)) {
 		memset(&tvp, 0, sizeof(tvp));
 		c->delivery_system = SYS_ANALOG;
 		tvp.cmd = DTV_DELIVERY_SYSTEM;
@@ -826,7 +826,7 @@ static ssize_t demod_debug_store(struct class *class,
 		demod->register_frontend(demod, true);
 	} else if (!strncmp(parm[0], "unregister", 10)) {
 		demod->register_frontend(demod, false);
-	} else if (!strncmp(parm[0], "getprop", 7)) { //ioctl cmd:FE_GET_PROPERTY
+	} else if (fe && !strncmp(parm[0], "getprop", 7)) { //ioctl cmd:FE_GET_PROPERTY
 		if (!strncmp(parm[1], "enum_delsys", 11)) { //prop cmd:DTV_ENUM_DELSYS
 			n = 0;
 			while (n < MAX_DELSYS && fe->ops.delsys[n]) {
