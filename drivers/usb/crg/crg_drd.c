@@ -89,7 +89,7 @@ static int crg_core_soft_reset(struct crg_drd *crg)
 		usb_phy_init(crg->usb3_phy);
 
 	if (crg->usb2_phy)
-		amlogic_crg_host_power(crg->usb2_phy, false, true);
+		amlogic_crg_host_power(crg->usb2_phy, true, true);
 
 	return 0;
 }

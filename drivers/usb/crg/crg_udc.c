@@ -4692,7 +4692,7 @@ static int crg_udc_probe(struct platform_device *pdev)
 	else
 		amlogic_crg_m31_phy_init(crg_udc);
 
-	amlogic_crg_device_power(phy_id, false, true);
+	amlogic_crg_device_power(phy_id, true, true);
 
 	crg_udc->mmio_phys_base = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!crg_udc->mmio_phys_base) {

@@ -26,6 +26,7 @@
 #include <linux/usb/of.h>
 #include <linux/usb/otg.h>
 #include <linux/amlogic/usbtype.h>
+#include <linux/amlogic/usb-v2.h>
 #include <linux/clk.h>
 #include <linux/phy/phy.h>
 #include <linux/amlogic/cpu_version.h>
@@ -70,19 +71,31 @@ void crg_set_mode(struct crg *crg, u32 mode)
 
 static int crg_core_soft_reset(struct crg *crg)
 {
-	usb_phy_init(crg->usb2_phy);
-	usb_phy_init(crg->usb3_phy);
+	if (crg->usb2_phy)
+		usb_phy_init(crg->usb2_phy);
+
+	if (crg->usb3_phy)
+		usb_phy_init(crg->usb3_phy);
+
+	if (crg->usb2_phy)
+		amlogic_crg_host_power(crg->usb2_phy, true, true);
 
 	return 0;
 }
 
-static void crg_core_exit(struct crg *crg)
+static void crg_core_exit(struct crg	*crg)
 {
-	usb_phy_shutdown(crg->usb2_phy);
-	usb_phy_shutdown(crg->usb3_phy);
+	if (crg->usb2_phy) {
+		amlogic_crg_host_power(crg->usb2_phy, false, false);
+		usb_phy_shutdown(crg->usb2_phy);
+	}
+	if (crg->usb3_phy)
+		usb_phy_shutdown(crg->usb3_phy);
 
-	usb_phy_set_suspend(crg->usb2_phy, 1);
-	usb_phy_set_suspend(crg->usb3_phy, 1);
+	if (crg->usb2_phy)
+		usb_phy_set_suspend(crg->usb2_phy, 1);
+	if (crg->usb3_phy)
+		usb_phy_set_suspend(crg->usb3_phy, 1);
 }
 
 static int crg_core_init(struct crg *crg)
