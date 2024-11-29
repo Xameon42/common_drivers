@@ -117,6 +117,9 @@ static void set_mode(struct amlogic_crg_otg *phy, u8 mode)
 
 	u2p_aml_regs.u2p_r_v2[0] = (void __iomem *)((unsigned long)phy->usb2_phy_cfg);
 
+	if (phy->controller_type == USB_M31)
+		goto done;
+
 	reg0.d32 = readl(u2p_aml_regs.u2p_r_v2[0]);
 	if (mode == DEVICE_MODE) {
 		reg0.b.host_device = 0;
@@ -128,6 +131,7 @@ static void set_mode(struct amlogic_crg_otg *phy, u8 mode)
 	writel(reg0.d32, u2p_aml_regs.u2p_r_v2[0]);
 	usleep_range(500, 600);
 
+done:
 	phy->mode &= ~(HOST_MODE_MASK | DEVICE_MODE_MASK);
 	phy->mode |= BIT(mode);
 }

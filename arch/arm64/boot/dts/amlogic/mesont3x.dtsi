@@ -1229,12 +1229,18 @@
 			reset-level = <0x40>;
 			phy-reg = <0xfe3bc000>;
 			phy-reg-size = <0x2000>;
+			pipe-clk-reg = <0xfe00015c>;
+			pipe-clk-reg-size = <0x4>;
+			pipe-clk-gate-reg = <0xfe3b409c>;
+			pipe-clk-gate-reg-size = <0x4>;
 			m31phy-reset-level-bit = <10>;
 			m31ctl-reset-level-bit = <6>;
 			m31-utmi-reset-level-bit = <2>;
 			u3-combx0-reset-bit = <53>;
+			m31-settings = <0x1E30CE89>;
 			uncomposite = <1>;
 			version = <1>;
+			phy-id = <0>;
 		};
 
 		usb2_m31_1_phy: usb2m311phy {
@@ -1312,7 +1318,7 @@
 			phy-reg-size = <0x1000>;
 			clocks = <&clkc CLKID_SYS_CLK_USB>;
 			clock-names = "usb_general";
-			phy-id = <2>;
+			phy-id = <0>;
 			controller-type = <4>;
 		};
 

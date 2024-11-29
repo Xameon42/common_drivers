@@ -26,6 +26,8 @@
 
 #define	phy_to_m31usb(x)	container_of((x), struct amlogic_usb_m31, phy)
 
+struct amlogic_usb_m31 *g_phy[2] = {NULL};
+
 static int amlogic_usb3_m31_suspend(struct usb_phy *x, int suspend)
 {
 	return 0;
@@ -57,8 +59,44 @@ static int amlogic_usb3_m31_init(struct usb_phy *x)
 	struct amlogic_usb_m31 *phy = phy_to_m31usb(x);
 	u32 val, temp, shift = 0;
 	size_t mask = 0;
+	union phy_m31_r0 r0;
 
 	if (phy->portnum > 0) {
+		if (phy->m31_utmi_reset_level_bit != -1U && phy->u3_combx0_reset_bit != -1U) {
+			temp = 1 << (phy->u3_combx0_reset_bit % 32);
+			shift = (phy->u3_combx0_reset_bit / 32) * 4;
+			val = readl((void __iomem		*)
+				((unsigned long)phy->reset_regs +
+				(phy->reset_level - mask) + shift));
+			writel((val & (~temp)), (void __iomem	*)
+				((unsigned long)phy->reset_regs +
+				(phy->reset_level - mask) + shift));
+			usleep_range(100, 200);
+			writel((val | (temp)), (void __iomem	*)
+				((unsigned long)phy->reset_regs +
+				(phy->reset_level - mask) + shift));
+			usleep_range(100, 200);
+
+			temp = 1 << (phy->m31_utmi_reset_level_bit % 32);
+			shift = (phy->m31_utmi_reset_level_bit / 32) * 4;
+			val = readl((void __iomem		*)
+				((unsigned long)phy->reset_regs +
+				(phy->reset_level - mask) + shift));
+			writel((val & (~temp)), (void __iomem	*)
+				((unsigned long)phy->reset_regs +
+				(phy->reset_level - mask) + shift));
+			usleep_range(100, 200);
+			writel((val | (temp)), (void __iomem	*)
+				((unsigned long)phy->reset_regs +
+				(phy->reset_level - mask) + shift));
+			usleep_range(100, 200);
+		} else if (phy->version == 1 && phy->phy_id == 0) {
+			dev_err(phy->dev, "%s err no m31_utmi_reset_level_bit &\n"
+				"u3_combx0_reset_bit in drd phy port, exit.\n", __func__);
+			return -EINVAL;
+		}
+
+		/* u3drd/phy reset bit is checked in the phy probe. */
 		mask = (size_t)phy->reset_regs & 0xf;
 		temp = 1 << (phy->m31phy_reset_level_bit % 32);
 		shift = (phy->m31phy_reset_level_bit / 32) * 4;
@@ -85,7 +123,49 @@ static int amlogic_usb3_m31_init(struct usb_phy *x)
 		writel((val | (temp)), (void __iomem	*)
 			((unsigned long)phy->reset_regs +
 			(phy->reset_level - mask) + shift));
-		dev_info(phy->dev, "m31phy reset\n");
+
+		writel(0x1, phy->phy3_cfg + 0x8);
+		usleep_range(100, 200);
+
+		writel(0, phy->phy3_cfg + 0xc);
+		usleep_range(100, 200);
+
+		if (phy->uncomposite) {
+			val = readl(phy->phy3_cfg + 0x82c);
+			val |= (1 << 5);
+			writel(val, phy->phy3_cfg + 0x82c);
+			usleep_range(100, 200);
+
+			val = readl(phy->phy3_cfg + 0x848);
+			val |= (3 << 0);
+			writel(val, phy->phy3_cfg + 0x848);
+			usleep_range(100, 200);
+		}
+
+		r0.d32 = readl(phy->phy3_cfg);
+		r0.b.PHY_SEL = 0;
+		r0.b.U3_HOST_PHY = 1;
+		r0.b.PCIE_CLKSEL = 0;
+		r0.b.U3_SSRX_SEL = 1;
+		r0.b.U3_SSTX_SEL = 1;
+		r0.b.REFPAD_EXT_100M_EN = 0;
+		r0.b.TX_ENABLE_N = 1;
+		r0.b.TX_SE0 = 0;
+		r0.b.FSLSSERIALMODE = 0;
+
+		writel(r0.d32, phy->phy3_cfg);
+		usleep_range(100, 200);
+
+		if (phy->version == 1) {
+			val = readl(phy->phy3_cfg + 0x81c);
+			val = (val & ~(0x7 << 13)) | (5 << 13);
+			writel(val, phy->phy3_cfg + 0x81c);
+			usleep_range(100, 200);
+		}
+
+		phy->phy.flags = AML_USB3_PHY_ENABLE;
+
+		au2p_dbg(phy->dev, "%s finished\n", __func__);
 	}
 
 	if (phy->suspend_flag) {
@@ -94,6 +174,147 @@ static int amlogic_usb3_m31_init(struct usb_phy *x)
 	}
 
 	return 0;
+}
+
+static void amlogic_crg_m31_device_phy_init_v0(struct amlogic_usb_m31 *phy)
+{
+#define M31_SETTING 0x1E30CEB9
+	writel(1, phy->phy3_cfg + 0x8);
+	udelay(9);
+
+	writel(0, phy->phy3_cfg + 0xc);
+	udelay(9);
+
+	writel(0x3, phy->phy3_cfg + 0x848);
+	udelay(9);
+
+	/* to do */
+	writel(M31_SETTING, phy->phy3_cfg);
+	udelay(9);
+
+	au2p_dbg(phy->dev, "%s finished\n", __func__);
+}
+
+static void amlogic_crg_m31_device_phy_init_v1(struct amlogic_usb_m31 *phy)
+{
+	u32 val;
+
+	if (!phy->pipe_clk_reg || !phy->pipe_clk_gate_reg) {
+		dev_err(phy->dev, "no pipe clk reg, udc may not be functional.\n");
+		return;
+	}
+
+	if (phy->m31_settings == -1U) {
+		dev_err(phy->dev, "no M31 settings, udc may not be functional.\n");
+		return;
+	}
+
+	if (phy->u3_combx0_reset_bit == -1U) {
+		dev_err(phy->dev, "no u3_combx0_reset_bit(u3drd0 general reset), exit.\n");
+		return;
+	}
+
+	if (phy->m31_utmi_reset_level_bit == -1U) {
+		dev_err(phy->dev, "no m31_utmi_reset_level_bit, exit.\n");
+		return;
+	}
+
+	/* u3drd/phy reset bit is checked in the phy probe. */
+
+	/*step 1: power on domain, if default is not on*/
+	/*default is power on*/
+
+	/*step 2: usb bus clock*/
+	/*sys_clk  gate*/
+
+	/*step 3: power on*/
+	writel(readl(phy->reset_regs + phy->reset_level + (phy->m31ctl_reset_level_bit / 32) * 4) |
+			(1 << phy->m31ctl_reset_level_bit % 32),
+		phy->reset_regs + phy->reset_level + (phy->m31ctl_reset_level_bit / 32) * 4);
+
+	writel(readl(phy->reset_regs + phy->reset_level + (phy->m31_utmi_reset_level_bit / 32) * 4)
+		| (1 << phy->m31_utmi_reset_level_bit % 32),
+		phy->reset_regs + phy->reset_level + (phy->m31_utmi_reset_level_bit / 32) * 4);
+
+	writel(readl(phy->reset_regs + phy->reset_level + (phy->m31phy_reset_level_bit / 32) * 4) |
+			(1 << phy->m31phy_reset_level_bit % 32),
+		phy->reset_regs + phy->reset_level + (phy->m31phy_reset_level_bit / 32) * 4);
+
+	usleep_range(12, 100);
+
+	/*step 4: usb controller reset*/
+	/*bit21: u3drd0 general reset*/
+	writel((1 << phy->u3_combx0_reset_bit % 32),
+			phy->reset_regs + (phy->u3_combx0_reset_bit / 32) * 4);
+	usleep_range(12, 100);
+
+	/*bit2: usb3drd0 utmi reset   bit6: usb3drd0 reset   bit10: usb30 phy reset*/
+	writel((1 << phy->m31ctl_reset_level_bit % 32),
+			phy->reset_regs + (phy->m31ctl_reset_level_bit / 32) * 4);
+
+	writel((1 << phy->m31_utmi_reset_level_bit % 32),
+			phy->reset_regs + (phy->m31_utmi_reset_level_bit / 32) * 4);
+
+	writel((1 << phy->m31phy_reset_level_bit % 32),
+			phy->reset_regs + (phy->m31phy_reset_level_bit / 32) * 4);
+
+	usleep_range(12, 100);
+
+	/* m31 phy setting*/
+	writel((u32)phy->m31_settings, phy->phy3_cfg);
+	usleep_range(12, 100);
+
+	/*setp 6: bypass usb3*/
+	val = readl(phy->phy3_cfg + 0x8);
+	val |= (0x1830 << 6);
+	writel(val, phy->phy3_cfg + 0x8);
+	usleep_range(12, 100);
+
+	val = readl(phy->phy3_cfg + 0xc);
+	val |= (0xe0 << 3);
+	writel(val, phy->phy3_cfg + 0xc);
+	usleep_range(12, 100);
+
+	/*step 7: pipe clk setting*/
+	writel(0x103, phy->pipe_clk_reg);
+	usleep_range(12, 100);
+
+	val = readl(phy->pipe_clk_gate_reg);
+	val |= (1 << 13);
+	writel(val, phy->pipe_clk_gate_reg);
+	usleep_range(12, 100);
+
+	/*step 8: reset u3drdx0 & M31phy*/
+	writel((1 << phy->m31ctl_reset_level_bit % 32),
+			phy->reset_regs + (phy->m31ctl_reset_level_bit / 32) * 4);
+	writel((1 << phy->m31phy_reset_level_bit % 32),
+		phy->reset_regs + (phy->m31phy_reset_level_bit / 32) * 4);
+	usleep_range(12, 100);
+
+	au2p_dbg(phy->dev, "%s finished\n", __func__);
+}
+
+void amlogic_crg_m31_device_phy_init(int phy_id)
+{
+	struct amlogic_usb_m31 *phy = g_phy[phy_id];
+
+	if (!phy) {
+		pr_err("phy %d not cached, check phy-id prop in the dts?",
+			phy_id);
+		return;
+	}
+
+	switch (phy->version) {
+	case 0:
+		amlogic_crg_m31_device_phy_init_v0(phy);
+		break;
+	case 1:
+		amlogic_crg_m31_device_phy_init_v1(phy);
+		break;
+	default:
+		dev_err(phy->dev, "no matched version. pls check dts node.\n");
+		break;
+	}
 }
 
 static bool device_is_available(const struct device_node *device)
@@ -128,13 +349,20 @@ static int amlogic_usb3_m31_probe(struct platform_device *pdev)
 	void __iomem	*reset_base = NULL;
 	unsigned int phy3_mem;
 	unsigned int phy3_mem_size = 0;
+	unsigned int pipe_clk_reg_mem;
+	unsigned int pipe_clk_reg_mem_size = 0;
+	unsigned int pipe_clk_gate_reg_mem;
+	unsigned int pipe_clk_gate_reg_mem_size = 0;
 	union phy_m31_r0 r0;
 	struct resource *reset_mem;
+	void __iomem *pipe_clk_reg;
+	void __iomem *pipe_clk_gate_reg;
 	u32 reset_level = 0x84;
-	u32 m31phy_reset_level_bit;
-	u32 m31ctl_reset_level_bit;
-	u32 m31_utmi_reset_level_bit;
-	u32 u3_combx0_reset_bit;
+	u32 m31phy_reset_level_bit = -1U;
+	u32 m31ctl_reset_level_bit = -1U;
+	u32 m31_utmi_reset_level_bit = -1U;
+	u32 u3_combx0_reset_bit = -1U;
+	u32 m31_settings = -1U;
 	u32 val;
 	int uncomposite;
 	u32 shift;
@@ -145,7 +373,9 @@ static int amlogic_usb3_m31_probe(struct platform_device *pdev)
 	const char *gpio_name = NULL;
 	int gpio_vbus_power_pin = -1;
 	struct gpio_desc *usb_gd = NULL;
+	/* Only aml p1 soc use version 0 m31 phy. */
 	u32 version = 0;
+	u32 phy_id = -1U;
 
 	gpio_name = of_get_property(dev->of_node, "gpio-vbus-power", NULL);
 	if (gpio_name) {
@@ -196,6 +426,40 @@ static int amlogic_usb3_m31_probe(struct platform_device *pdev)
 	if (!phy3_base)
 		return -ENOMEM;
 
+	ret = of_property_read_u32(dev->of_node, "pipe-clk-reg", &pipe_clk_reg_mem);
+	if (ret >= 0) {
+		ret = of_property_read_u32
+				(dev->of_node, "pipe-clk-reg-size", &pipe_clk_reg_mem_size);
+		if (ret < 0) {
+			pipe_clk_reg = NULL;
+		} else {
+			pipe_clk_reg = devm_ioremap(&pdev->dev,
+				(resource_size_t)pipe_clk_reg_mem,
+				(unsigned long)pipe_clk_reg_mem_size);
+			if (!pipe_clk_reg)
+				return -ENOMEM;
+		}
+	} else {
+		pipe_clk_reg = NULL;
+	}
+
+	ret = of_property_read_u32(dev->of_node, "pipe-clk-gate-reg", &pipe_clk_gate_reg_mem);
+	if (ret >= 0) {
+		ret = of_property_read_u32
+				(dev->of_node, "pipe-clk-reg-size", &pipe_clk_gate_reg_mem_size);
+		if (ret < 0) {
+			pipe_clk_gate_reg = NULL;
+		} else {
+			pipe_clk_gate_reg = devm_ioremap(&pdev->dev,
+				(resource_size_t)pipe_clk_gate_reg_mem,
+				(unsigned long)pipe_clk_gate_reg_mem_size);
+			if (!pipe_clk_gate_reg)
+				return -ENOMEM;
+		}
+	} else {
+		pipe_clk_gate_reg = NULL;
+	}
+
 	phy = devm_kzalloc(&pdev->dev, sizeof(*phy), GFP_KERNEL);
 	if (!phy)
 		return -ENOMEM;
@@ -208,6 +472,10 @@ static int amlogic_usb3_m31_probe(struct platform_device *pdev)
 			return PTR_ERR(reset_base);
 	}
 
+	prop = of_get_property(dev->of_node, "phy-id", NULL);
+	if (prop)
+		phy_id = of_read_ulong(prop, 1);
+
 	prop = of_get_property(dev->of_node, "reset-level", NULL);
 	if (prop)
 		reset_level = of_read_ulong(prop, 1);
@@ -216,30 +484,26 @@ static int amlogic_usb3_m31_probe(struct platform_device *pdev)
 	prop = of_get_property(dev->of_node, "m31phy-reset-level-bit", NULL);
 	if (prop)
 		m31phy_reset_level_bit = of_read_ulong(prop, 1);
-	else
-		m31phy_reset_level_bit = 13;
 
 	prop = of_get_property(dev->of_node, "m31ctl-reset-level-bit", NULL);
 	if (prop)
 		m31ctl_reset_level_bit = of_read_ulong(prop, 1);
-	else
-		m31ctl_reset_level_bit = 6;
 
 	prop = of_get_property(dev->of_node, "m31-utmi-reset-level-bit", NULL);
 	if (prop) {
 		m31_utmi_reset_level_bit = of_read_ulong(prop, 1);
 		m31_utmi_reset_level_flag = 1;
-	} else {
-		m31_utmi_reset_level_bit = 0;
 	}
 
 	prop = of_get_property(dev->of_node, "u3-combx0-reset-bit", NULL);
 	if (prop) {
 		u3_combx0_reset_bit = of_read_ulong(prop, 1);
 		u3_combx0_reset_flag = 1;
-	} else {
-		u3_combx0_reset_bit = 0;
 	}
+
+	prop = of_get_property(dev->of_node, "m31-settings", NULL);
+	if (prop)
+		m31_settings = of_read_ulong(prop, 1);
 
 	prop = of_get_property(dev->of_node, "version", NULL);
 	if (prop)
@@ -259,9 +523,25 @@ static int amlogic_usb3_m31_probe(struct platform_device *pdev)
 	phy->phy.type		= USB_PHY_TYPE_USB3;
 	phy->phy.flags		= AML_USB3_PHY_DISABLE;
 	phy->reset_regs = reset_base;
+	phy->pipe_clk_reg = pipe_clk_reg;
+	phy->pipe_clk_gate_reg = pipe_clk_gate_reg;
 	phy->reset_level = reset_level;
 	phy->m31phy_reset_level_bit = m31phy_reset_level_bit;
 	phy->m31ctl_reset_level_bit = m31ctl_reset_level_bit;
+	phy->m31_utmi_reset_level_bit = m31_utmi_reset_level_bit;
+	phy->u3_combx0_reset_bit = u3_combx0_reset_bit;
+	phy->version = version;
+	phy->uncomposite = uncomposite;
+	phy->m31_settings = m31_settings;
+	phy->phy_id = phy_id;
+
+	if (phy_id != -1U)
+		g_phy[phy_id] = phy;
+
+	if (phy->m31ctl_reset_level_bit == -1U || phy->m31phy_reset_level_bit == -1U) {
+		dev_err(phy->dev, "no basic u3drd/phy reset bits, exit.\n");
+		return -EINVAL;
+	}
 
 	if (m31_utmi_reset_level_flag == 1 && u3_combx0_reset_flag == 1) {
 		dev_info(&pdev->dev, "reset m31 phy!!!!!!\n");

@@ -4524,19 +4524,7 @@ static int crg_vbus_detect_thread(void *data)
 
 void amlogic_crg_m31_phy_init(struct crg_gadget_dev *crg_udc)
 {
-#define M31_SETTING 0x1E30CEB9
-	writel(1, crg_udc->phy_reg_addr + 0x8);
-	udelay(9);
-
-	writel(0, crg_udc->phy_reg_addr + 0xc);
-	udelay(9);
-
-	writel(0x3, crg_udc->phy_reg_addr + 0x848);
-	udelay(9);
-
-	/* to do */
-	writel(M31_SETTING, crg_udc->phy_reg_addr);
-	udelay(9);
+	amlogic_crg_m31_device_phy_init(crg_udc->phy_id);
 }
 
 /**
