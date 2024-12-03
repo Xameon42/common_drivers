@@ -401,7 +401,9 @@ static int amlogic_new_usb2_probe(struct platform_device *pdev)
 		otg_phy_index = 1;
 
 	phy_mem = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	phy_base = devm_ioremap_resource(dev, phy_mem);
+	if (!phy_mem)
+		return -ENODATA;
+	phy_base = ioremap(phy_mem->start, resource_size(phy_mem));
 	if (IS_ERR(phy_base))
 		return PTR_ERR(phy_base);
 
@@ -579,6 +581,11 @@ static int amlogic_new_usb2_probe(struct platform_device *pdev)
 
 static int amlogic_new_usb2_remove(struct platform_device *pdev)
 {
+	struct amlogic_usb_v2 *phy = (struct amlogic_usb_v2 *)platform_get_drvdata(pdev);
+
+	if (phy->regs)
+		iounmap(phy->regs);
+
 	return 0;
 }
 

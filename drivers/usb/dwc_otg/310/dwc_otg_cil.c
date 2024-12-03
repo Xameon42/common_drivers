@@ -6247,10 +6247,10 @@ int dwc_otg_set_param_dev_perio_tx_fifo_size(dwc_otg_core_if_t *core_if,
 		(&core_if->core_global_regs->dtxfsiz[fifo_num]) >> 16)) {
 		if (DWC_READ_REG32
 			(&core_if->core_global_regs->dtxfsiz[fifo_num]) >> 16)
-			DWC_WARN("Value is larger then power-on FIFO size\n");
+			DWC_DEBUG("Value is larger then power-on FIFO size\n");
 		if (dwc_otg_param_initialized
 		    (core_if->core_params->dev_perio_tx_fifo_size[fifo_num]))
-			DWC_ERROR
+			DWC_DEBUG
 			    ("`%d' invalid for parameter `dev_perio_fifo_size_%d'. Check HW configuration.\n",
 			     val, fifo_num);
 
@@ -6311,7 +6311,7 @@ int dwc_otg_set_param_dev_tx_fifo_size(dwc_otg_core_if_t *core_if, int32_t val,
 	}
 	if (val > txfifosize.b.depth) {
 		if (txfifosize.b.depth)
-			DWC_WARN("Value is larger then power-on FIFO size\n");
+			DWC_DEBUG("Value is larger then power-on FIFO size\n");
 		if (dwc_otg_param_initialized
 		    (core_if->core_params->dev_tx_fifo_size[fifo_num]))
 			DWC_ERROR
