@@ -928,6 +928,13 @@ static void dwc_otg_driver_shutdown(struct platform_device *pdev)
 	*/
 	platform_set_drvdata(pdev, 0);
 #endif
+	dwc_otg_device_t *otg_dev = g_dwc_otg_device[pdev->id];
+
+	DWC_DEBUG("%s.\n", __func__);
+
+	if (otg_dev)
+		cancel_delayed_work_sync(&otg_dev->work);
+
 	return;
 }
 #ifdef CONFIG_AMLOGIC_LEGACY_EARLY_SUSPEND
