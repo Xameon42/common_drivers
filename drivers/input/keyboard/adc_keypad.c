@@ -32,7 +32,7 @@ static bool keypad_enable_flag = true;
 /* Only the old version of bl30 (arm core) needs to configure mbox! */
 struct mbox_chan *adc_mbox_chan;
 
-static int meson_adc_kp_search_key(struct meson_adc_kp *kp)
+static struct adc_key *meson_adc_kp_search_key(struct meson_adc_kp *kp)
 {
 	struct adc_key *key;
 	int value, i;
@@ -48,18 +48,30 @@ static int meson_adc_kp_search_key(struct meson_adc_kp *kp)
 				    (value >= key->value - key->tolerance) &&
 				    (value <= key->value + key->tolerance)) {
 					mutex_unlock(&kp->kp_lock);
-					return key->code;
+					return key;
 				}
 			}
 		}
 	}
 	mutex_unlock(&kp->kp_lock);
-	return KEY_RESERVED;
+	return NULL;
 }
 
-static void meson_adc_kp_report_key(struct meson_adc_kp *kp, int code, int value)
+static void meson_adc_kp_report_key(struct meson_adc_kp *kp, int code, int type, int value)
 {
-	input_report_key(kp->input, code, value);
+	char *type_name = "other";
+	char *op_name = "unknown";
+
+	if (type == EV_KEY) {
+		type_name = "key";
+		op_name = value ? "down" : "up";
+	} else if (type == EV_SW) {
+		type_name = "switch";
+		op_name = value ? "on" : "off";
+	}
+	dev_info(&kp->input->dev, "%s %d %s\n", type_name, code, op_name);
+
+	input_event(kp->input, type, code, value);
 	input_sync(kp->input);
 
 	if (kp->led_blink && value) {
@@ -72,13 +84,11 @@ static void meson_adc_kp_poll(struct work_struct *pwork)
 {
 	struct meson_adc_kp *kp =
 		container_of(pwork, struct meson_adc_kp, work.work);
-	int code = meson_adc_kp_search_key(kp);
+	struct adc_key *key = meson_adc_kp_search_key(kp);
+	int code = key ? key->code : KEY_RESERVED;
 
 	if (kp->report_code && kp->report_code != code) {
-		dev_info(&kp->input->dev,
-			 "key %d up\n", kp->report_code);
-		meson_adc_kp_report_key(kp, kp->report_code, 0);
-
+		meson_adc_kp_report_key(kp, kp->report_code, kp->report_type, 0);
 		kp->report_code = 0;
 	}
 
@@ -90,13 +100,12 @@ static void meson_adc_kp_poll(struct work_struct *pwork)
 			kp->count++;
 		} else {
 			if (keypad_enable_flag && kp->report_code != code) {
-				dev_info(&kp->input->dev,
-					 "key %d down\n", code);
-				meson_adc_kp_report_key(kp, code, 1);
+				meson_adc_kp_report_key(kp, code, key->type, 1);
 				if (code == KEY_POWER)
 					pm_wakeup_hard_event(kp->input->dev.parent);
 
 				kp->report_code = code;
+				kp->report_type = key->type;
 			}
 			kp->count = 0;
 		}
@@ -259,6 +268,11 @@ static int meson_adc_kp_get_devtree_pdata(struct platform_device *pdev,
 			state = -EINVAL;
 			goto err;
 		}
+
+		ret = of_property_read_u32_index(pdev->dev.of_node,
+						 "key_type", cnt, &key->type);
+		if (ret)
+			key->type = EV_KEY;
 
 		ret = of_property_read_u32_index(pdev->dev.of_node,
 						 "key_chan", cnt, &key->chan);
@@ -496,8 +510,7 @@ static void meson_adc_kp_init_keybit(struct meson_adc_kp *kp)
 	struct adc_key *key;
 
 	list_for_each_entry(key, &kp->adckey_head, list)
-		set_bit(key->code,
-			kp->input->keybit); /*set event code*/
+		input_set_capability(kp->input, key->type, key->code);
 }
 
 static void meson_adc_kp_led_blink_register(struct platform_device *pdev)
@@ -574,7 +587,6 @@ static int meson_adc_kp_probe(struct platform_device *pdev)
 		goto err;
 	}
 
-	set_bit(EV_KEY, kp->input->evbit);
 	meson_adc_kp_init_keybit(kp);
 
 	kp->input->name = "adc_keypad";
@@ -669,8 +681,8 @@ static int __maybe_unused meson_adc_kp_resume(struct device *dev)
 			if (key->code == KEY_POWER) {
 				dev_info(dev, "adc keypad wakeup\n");
 
-				meson_adc_kp_report_key(kp, KEY_POWER, 1);
-				meson_adc_kp_report_key(kp, KEY_POWER, 0);
+				meson_adc_kp_report_key(kp, KEY_POWER, EV_KEY, 1);
+				meson_adc_kp_report_key(kp, KEY_POWER, EV_KEY, 0);
 
 				if (!IS_ERR_OR_NULL(adc_mbox_chan)) {
 					aml_mbox_transfer_data(adc_mbox_chan,

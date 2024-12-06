@@ -32,6 +32,7 @@ struct adc_key {
 	char name[MAX_NAME_LEN];
 	unsigned int chan;
 	unsigned int code;  /* input key code */
+	unsigned int type; /* input key type */
 	int value; /* voltage/3.3v * 1023 */
 	int tolerance;
 	struct list_head list;
@@ -42,6 +43,7 @@ struct meson_adc_kp {
 	unsigned char chan_num;   /*number of channel exclude duplicate*/
 	unsigned char count;
 	unsigned int report_code;
+	unsigned int report_type;
 	unsigned int prev_code;
 	unsigned int poll_period; /*key scan period*/
 	struct mutex kp_lock;
