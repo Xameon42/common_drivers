@@ -350,7 +350,7 @@ void hdmitx21_poll_reg(u32 addr, u8 exp_data, u8 mask, ulong timeout)
 		usleep_range(10, 20);
 	}
 	if (done == 0)
-		HDMITX_ERROR("%s addr:0x%x exp_data:0x%x rd_data:0x%x poll time-out!\n",
+		HDMITX_INFO("%s addr:0x%x exp_data:0x%x rd_data:0x%x poll time-out!\n",
 				__func__, addr, exp_data, rd_data);
 }
 EXPORT_SYMBOL(hdmitx21_poll_reg);
