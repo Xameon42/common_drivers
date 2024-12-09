@@ -614,6 +614,10 @@ static const unsigned int gen_clk_a_pins[]			= { GPIOA_11 };
 static const unsigned int mic_mute_en_a_pins[]			= { GPIOA_14 };
 static const unsigned int mic_mute_key_a_pins[]			= { GPIOA_15 };
 
+/* GPIOA func6 */
+static const unsigned int i2c0_sda_cc_pins[]			= { GPIO_CC1 };
+static const unsigned int i2c0_scl_cc_pins[]			= { GPIO_CC2 };
+
 static struct meson_pmx_group meson_s6_periphs_groups[] __initdata = {
 	GPIO_GROUP(GPIOD_0),
 	GPIO_GROUP(GPIOD_1),
@@ -1218,6 +1222,10 @@ static struct meson_pmx_group meson_s6_periphs_groups[] __initdata = {
 	GROUP(gen_clk_a,		6),
 	GROUP(mic_mute_en_a,		6),
 	GROUP(mic_mute_key_a,		6),
+
+	/* GPIOCC func1 */
+	GROUP(i2c0_scl_cc,		1),
+	GROUP(i2c0_sda_cc,		1),
 };
 
 static const char * const gpio_periphs_groups[] = {
@@ -1259,7 +1267,9 @@ static const char * const uart_c_groups[] = {
 static const char * const i2c0_groups[] = {
 	"i2c0_sda_e", "i2c0_scl_e", "i2c0_sda_z", "i2c0_scl_z", "i2c0_sda_a",
 	"i2c0_scl_a", "i2c0_scl_f", "i2c0_sda_f", "i2c0_scl_d",
-	"i2c0_sda_d"
+	"i2c0_sda_d",
+
+	"i2c0_scl_cc", "i2c0_sda_cc"
 };
 
 static const char * const i2c1_groups[] = {
