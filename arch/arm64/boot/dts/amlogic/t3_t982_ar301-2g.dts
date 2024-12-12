@@ -1297,6 +1297,7 @@
 		 */
 		resample_module = <8>;
 		suspend-clk-off = <1>;
+		src-clk-freq = <491520000>;
 		status = "okay";
 	};
 
@@ -1309,6 +1310,7 @@
 
 		/*this resample is only used for loopback_A.*/
 		suspend-clk-off = <1>;
+		src-clk-freq = <491520000>;
 		status = "okay";
 	};
 
@@ -1401,6 +1403,7 @@
 		datalb_chmask = <0x3>;
 		/* config which data pin as loopback */
 		datalb-lane-mask-in = <1 0 0 0>;
+		src-clk-freq = <491520000>;
 
 		status = "okay";
 	};
@@ -1456,6 +1459,7 @@
 		datalb_chmask = <0x3>;
 		/* config which data pin as loopback */
 		datalb-lane-mask-in = <1 0 0 0>;
+		src-clk-freq = <491520000>;
 
 		status = "disabled";
 	};

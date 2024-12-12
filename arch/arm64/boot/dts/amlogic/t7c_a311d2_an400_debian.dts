@@ -1174,7 +1174,8 @@
 		 *	EARC_RX,    11
 		 */
 		resample_module = <8>;
-
+		src-clk-freq = <491520000>;
+		suspend-clk-off = <1>;
 		status = "okay";
 	};
 
@@ -1279,6 +1280,7 @@
 		/* config which data pin as loopback */
 		datalb-lane-mask-in = <1 0 0 0>;
 		src-clk-freq = <491520000>;
+
 		status = "okay";
 	};
 

@@ -172,6 +172,7 @@
 			&tdma_clk_pins>;
 		suspend-clk-off = <1>;
 		/* enable control gain */
+		src-clk-freq = <491520000>;
 		ctrl_gain = <1>;
 		status = "okay";
 	};

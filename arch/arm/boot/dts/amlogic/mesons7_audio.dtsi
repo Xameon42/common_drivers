@@ -102,6 +102,7 @@
 		suspend-clk-off = <1>;
 		/* enable control gain */
 		ctrl_gain = <1>;
+		src-clk-freq = <491520000>;
 		status = "okay";
 	};
 
@@ -358,6 +359,7 @@
 
 		/* define loopack with pdm mic. */
 		mic-src = <&pdma>;
+		src-clk-freq = <491520000>;
 		status = "disabled";
 	};
 

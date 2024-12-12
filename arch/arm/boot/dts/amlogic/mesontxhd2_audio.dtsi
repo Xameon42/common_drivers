@@ -135,6 +135,7 @@
 		suspend-clk-off = <1>;
 		/* enable control gain */
 		ctrl_gain = <1>;
+		src-clk-freq = <491520000>;
 		status = "okay";
 	};
 
@@ -200,6 +201,7 @@
 		/* enable control gain */
 		tdmin-src-name = "hdmirx";
 		ctrl_gain = <1>;
+		src-clk-freq = <491520000>;
 		status = "okay";
 	};
 

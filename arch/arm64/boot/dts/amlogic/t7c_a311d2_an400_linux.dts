@@ -1160,7 +1160,8 @@
 		 *	EARC_RX,    11
 		 */
 		resample_module = <8>;
-
+		suspend-clk-off = <1>;
+		src-clk-freq = <491520000>;
 		status = "okay";
 	};
 

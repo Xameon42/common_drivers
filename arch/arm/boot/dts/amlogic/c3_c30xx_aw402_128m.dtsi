@@ -596,6 +596,7 @@
 		//power-domains = <&pwrdm PDID_CX_AUDIO>;
 		/* tdmin data comes from ACODEC adc */
 		tdmin-src-name = "acodec_adc";
+		src-clk-freq = <1155072000>;
 
 		status = "okay";
 	};
@@ -728,6 +729,7 @@
 		/*this resample is only used for loopback_A.*/
 		/*only support 16000 or 48000Hz for capture*/
 		capture_sample_rate = <16000>;
+		src-clk-freq = <1155072000>;
 
 		status = "okay";
 	};
@@ -787,6 +789,7 @@
 		/* config which data pin as loopback */
 		datalb-lane-mask-in = <1 0 0 0>;
 		//power-domains = <&pwrdm PDID_CX_AUDIO>;
+		src-clk-freq = <1155072000>;
 
 		status = "okay";
 	};

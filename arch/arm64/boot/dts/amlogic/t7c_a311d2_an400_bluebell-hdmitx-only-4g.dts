@@ -1304,6 +1304,7 @@
 		 *	EARC_RX,    11
 		 */
 		resample_module = <8>;
+		src-clk-freq = <491520000>;
 
 		status = "okay";
 	};
@@ -1317,6 +1318,7 @@
 
 		/*this resample is only used for loopback_A.*/
 		capture_sample_rate = <16000>;
+		src-clk-freq = <491520000>;
 
 		status = "disabled";
 	};

@@ -1097,6 +1097,7 @@
 		 *	TDMIN_LB, 6
 		 *	LOOPBACK, 7
 		 */
+		src-clk-freq = <491520000>;
 		resample_module = <4>;
 		status = "disabled";
 	};
@@ -1191,6 +1192,7 @@
 		datalb_chmask = <0x3>;
 		/* config which data pin as loopback */
 		datalb-lane-mask-in = <1 0 0 0>;
+		src-clk-freq = <491520000>;
 
 		status = "okay";
 	};

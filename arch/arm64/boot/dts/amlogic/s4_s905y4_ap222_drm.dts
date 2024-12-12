@@ -1016,6 +1016,7 @@
 		 *	LOOPBACK, 7
 		 */
 		resample_module = <4>;
+		src-clk-freq = <1179648000>;
 		status = "disabled";
 	};
 
@@ -1028,6 +1029,7 @@
 
 		/*this resample is only used for loopback_A.*/
 		capture_sample_rate = <16000>;
+		src-clk-freq = <1179648000>;
 
 		status = "disabled";
 	};
@@ -1119,6 +1121,7 @@
 		datalb_chmask = <0x3>;
 		/* config which data pin as loopback */
 		datalb-lane-mask-in = <1 0 0 0>;
+		src-clk-freq = <1179648000>;
 
 		status = "okay";
 	};
