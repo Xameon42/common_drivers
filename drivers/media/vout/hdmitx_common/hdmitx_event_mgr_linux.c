@@ -152,7 +152,8 @@ int hdmitx_event_mgr_set_uevent_state(struct hdmitx_event_mgr *event_mgr,
 
 	event->state = state;
 
-	if ((type == HDMITX_HPD_EVENT || type == HDMITX_SOUNDBAR_EVENT) &&
+	if ((type == HDMITX_HPD_EVENT || type == HDMITX_AUDIO_EVENT ||
+			type == HDMITX_SOUNDBAR_EVENT) &&
 			event_mgr->hdmitx_extcon_hdmi) {
 		extcon_set_state(event_mgr->hdmitx_extcon_hdmi, EXTCON_DISP_HDMI, state);
 		extcon_event = true;
@@ -198,7 +199,19 @@ int hdmitx_event_mgr_send_uevent(struct hdmitx_event_mgr *uevent_mgr,
 	} else {
 		ret = kobject_uevent_env(uevent_mgr->kobj, KOBJ_CHANGE, envp);
 
-		if (type == HDMITX_HPD_EVENT && uevent_mgr->hdmitx_extcon_hdmi &&
+		/*
+		 * for AndroidU framework, audio need hdmi disconnect when suspend
+		 * Android S system control will check kobject hdmitx_audio_event and then
+		 * nofity framework, tx driver will send kobject hdmitx_audio_event 0 when suspend;
+		 * now AndroidU framework just check hdmitx extcon even:
+		 * cat /sys/class/extcon/extcon0/cable.0/state, so tx driver need send
+		 * hdmitx_audio_event 0 by hdmitx extcon;
+		 * Now, there will cause hpd and hdmitx_audio_event use the same extcon node:
+		 * cat /sys/class/extcon/extcon0/cable.0/state, and the node will can not means
+		 * the true hpd signal
+		 */
+		if ((type == HDMITX_HPD_EVENT || type == HDMITX_AUDIO_EVENT) &&
+			uevent_mgr->hdmitx_extcon_hdmi &&
 			!uevent_mgr->soundbar_en_flag) {
 			extcon_set_state_sync(uevent_mgr->hdmitx_extcon_hdmi,
 				EXTCON_DISP_HDMI, state);
