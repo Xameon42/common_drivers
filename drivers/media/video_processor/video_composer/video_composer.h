@@ -113,11 +113,6 @@ enum vc_transform_t {
 	VC_TRANSFORM_FLIP_V_ROT_90 = VC_TRANSFORM_FLIP_V | VC_TRANSFORM_ROT_90,
 };
 
-enum buffer_format_t {
-	NV21 = 0,
-	YUV444 = 1,
-};
-
 struct frame_info_t {
 	u32 fd;
 	u32 composer_fen_fd;

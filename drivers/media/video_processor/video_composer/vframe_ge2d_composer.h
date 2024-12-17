@@ -22,7 +22,7 @@
 #include <linux/kernel.h>
 #include <linux/amlogic/media/vout/vout_notify.h>
 #include <linux/amlogic/media/vfm/vframe.h>
-//#include "video_composer.h"
+#include "vc_util.h"
 
 #define VIDEOCOM_INFO(fmt, args...)	\
 	pr_info("video_composer: info:" fmt "", ## args)
@@ -75,7 +75,7 @@ struct src_data_para {
 	struct canvas_config_s canvas1_config[3];
 	enum vframe_source_type_e source_type;
 	bool is_vframe;
-	bool is_yuv444;
+	enum buffer_format_t buf_format;
 };
 
 struct dump_param {

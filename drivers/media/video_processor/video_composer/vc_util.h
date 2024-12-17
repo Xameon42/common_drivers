@@ -25,6 +25,13 @@ enum com_buffer_used {
 	USED_BY_DEWARP,
 };
 
+enum buffer_format_t {
+	NV21 = 0,
+	YUV444 = 1,
+	YUV444_10BIT = 2,
+	NV12_VC = 3,
+};
+
 struct dst_buf_t {
 	int index;
 	struct vframe_s frame;

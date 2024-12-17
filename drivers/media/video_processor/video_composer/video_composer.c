@@ -2834,10 +2834,7 @@ static void vframe_composer(struct composer_dev *dev)
 				vc_print(dev->index, PRINT_ERROR, "vicp composer failed\n");
 		} else {
 			vc_print(dev->index, PRINT_OTHER, "use ge2d composer.\n");
-			if (vframe_info_cur->buffer_format == YUV444)
-				src_data.is_yuv444 = true;
-			else
-				src_data.is_yuv444 = false;
+			src_data.buf_format = vframe_info_cur->buffer_format;
 			ret = config_ge2d_data(src_vf,
 				addr,
 				vframe_info_cur->buffer_w,
@@ -3725,6 +3722,11 @@ static void video_composer_task(struct composer_dev *dev)
 					| VIDTYPE_VIU_FIELD
 					| VIDTYPE_VIU_444;
 				vc_print(dev->index, PRINT_OTHER, "buffer_format_t YUV444\n");
+			} else if (frame_info->buffer_format == NV12_VC) {
+				vf->plane_num = 2;
+				vf->type = VIDTYPE_PROGRESSIVE
+					| VIDTYPE_VIU_FIELD
+					| VIDTYPE_VIU_NV12;
 			} else {
 				vf->plane_num = 2;
 				vf->type = VIDTYPE_PROGRESSIVE

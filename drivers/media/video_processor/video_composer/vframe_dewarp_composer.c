@@ -404,6 +404,10 @@ int config_dewarp_vframe(struct composer_vf_para *vframe_para,
 		if (pic_info_in->format == YUV444) {
 			vframe_para->src_vf_format = YUV444_P;
 			vframe_para->src_buf_stride0 = pic_info_in->align_w * 3;
+		} else if (pic_info_in->format == NV12_VC) {
+			vframe_para->uvswap_enable = 1;
+			vframe_para->src_vf_format = NV12;
+			vframe_para->src_buf_stride0 = pic_info_in->align_w;
 		} else {
 			vframe_para->src_vf_format = NV12;
 			vframe_para->src_buf_stride0 = pic_info_in->align_w;
