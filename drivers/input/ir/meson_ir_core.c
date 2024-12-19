@@ -168,6 +168,7 @@ void meson_ir_input_configure(struct input_dev *input_device,
 	for (i = 0; i < ir_map->map_size; i++)
 		input_set_capability(input_device, EV_KEY,
 				     ir_map->codemap[i].map.keycode);
+	meson_ir_common_input_set_capability(input_device);
 }
 EXPORT_SYMBOL(meson_ir_input_configure);
 
@@ -182,6 +183,7 @@ void meson_ir_input_mouse_configure(struct meson_ir_dev *dev)
 		for (j = BTN_MOUSE; j < BTN_SIDE; j++)
 			input_set_capability(dev->input_devs[i], EV_KEY, j);
 	}
+	meson_ir_common_input_set_capability(dev->input_devs[0]);
 }
 EXPORT_SYMBOL(meson_ir_input_mouse_configure);
 

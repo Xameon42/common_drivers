@@ -31,9 +31,19 @@ void meson_ir_common_input_report(unsigned int code, int value)
 	spin_unlock(&common_input_data.input_lock);
 }
 
+void meson_ir_common_input_set_capability(struct input_dev *input_device)
+{
+	bitmap_or(common_input_data.common_input->keybit, input_device->keybit,
+		  common_input_data.common_input->keybit, KEY_MAX);
+	bitmap_or(common_input_data.common_input->relbit, input_device->relbit,
+		  common_input_data.common_input->relbit, REL_MAX);
+	bitmap_or(common_input_data.common_input->evbit, input_device->evbit,
+		  common_input_data.common_input->evbit, EV_MAX);
+}
+
 int meson_ir_common_input_init(void)
 {
-	int i, ret;
+	int ret;
 	struct input_dev *input_device;
 
 	spin_lock_init(&common_input_data.input_lock);
@@ -51,16 +61,6 @@ int meson_ir_common_input_init(void)
 	input_device->id.vendor  = 0x0001;
 	input_device->id.product = 0x0001;
 	input_device->id.version = 0x0100;
-
-	for (i = KEY_ESC; i < KEY_UWB; i++)
-		input_set_capability(input_device, EV_KEY, i);
-	for (i = KEY_OK; i < KEY_FN_B; i++)
-		input_set_capability(input_device, EV_KEY, i);
-	for (i = BTN_MOUSE; i < BTN_SIDE; i++)
-		input_set_capability(input_device, EV_KEY, i);
-	input_set_capability(input_device, EV_REL, REL_X);
-	input_set_capability(input_device, EV_REL, REL_Y);
-	input_set_capability(input_device, EV_REL, REL_WHEEL);
 
 	ret = input_register_device(input_device);
 	if (ret < 0) {

@@ -205,6 +205,7 @@ int meson_ir_xmp_decode_init(void);
 void meson_ir_xmp_decode_exit(void);
 
 void meson_ir_common_input_report(unsigned int code, int value);
+void meson_ir_common_input_set_capability(struct input_dev *input_device);
 int meson_ir_common_input_init(void);
 void meson_ir_common_input_exit(void);
 
