@@ -25,11 +25,16 @@
 #include <linux/dma-direction.h>
 #include <uapi/linux/dma-heap.h>
 
+#include <linux/amlogic/media/dmabuf_heaps/amlogic_dmabuf_heap.h>
 #include <linux/amlogic/media/meson_uvm_allocator.h>
+#ifdef CONFIG_AMLOGIC_MEDIA_WRAPPER
+#include <linux/amlogic/media/avbc_wrapper_interface.h>
+#include <linux/amlogic/media/registers/cpu_version.h>
+#include <linux/amlogic/media/codec_mm/codec_mm.h>
+#endif
 #include "meson_uvm_nn_processor.h"
 #include "meson_uvm_aipq_processor.h"
 #include "meson_uvm_aiface_processor.h"
-#include "linux/amlogic/media/dmabuf_heaps/amlogic_dmabuf_heap.h"
 #include "meson_uvm_aicolor_processor.h"
 #include "meson_uvm_buffer_info.h"
 
@@ -60,6 +65,31 @@ static int uvm_decoder_para_num = UVM_DECODER_PARA_NUM * UVM_DECODER_NODE_NUM;
  */
 static int decoder_para[UVM_DECODER_PARA_NUM * UVM_DECODER_NODE_NUM] = { 0 };
 module_param_array(decoder_para, uint, &uvm_decoder_para_num, 0644);
+
+#ifdef CONFIG_AMLOGIC_MEDIA_WRAPPER
+#define MAX_SIZE_8K (8192 * 4608)
+#define MAX_SIZE_4K (4096 * 2304)
+#define MAX_SIZE_2K (1920 * 1088)
+#define IS_8K_SIZE(w, h)  (((w) * (h)) > MAX_SIZE_4K)
+#define IS_4K_SIZE(w, h)  (((w) * (h)) > MAX_SIZE_2K)
+#define MMU_COMPRESS_HEADER_SIZE_1080P  0x10000
+#define MMU_COMPRESS_HEADER_SIZE_4K     0x48000
+#define MMU_COMPRESS_HEADER_SIZE_8K     0x120000
+
+static int get_header_size(int w, int h)
+{
+	w = ALIGN(w, 64);
+	h = ALIGN(h, 64);
+
+	if ((get_cpu_type() >= MESON_CPU_MAJOR_ID_SM1) && IS_8K_SIZE(w, h))
+		return MMU_COMPRESS_HEADER_SIZE_8K;
+
+	if (IS_4K_SIZE(w, h))
+		return MMU_COMPRESS_HEADER_SIZE_4K;
+
+	return MMU_COMPRESS_HEADER_SIZE_1080P;
+}
+#endif
 
 static bool mua_is_valid_dmabuf(int fd)
 {
@@ -111,6 +141,122 @@ static void mua_handle_free(struct uvm_buf_obj *obj)
 	kfree(buffer);
 }
 
+size_t mua_calc_real_dmabuf_size(struct mua_buffer *buffer)
+{
+	if (!buffer)
+		return 0;
+
+	int align = buffer->align;
+	int byte_stride = buffer->byte_stride;
+	int height = ALIGN(buffer->height, align);
+	size_t size = byte_stride * height * 3 / 2;
+
+	if (realloc_size > 0)
+		size = realloc_size;
+	MUA_PRINTK(MUA_INFO, "%s. align=%d byte_stride=%d height=%d size:%zu\n",
+			__func__, align, byte_stride, height, size);
+	return size;
+}
+
+#ifdef CONFIG_AMLOGIC_MEDIA_WRAPPER
+int avbcd_uvm_fill_pattern(struct mua_buffer *buffer, struct dma_buf *dmabuf)
+{
+	struct vframe_s *vf = NULL;
+	bool is_dec_vf = false;
+	struct avbc_input *in;
+	struct avbc_output *out;
+	int ret = -1;
+	size_t buf_size = mua_calc_real_dmabuf_size(buffer) * 2 / 3;
+	u8 *virt_addr;
+
+	is_dec_vf = is_valid_mod_type(dmabuf, VF_SRC_DECODER);
+	if (is_dec_vf) {
+		vf = dmabuf_get_vframe(dmabuf);
+		MUA_PRINTK(MUA_INFO, "vf=%px vf->vf_ext:%px vf->flags:%d!\n",
+			vf, vf->vf_ext, vf->flag);
+		if (vf->vf_ext && (vf->flag & VFRAME_FLAG_CONTAIN_POST_FRAME)) {
+			if (vf->type & VIDTYPE_INTERLACE)
+				vf = vf->vf_ext;
+		}
+		dmabuf_put_vframe(dmabuf);
+	}
+
+	if (!vf) {
+		MUA_PRINTK(MUA_ERROR, "%s: vf is NULL!\n", __func__);
+		return ret;
+	}
+
+	if (!(vf->type & VIDTYPE_COMPRESS)) {
+		MUA_PRINTK(MUA_ERROR, "%s: go to GE2D copy for non-compress!\n", __func__);
+		return ret;
+	}
+
+	in = kzalloc(sizeof(*in), GFP_KERNEL);
+	out = kzalloc(sizeof(*out), GFP_KERNEL);
+
+	if ((vf->bitdepth & BITDEPTH_YMASK)  == BITDEPTH_Y10)
+		in->img.bitdep = 10;
+	else
+		in->img.bitdep = 8;
+	in->img.data = vf->compHeadAddr;
+	in->img.size = get_header_size(vf->compWidth, vf->compHeight);
+	in->img.rect.x = 0;
+	in->img.rect.y = 0;
+	in->img.rect.width = vf->compWidth;
+	in->img.rect.height = vf->compHeight;
+	if (is_src_crop_valid(vf->src_crop)) {
+		in->img.crop.top = vf->src_crop.top;
+		in->img.crop.left = vf->src_crop.left;
+		in->img.crop.bottom = vf->src_crop.bottom;
+		in->img.crop.right = vf->src_crop.right;
+	}
+	MUA_PRINTK(MUA_INFO, "%s: addr=0x%llx size=%u width=%u height=%u bitdepth=%u\n",
+		__func__, in->img.data, in->img.size,
+		in->img.rect.width, in->img.rect.height, in->img.bitdep);
+	MUA_PRINTK(MUA_INFO, "crop info: top=%u left=%u bottom=%u right=%u\n",
+		in->img.crop.top, in->img.crop.left, in->img.crop.bottom, in->img.crop.right);
+
+	MUA_PRINTK(MUA_INFO, "fill dummy data buf size=%zu\n", buf_size);
+
+	virt_addr = codec_mm_vmap_noncache(buffer->paddr, buf_size * 3 / 2);
+
+	memset(virt_addr, 0x15, buf_size);
+	memset(virt_addr + buf_size, 0x80, buf_size / 2);
+
+	codec_mm_unmap_phyaddr(virt_addr);
+
+	out->img.bitdep = in->img.bitdep;
+	if (buffer->byte_stride == buffer->width && in->img.bitdep == 10) {
+		MUA_PRINTK(MUA_ERROR, "memory not enough, convert 10bit to 8bit.\n");
+		out->img.bitdep = 8;
+	}
+	out->img.format = (out->img.bitdep == 10) ? AML_PIX_FMT_P010 :
+				((vf->type & VIDTYPE_VIU_NV12) ?
+					AML_PIX_FMT_NV12 : AML_PIX_FMT_NV21);
+	out->img.mtype = AVBC_MEM_PHYADDR;
+	out->img.data = buffer->paddr;
+	out->img.size = buffer->idmabuf[1]->size;
+	out->img.rect.x = 0;
+	out->img.rect.y = 0;
+	if (out->img.bitdep == 10)
+		out->img.rect.width = buffer->byte_stride / 2;
+	else
+		out->img.rect.width = buffer->byte_stride;
+	out->img.rect.height = buffer->height;
+	MUA_PRINTK(MUA_INFO, "%s: addr=0x%llx size=%u width=%u height=%u bitdepth=%u\n",
+		__func__, out->img.data, out->img.size,
+		out->img.rect.width, out->img.rect.height, out->img.bitdep);
+
+	ret = AMLOGIC_AVBC_WRAPPER_vframe_decoder(out, in, AVBC_FLAG_IO_BLOCKING);
+	if (ret < 0)
+		MUA_PRINTK(MUA_ERROR, "%s: aml_avbc_decode() fail!\n", __func__);
+
+	kfree(in);
+	kfree(out);
+	return ret;
+}
+#endif
+
 int meson_uvm_fill_pattern(struct mua_buffer *buffer, struct dma_buf *dmabuf, void *vaddr)
 {
 	struct v4l_data_t val_data;
@@ -130,23 +276,6 @@ int meson_uvm_fill_pattern(struct mua_buffer *buffer, struct dma_buf *dmabuf, vo
 #endif
 
 	return 0;
-}
-
-size_t mua_calc_real_dmabuf_size(struct mua_buffer *buffer)
-{
-	if (!buffer)
-		return 0;
-
-	int align = buffer->align;
-	int byte_stride = buffer->byte_stride;
-	int height = ALIGN(buffer->height, align);
-	size_t size = byte_stride * height * 3 / 2;
-
-	if (realloc_size > 0)
-		size = realloc_size;
-	MUA_PRINTK(MUA_INFO, "%s. align=%d byte_stride=%d height=%d size:%zu\n",
-			__func__, align, byte_stride, height, size);
-	return size;
 }
 
 static int mua_process_gpu_realloc(struct dma_buf *dmabuf,
@@ -321,7 +450,10 @@ static int mua_process_gpu_realloc(struct dma_buf *dmabuf,
 		memset(vaddr, 0x15, buf_size);
 		memset(vaddr + buf_size, 0x80, buf_size / 2);
 	} else {
-		meson_uvm_fill_pattern(buffer, dmabuf, vaddr);
+#ifdef CONFIG_AMLOGIC_MEDIA_WRAPPER
+		if (avbcd_uvm_fill_pattern(buffer, dmabuf))
+#endif
+			meson_uvm_fill_pattern(buffer, dmabuf, vaddr);
 	}
 	vunmap(vaddr);
 	if (src_sgt && attachment) {
