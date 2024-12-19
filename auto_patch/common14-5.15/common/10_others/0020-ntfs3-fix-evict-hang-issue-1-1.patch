@@ -1,0 +1,80 @@
+From 150593a3dcba39f352289125b411a7af4f192a0b Mon Sep 17 00:00:00 2001
+From: Jiucheng Xu <jiucheng.xu@amlogic.com>
+Date: Thu, 19 Dec 2024 11:55:45 +0000
+Subject: [PATCH] ntfs3: fix evict hang issue [1/1]
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+PD#SWPL-197556
+
+Problem:
+evicting inode will set I_FREEING for each inode at lru list.
+ntfs3 evicting inode will update parent inode， updating inode need
+get inode firstly, find_inode() wait until inode.state
+is not I_FREEING. this causes kswapd hang.
+
+task:kswapd0/48
+[<c0f566c4>] schedule+0x100/0x180
+[<c057e604>] find_inode+0x108/0x184
+[<c057e8c0>] ilookup5+0xc0/0x13c
+[<c057e6fc>] iget5_locked+0x24/0x128
+[<bfb775d4>] ntfs_iget5+0x30/0x107c [ntfs3]
+[<bfb6cc28>] ni_update_parent+0x2e0/0x3a8 [ntfs3]
+[<bfb6c930>] ni_write_inode+0x4b4/0x4cc [ntfs3]
+[<bfb7a344>] ntfs_evict_inode+0x38/0x54 [ntfs3]
+[<c0580578>] evict+0xb4/0x250
+[<c057d9b0>] prune_icache_sb+0x7c/0xa4
+[<c0561c1c>] super_cache_scan+0x154/0x188
+[<c04ea964>] shrink_slab+0x1d8/0x618
+[<c04efbb0>] shrink_node+0xd48/0x10c8
+[<c04edc44>] balance_pgdat+0x460/0x77c
+[<c04ed5ec>] kswapd+0x2ac/0x4a4
+[<c03559e0>] kthread+0x1d8/0x204
+[<c0300134>] ret_from_fork+0x14/0x40
+
+Solution:
+skip update parent inode when evict inode. parent inode will be updated
+when it itself was evicted.
+
+Verify:
+s7d
+
+Change-Id: Id60be398505120db5eb6208875bb94982cd35a3b
+Signed-off-by: Jiucheng Xu <jiucheng.xu@amlogic.com>
+---
+ fs/ntfs3/Kconfig   | 6 ++++++
+ fs/ntfs3/frecord.c | 3 +++
+ 2 files changed, 9 insertions(+)
+
+diff --git a/fs/ntfs3/Kconfig b/fs/ntfs3/Kconfig
+index 6e4cbc48ab8e..cf956aa88a35 100644
+--- a/fs/ntfs3/Kconfig
++++ b/fs/ntfs3/Kconfig
+@@ -44,3 +44,9 @@ config NTFS3_FS_POSIX_ACL
+ 	  NOTE: this is linux only feature. Windows will ignore these ACLs.
+ 
+ 	  If you don't know what Access Control Lists are, say N.
++
++config AMLOGIC_NTFS3_ISSUE
++	bool "NTFS3 has bug when update parent"
++	depends on NTFS3_FS
++	help
++	  ntfs3 has evict hang issue, amlogic provide a modification to fix it.
+diff --git a/fs/ntfs3/frecord.c b/fs/ntfs3/frecord.c
+index b02778cbb1d3..ffc98d6932f0 100644
+--- a/fs/ntfs3/frecord.c
++++ b/fs/ntfs3/frecord.c
+@@ -3246,6 +3246,9 @@ int ni_write_inode(struct inode *inode, int sync, const char *hint)
+ 		if (!ntfs_is_meta_file(sbi, inode->i_ino) &&
+ 		    (modified || (ni->ni_flags & NI_FLAG_UPDATE_PARENT))
+ 		    /* Avoid __wait_on_freeing_inode(inode). */
++#ifdef CONFIG_AMLOGIC_NTFS3_ISSUE
++		    && !(inode->i_state & (I_FREEING | I_WILL_FREE))
++#endif
+ 		    && (sb->s_flags & SB_ACTIVE)) {
+ 			dup.cr_time = std->cr_time;
+ 			/* Not critical if this function fail. */
+-- 
+2.46.0
+
