@@ -195,6 +195,7 @@ struct earc {
 	/* do analog auto calibration when bootup */
 	struct work_struct work;
 	struct work_struct rx_dmac_int_work;
+	struct work_struct rx_xrun_work;
 	struct work_struct tx_hold_bus_work;
 	struct work_struct earctx_reg_init_work;
 	struct delayed_work tx_resume_work;
@@ -1102,7 +1103,6 @@ static int earc_open(struct snd_soc_component *component, struct snd_pcm_substre
 			dev_err(dev, "failed to claim toddr\n");
 			goto err_ddr;
 		}
-		substream->pcm->nonatomic = 0;
 	}
 
 	runtime->private_data = p_earc;
@@ -3281,6 +3281,17 @@ static void rx_stable_work_func(struct work_struct *p_work)
 		mute, p_earc->stream_stable);
 }
 
+static void rx_xrun_work_func(struct work_struct *p_work)
+{
+	struct earc *p_earc = container_of(p_work, struct earc, rx_xrun_work);
+
+	earcrx_pll_refresh(p_earc->rx_top_map, RST_BY_SELF, true, p_earc->chipinfo->rx_pll_new);
+
+	snd_pcm_stop_xrun(p_earc->substreams[SNDRV_PCM_STREAM_CAPTURE]);
+
+	dev_info(p_earc->dev, "reset pll and trigger xrun\n");
+}
+
 static void earcrx_timer_func(struct timer_list *t)
 {
 	struct earc *p_earc = from_timer(p_earc, t, rx_detect_point_timer);
@@ -3296,14 +3307,8 @@ static void earcrx_timer_func(struct timer_list *t)
 		goto exit;
 
 	cur_addr = aml_toddr_get_position(p_earc->tddr);
-	if (p_earc->rx_position_addr == cur_addr) {
-		earcrx_pll_refresh(p_earc->rx_top_map, RST_BY_SELF, true,
-			p_earc->chipinfo->rx_pll_new);
-
-		snd_pcm_stop_xrun(p_earc->substreams[SNDRV_PCM_STREAM_CAPTURE]);
-
-		dev_info(p_earc->dev, "reset pll and trigger xrun\n");
-	}
+	if (p_earc->rx_position_addr == cur_addr)
+		schedule_work(&p_earc->rx_xrun_work);
 
 	p_earc->rx_position_addr = cur_addr;
 
@@ -3533,6 +3538,7 @@ static int earc_platform_probe(struct platform_device *pdev)
 		if (earcrx_cmdc_get_attended_type(p_earc->rx_cmdc_map) == ATNDTYP_EARC)
 			earcrx_cmdc_set_cds(p_earc->rx_cmdc_map, p_earc->rx_cds_data);
 		INIT_WORK(&p_earc->rx_dmac_int_work, valid_auto_work_func);
+		INIT_WORK(&p_earc->rx_xrun_work, rx_xrun_work_func);
 		INIT_DELAYED_WORK(&p_earc->rx_stable_work, rx_stable_work_func);
 		INIT_DELAYED_WORK(&p_earc->rx_pll_detect_work, rx_pll_detect_work_func);
 		INIT_DELAYED_WORK(&p_earc->hdmitx_5v_work, hdmitx_5v_work_func);
