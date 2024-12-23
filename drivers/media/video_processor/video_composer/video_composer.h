@@ -253,6 +253,7 @@ struct composer_dev {
 	wait_queue_head_t wq;
 	bool thread_stopped;
 	struct vframe_s *last_dst_vf;
+	struct vframe_s *last_err_vf;
 	bool need_unint_receive_q;
 	struct completion task_done;
 	struct dst_buf_t dst_buf[BUFFER_LEN];

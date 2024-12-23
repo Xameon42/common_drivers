@@ -931,15 +931,22 @@ static struct vframe_s *vc_vf_get(void *op_arg)
 				- vf->vc_private->vsync_index + 1;
 		}
 
+		if (dev->last_err_vf) {
+			vc_print(dev->index, PRINT_OTHER, "put: error vframe, frame_index:%d\n",
+			       dev->last_err_vf->frame_index);
+			vc_vf_put(dev->last_err_vf, (void *)dev);
+			dev->last_err_vf = NULL;
+		}
+
 		if (vf->dec_fence_status == DEC_FENCE_SUCCESS) {
 			vc_print(dev->index, PRINT_OTHER,
 				"%s: normal vframe, frame_index:%d fence:%px\n",
 				__func__, vf->frame_index, vf->fence);
 			dma_fence_get(vf->fence);
 		} else if (vf->dec_fence_status == DEC_FENCE_ERR) {
-			vc_print(dev->index, PRINT_OTHER, "error vframe, frame_index:%d\n",
+			vc_print(dev->index, PRINT_OTHER, "error vframe, need put, index:%d\n",
 			       vf->frame_index);
-			vc_vf_put(vf, (void *)dev);
+			dev->last_err_vf = vf;
 			return NULL;
 		}
 

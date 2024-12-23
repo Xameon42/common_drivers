@@ -4499,6 +4499,7 @@ static int video_composer_init(struct composer_dev *dev)
 	dev->fence_release_count = 0;
 	dev->fput_count = 0;
 	dev->last_dst_vf = NULL;
+	dev->last_err_vf = NULL;
 	dev->drop_frame_count = 0;
 	dev->is_sideband = false;
 	dev->need_empty_ready = false;
