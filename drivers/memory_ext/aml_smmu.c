@@ -170,6 +170,7 @@ struct aml_iommu_group {
 };
 
 struct aml_iommu_group *aml_global_group;
+static const struct dma_map_ops aml_pcie_dma_ops;
 
 static struct iommu_device *aml_smmu_add_device(struct device *dev)
 {
@@ -179,6 +180,9 @@ static struct iommu_device *aml_smmu_add_device(struct device *dev)
 static int aml_smmu_of_xlate(struct device *dev, struct of_phandle_args *args)
 {
 	dev->iommu_group = (struct iommu_group *)aml_global_group;
+	dev->dma_ops = &aml_pcie_dma_ops;
+	pr_debug("set pcie dma ops in xlate function.\n");
+
 	return 0;
 }
 
@@ -1214,6 +1218,7 @@ static int aml_smmu_set_bus_ops(struct iommu_ops *ops)
 void set_dma_ops_hook(void *data, struct device *dev, u64 dma_base, u64 size)
 {
 	set_dma_ops(dev, &aml_pcie_dma_ops);
+	pr_debug("set pcie dma ops in hook function.\n");
 }
 
 static void *get_symbol_addr(const char *symbol_name)
