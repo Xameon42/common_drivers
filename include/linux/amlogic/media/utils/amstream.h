@@ -98,6 +98,7 @@ enum VIDEO_DEC_TYPE {
 #define STAT_VDEC_RUN       0x20
 #define STAT_TIMER_BACK_ARM 0x40
 #define STAT_TIMER_BACK_INIT 0x80
+#define STAT_EOS            0x100
 
 /*struct vdec_status.status on error*/
 
