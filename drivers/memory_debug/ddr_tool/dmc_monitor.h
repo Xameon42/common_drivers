@@ -37,6 +37,13 @@
 #define DMC_DEBUG_SUSPEND	BIT(6)
 #define DMC_DEBUG_SERROR	BIT(7)
 #define DMC_DEBUG_IRQ_THREAD	BIT(8)
+#define DMC_DEBUG_VALUE		BIT(9)
+
+enum init_dmc_mode_type {
+	DMC_MODE_RESERVED = 0x0,
+	DMC_MODE_DEFAULT = 0x1,
+	DMC_MODE_NORMAL  = 0x2,
+};
 
 struct dmc_monitor;
 struct dmc_mon_ops {
@@ -70,6 +77,8 @@ struct dmc_mon_comm {
 	unsigned long addr;
 	unsigned long status;
 	struct page_trace trace;
+	unsigned long migratetype;
+	unsigned long mapping;
 	unsigned long page_flags;
 	unsigned long long time;
 	unsigned long last_addr;
