@@ -61,12 +61,17 @@
 u32 scatter_align_pages_size = 128;
 int scatter_swap_threshold_size = 20;
 
+/*
+ * bit[3:0]	print level
+ * bit[4]	scatter info
+ * bit[5]	slot info
+ */
 int scatter_debug_mode = 1;
 module_param(scatter_debug_mode, int, 0644);
 
 #define dprintk(level, fmt, arg...) \
 	do { \
-		if (scatter_debug_mode >= (level)) \
+		if ((scatter_debug_mode & DUMP_PR_LEVEL) >= (level)) \
 			pr_info("%s: " fmt,  __func__, ## arg);	\
 	} while (0)
 
@@ -74,6 +79,10 @@ module_param(scatter_debug_mode, int, 0644);
 #define pr_error(fmt, args ...)		dprintk(1, fmt, ## args)
 #define pr_inf(fmt, args ...)		dprintk(8, fmt, ## args)
 #define pr_enter()			pr_inf("enter")
+
+#define DUMP_PR_LEVEL	0x0F
+#define DUMP_SC_INFO	0x10
+#define DUMP_SLOT_INFO	0x20
 
 /*#define PHY_ADDR_NEED_64BITS*/
 #if PAGE_SHIFT >= 12
@@ -2312,6 +2321,8 @@ int codec_mm_free_all_free_slots_in(struct codec_mm_scatter_mgt *smgt)
 		if (!to_free)
 			break;
 		codec_mm_slot_free(smgt, to_free);
+		if (scatter_debug_mode & DUMP_SLOT_INFO)
+			codec_mm_dump_all_slots();
 	} while (1);
 	return 0;
 }
@@ -2480,7 +2491,7 @@ int codec_mm_dump_slot(struct codec_mm_slot *slot, void *buf, int size)
 			pbuf += s; \
 		} while (0)
 
-	BUFPRINT("slot info:%p\n", slot);
+	BUFPRINT("slot info:%px\n", slot);
 	BUFPRINT("\tfrom:%s\n",
 		 (slot->from_type == SLOT_FROM_CODEC_MM ? "codec_mm" :
 			"sys"));
@@ -3006,15 +3017,11 @@ static void codec_mm_scatter_cache_manage(struct codec_mm_scatter_mgt *smgt)
 			if (mms) {/*only free some 1M cache*/
 				codec_mm_scatter_less_pages(mms, 256);
 			}
-			codec_mm_free_all_free_slots_in(smgt);
-			/*free some slots.*/
 		}
-	} else if (smgt->delay_free_on <= 0 &&
-		   time_after64(get_jiffies_64(),
-		   smgt->delay_free_timeout_jiffies64)) {
-		/*free all free pages, no delay needed.*/
-		codec_mm_free_all_free_slots_in(smgt);
 	}
+	/*free some slots.*/
+	codec_mm_free_all_free_slots_in(smgt);
+
 	if (smgt->keep_size_PAGE > 0 && smgt->delay_free_on) {
 		if (((smgt->force_cache_on ||
 		    total_free_page < smgt->keep_size_PAGE) /*&&*/
@@ -3135,8 +3142,11 @@ static int codec_mm_scatter_scatter_arrange(struct codec_mm_scatter_mgt *smgt)
 			n++;
 		}
 	}
-	if (first_free_mms)
+	if (first_free_mms) {
 		list_move_tail(&mms->list, &smgt->scatter_list);
+		if (scatter_debug_mode & DUMP_SC_INFO)
+			codec_mm_dump_all_scatters_in(smgt);
+	}
 	codec_mm_list_unlock(smgt);
 
 	return 0;
@@ -3148,7 +3158,6 @@ int codec_mm_scatter_scatter_clear(struct codec_mm_scatter_mgt *smgt,
 {
 	struct codec_mm_scatter *mms, *to_free_mms, *less_page_mms;
 	struct list_head *pos, *tmp;
-	int to_free_mms_cnt = 0;
 
 	codec_mm_list_lock(smgt);
 	to_free_mms = NULL;
@@ -3160,7 +3169,6 @@ int codec_mm_scatter_scatter_clear(struct codec_mm_scatter_mgt *smgt,
 			    mms->tofree_jiffies <
 					to_free_mms->tofree_jiffies)
 				to_free_mms = mms;
-			to_free_mms_cnt++;
 		}
 		if (!less_page_mms && mms->page_used < mms->page_cnt) {
 			less_page_mms = mms;
@@ -3169,10 +3177,9 @@ int codec_mm_scatter_scatter_clear(struct codec_mm_scatter_mgt *smgt,
 	}
 
 	if (to_free_mms &&
-	    (((to_free_mms_cnt > 1 || !smgt->delay_free_on) &&
-	    time_after(jiffies, to_free_mms->tofree_jiffies)) ||
-	    force)) {	/*force== no checktimer. */
-		/*set to negative for free now. */
+	    (time_after(jiffies, to_free_mms->tofree_jiffies) ||
+	    force)) {	/* force == no checktimer. */
+		/* set to negative for free now. */
 		int cnt = atomic_sub_return(100000, &to_free_mms->user_cnt);
 
 		if (cnt != -100000) {
