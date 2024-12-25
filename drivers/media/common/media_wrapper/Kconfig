@@ -1,0 +1,12 @@
+#
+# media wrapper support configuration
+#
+
+menu "MediaWrapper support"
+
+config AMLOGIC_MEDIA_WRAPPER
+	tristate "MediaWrapper support"
+	default n
+	help
+		Select to enable AMLOGIC MediaWrapper
+endmenu
