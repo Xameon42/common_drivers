@@ -4689,8 +4689,7 @@ static int crg_udc_probe(struct platform_device *pdev)
 		goto err0;
 	}
 
-	crg_udc->mmio_virt_base = devm_ioremap
-		(&pdev->dev, crg_udc->mmio_phys_base->start,
+	crg_udc->mmio_virt_base = ioremap(crg_udc->mmio_phys_base->start,
 			resource_size(crg_udc->mmio_phys_base));
 	if (!crg_udc->mmio_virt_base) {
 		dev_err(&pdev->dev, "ioremap failed\n");
@@ -4784,7 +4783,7 @@ static int crg_udc_remove(struct platform_device *pdev)
 
 	crg_udc = &crg_udc_dev;
 
-	if (unlikely(crg_udc_probe_state != 1)) {
+	if (unlikely(crg_udc_probe_state != 1 || !crg_udc)) {
 		ret = -EINVAL;
 		goto err;
 	}
@@ -4815,6 +4814,9 @@ static int crg_udc_remove(struct platform_device *pdev)
 		free_irq(crg_udc->irq, crg_udc);
 
 	amlogic_crg_device_power(crg_udc->phy_id, false, false);
+
+	if (crg_udc->mmio_virt_base)
+		iounmap(crg_udc->mmio_virt_base);
 
 	if (crg_udc->controller_type != USB_M31)
 		amlogic_crg_device_usb2_shutdown(g_device_phy_id);
