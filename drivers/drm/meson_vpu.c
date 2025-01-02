@@ -126,8 +126,8 @@ static void meson_drm_signal_present_fence(struct am_meson_crtc *amcrtc)
 	struct am_meson_crtc_present_fence *pre_fence = &amcrtc->present_fence;
 
 	if (pre_fence->fence) {
-		DRM_DEBUG("%s signaling fence=%px\n", __func__,
-			 pre_fence->fence);
+		DRM_DEBUG("%s fd=%d, fence=%px\n", __func__,
+			pre_fence->fd, pre_fence->fence);
 		dma_fence_signal(pre_fence->fence);
 		dma_fence_put(pre_fence->fence);
 		pre_fence->fence = NULL;

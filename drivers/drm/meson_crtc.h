@@ -42,7 +42,9 @@ enum {
 };
 
 struct am_meson_crtc_present_fence {
+	u32 fd;
 	struct dma_fence *fence;
+	struct sync_file *sync_file;
 	/* lock to protect process context and interrupt context */
 	spinlock_t lock;
 };
