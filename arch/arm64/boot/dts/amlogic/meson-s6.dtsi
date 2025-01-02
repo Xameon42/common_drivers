@@ -1433,7 +1433,6 @@
 
 	vc9000e_rev {
 		compatible = "vc9000e_rev";
-		memory-region = <&vc9000e_reserved>;
 		dev_name = "vc9000e";
 		status = "okay";
 		clocks = <&clkc CLKID_SYS_VC9000E>,
@@ -2074,6 +2073,11 @@
 			opp-hz = /bits/ 64 <996000000>;
 			opp-microvolt = <1150>;
 		};
+	};
+	encmem_rev {
+		compatible = "encmem_rev";
+		dev_name = "encmem";
+		status = "okay";
 	};
 };
 

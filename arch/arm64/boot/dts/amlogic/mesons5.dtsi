@@ -2217,7 +2217,6 @@
 	};
 	vc9000e_rev {
 		compatible = "vc9000e_rev";
-		memory-region = <&vc9000e_reserved>;
 		dev_name = "vc9000e";
 		status = "okay";
 		clocks = <&clkc CLKID_SYS_CLK_VC9000E>,
@@ -3090,6 +3089,12 @@
 		kt_offset = <0x80 0x88 0x8c 0x90 0x94 0x98 0x9c>;
 		kt_cap = <0x2417 0x6bf 0 64 0 32>;
 		kt_reserved = <0>;
+		status = "okay";
+	};
+
+	encmem_rev {
+		compatible = "encmem_rev";
+		dev_name = "encmem";
 		status = "okay";
 	};
 };

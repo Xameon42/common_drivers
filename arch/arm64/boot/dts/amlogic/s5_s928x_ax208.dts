@@ -88,26 +88,6 @@
 			reg = <0x0 0x05000000 0x0 0x3400000>;
 		};
 
-		vc9000e_reserved: linux,vc9000e {
-			compatible = "shared-dma-pool";
-			reusable;
-			size = <0x0 0x2000000>;
-			alignment = <0x0 0x400000>;
-			alloc-ranges = <0x0 0x0 0x0 0xe0000000>;
-			linux,contiguous-region;
-			clear-map;
-		};
-
-		encmem_reserved: linux,encmem {
-			compatible = "shared-dma-pool";
-			reusable;
-			size = <0x0 0x6000000>;
-			alignment = <0x0 0x400000>;
-			alloc-ranges = <0x0 0x0 0x0 0xe0000000>;
-			linux,contiguous-region;
-			clear-map;
-		};
-
 		/*dsp_shm_reserved:linux,dsp_shm {      */
 		/*	compatible = "dspshmem";            */
 		/*	reg = <0x0 0x40820000 0x0 0x80000>; */
@@ -270,13 +250,6 @@
 		memory-region = <&codec_mm_cma &codec_mm_reserved &secure_vdec_reserved>;
 		dev_name = "codec_mm";
 		random_access = <1>;
-		status = "okay";
-	};
-
-	encmem_rev {
-		compatible = "encmem_rev";
-		memory-region = <&encmem_reserved>;
-		dev_name = "encmem";
 		status = "okay";
 	};
 
