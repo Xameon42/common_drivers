@@ -237,7 +237,7 @@ static bool force_support_emp;
 
 static unsigned int amdv_src_format;
 static enum signal_format_enum graphic_fmt = FORMAT_SDR;
-enum signal_format_enum g_dst_format;
+enum signal_format_enum g_dst_format = FORMAT_INVALID;
 
 unsigned int force_mel;
 module_param(force_mel, uint, 0664);
