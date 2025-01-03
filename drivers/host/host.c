@@ -406,17 +406,21 @@ static int __maybe_unused host_runtime_suspend(struct device *dev)
 
 	if (strstr(host->misc->name, "mfh"))
 		host_psci_smc(host, SMC_SUBID_MFH_V2_RESET);
-
-	if (!host->hang) {
-		aml_mbox_transfer_data(host->mbox_chan_to_dev,
-				       MBOX_CMD_HIFI4STOP,
-				       message,
-				       sizeof(message),
-				       NULL,
-				       0,
-				       MBOX_SYNC);
-		msleep(50);
+	else if (strstr(host->misc->name, "hifi4dsp")) {
+		if (!host->hang) {
+			aml_mbox_transfer_data(host->mbox_chan_to_dev,
+					       MBOX_CMD_HIFI4STOP,
+					       message,
+					       sizeof(message),
+					       NULL,
+					       0,
+					       MBOX_SYNC);
+			msleep(50);
+		}
+	} else {
+		return 0;
 	}
+
 	clk_disable_unprepare(host->clk);
 	host_health_monitor_stop(host);
 	host_logbuff_stop(host);
@@ -1195,6 +1199,11 @@ static int host_platform_probe(struct platform_device *pdev)
 	return 0;
 }
 
+static void host_shutdown(struct platform_device *pdev)
+{
+	pm_runtime_force_suspend(&pdev->dev);
+}
+
 static struct platform_driver host_platform_driver = {
 	.driver = {
 		.name  = "amlogic_host",
@@ -1204,6 +1213,7 @@ static struct platform_driver host_platform_driver = {
 	},
 	.probe  = host_platform_probe,
 	.remove = host_platform_remove,
+	.shutdown = host_shutdown,
 };
 module_platform_driver(host_platform_driver);
 
