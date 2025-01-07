@@ -6225,7 +6225,7 @@ s32 config_vd_blend(struct video_layer_s *layer,
 			cur_frame_par->VPP_hsc_startp;
 		setting->postblend_h_end =
 			cur_frame_par->VPP_hsc_endp;
-		if (cur_dev->frm2fld_support &&
+		if ((cur_dev->frm2fld_support && layer->layer_id == 0) &&
 		    vinfo->field_height != vinfo->height) {
 			int height = 0, h_start = 0, h_end = 0;
 
@@ -7552,27 +7552,15 @@ void vpp_blend_update_t7(const struct vinfo_s *vinfo)
 		if (!legacy_vpp && vinfo) {
 			u32 read_value = cur_dev->rdma_func[vpp_index].rdma_rd
 				(VPP_POSTBLEND_H_SIZE + vpp_off);
-			if (cur_dev->frm2fld_support) {
-				if (((vinfo->height << 16) | vinfo->width)
-					!= read_value)
-					cur_dev->rdma_func[vpp_index].rdma_wr
-						(VPP_POSTBLEND_H_SIZE + vpp_off,
-						((vinfo->height << 16) | vinfo->width));
+			if (((vinfo->field_height << 16) | vinfo->width)
+				!= read_value)
 				cur_dev->rdma_func[vpp_index].rdma_wr
-					(VPP_OUT_H_V_SIZE + vpp_off,
-					vinfo->width << 16 |
-					vinfo->height);
-			} else {
-				if (((vinfo->field_height << 16) | vinfo->width)
-					!= read_value)
-					cur_dev->rdma_func[vpp_index].rdma_wr
-						(VPP_POSTBLEND_H_SIZE + vpp_off,
-						((vinfo->field_height << 16) | vinfo->width));
-				cur_dev->rdma_func[vpp_index].rdma_wr
-					(VPP_OUT_H_V_SIZE + vpp_off,
-					vinfo->width << 16 |
-					vinfo->field_height);
-			}
+					(VPP_POSTBLEND_H_SIZE + vpp_off,
+					((vinfo->field_height << 16) | vinfo->width));
+			cur_dev->rdma_func[vpp_index].rdma_wr
+				(VPP_OUT_H_V_SIZE + vpp_off,
+				vinfo->width << 16 |
+				vinfo->field_height);
 		} else if (vinfo) {
 			if (cur_dev->rdma_func[vpp_index].rdma_rd
 				(VPP_POSTBLEND_H_SIZE + vpp_off)
@@ -8430,27 +8418,16 @@ void vpp_blend_update(const struct vinfo_s *vinfo, u8 vpp_index)
 		if (!legacy_vpp && vinfo) {
 			u32 read_value = cur_dev->rdma_func[vpp_index].rdma_rd
 				(VPP_POSTBLEND_H_SIZE + vpp_off);
-			if (cur_dev->frm2fld_support) {
-				if (((vinfo->height << 16) | vinfo->width)
-					!= read_value)
-					cur_dev->rdma_func[vpp_index].rdma_wr
-						(VPP_POSTBLEND_H_SIZE + vpp_off,
-						((vinfo->height << 16) | vinfo->width));
+
+			if (((vinfo->field_height << 16) | vinfo->width)
+				!= read_value)
 				cur_dev->rdma_func[vpp_index].rdma_wr
-					(VPP_OUT_H_V_SIZE + vpp_off,
-					vinfo->width << 16 |
-					vinfo->height);
-			} else {
-				if (((vinfo->field_height << 16) | vinfo->width)
-					!= read_value)
-					cur_dev->rdma_func[vpp_index].rdma_wr
-						(VPP_POSTBLEND_H_SIZE + vpp_off,
-						((vinfo->field_height << 16) | vinfo->width));
-				cur_dev->rdma_func[vpp_index].rdma_wr
-					(VPP_OUT_H_V_SIZE + vpp_off,
-					vinfo->width << 16 |
-					vinfo->field_height);
-			}
+					(VPP_POSTBLEND_H_SIZE + vpp_off,
+					((vinfo->field_height << 16) | vinfo->width));
+			cur_dev->rdma_func[vpp_index].rdma_wr
+				(VPP_OUT_H_V_SIZE + vpp_off,
+				vinfo->width << 16 |
+				vinfo->field_height);
 		} else if (vinfo) {
 			if (cur_dev->rdma_func[vpp_index].rdma_rd
 				(VPP_POSTBLEND_H_SIZE + vpp_off)
