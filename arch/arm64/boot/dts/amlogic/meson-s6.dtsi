@@ -488,7 +488,7 @@
 		 * bit1: pm_support_always_on
 		 * bit2: pm_support_ffv
 		 */
-		pm-support = /bits/ 8 <0x0>;
+		pm-support = /bits/ 8 <0x5>;
 		power-domains = <&pwrdm PDID_S6_DSPA>;
 		power-domain-names = "dspa";
 		mboxes = <&mbox_fifo S6_REE2DSPA_HOST>,

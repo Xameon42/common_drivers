@@ -237,7 +237,7 @@
 		src-clk-freq = <491520000>;
 		/* mode 0~4, defalut:1 */
 		filter_mode = <1>;
-		start_clk_enable = <0>;
+		start_clk_enable = <1>;
 		status = "okay";
 	};
 
@@ -398,7 +398,7 @@
 		 */
 		level = <1>;
 
-		status = "okay";
+		status = "disabled";
 	};
 
 	loopbacka:loopback@0 {
