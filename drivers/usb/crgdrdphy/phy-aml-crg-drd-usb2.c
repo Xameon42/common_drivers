@@ -1014,7 +1014,7 @@ int amlogic_crg_device_usb2_shutdown(u32 phy_id)
 	phy = g_crg_drd_phy2[phy_id];
 
 	ret = amlogic_crg_drd_usbphy_hold_reset(phy, false);
-	ret = amlogic_crg_drd_usbphy_reg_hold_reset(phy, false);
+	//ret = amlogic_crg_drd_usbphy_reg_hold_reset(phy, false);
 
 	if (phy->suspend_flag  == 0)
 		if (phy->phy.flags == AML_USB2_PHY_ENABLE)
