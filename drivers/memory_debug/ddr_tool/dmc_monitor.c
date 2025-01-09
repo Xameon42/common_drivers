@@ -47,7 +47,7 @@
 #include "dmc_trace.h"
 
 // #define DEBUG
-#define DMC_VERSION		"1.9"
+#define DMC_VERSION		"1.9.1"
 
 #define IRQ_CHECK		0
 #define IRQ_CLEAR		1
@@ -828,6 +828,8 @@ static void dmc_enabled_reserved_memory(struct platform_device *pdev, struct dmc
 	struct device_node *node;
 	struct reserved_mem *rmem;
 
+	dmc_original_debug = mon->debug;
+
 	node = of_parse_phandle(pdev->dev.of_node, "memory-region", 0);
 	if (!node)
 		return;
@@ -843,8 +845,6 @@ static void dmc_enabled_reserved_memory(struct platform_device *pdev, struct dmc
 
 	mon->addr_start = rmem->base;
 	mon->addr_end = rmem->base + rmem->size - 1;
-
-	dmc_original_debug = mon->debug;
 
 	if (dmc_dev_is_byte(mon)) {
 		mon->device = 0x0102;
