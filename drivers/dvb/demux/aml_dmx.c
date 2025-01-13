@@ -2921,7 +2921,7 @@ static ssize_t dump_av_level_show(struct class *class,
 				struct class_attribute *attr, char *buf)
 {
 	struct aml_dvb *advb = aml_get_dvb_device();
-	struct dmx_filter_mem_info info;
+	struct dmx_filter_mem_info *pinfo = NULL;
 	int i = 0, h;
 	int r, total = 0;
 	struct filter_mem_info *fpinfo;
@@ -2933,14 +2933,21 @@ static ssize_t dump_av_level_show(struct class *class,
 		if (!advb->dmx[h]->swdmx)
 			continue;
 
-		memset(&info, 0, sizeof(struct dmx_filter_mem_info));
-		_dmx_get_mem_info(&advb->dmx[h]->dmx_ext.dmx, &info);
-		for (i = 0; i < info.filter_num; i++) {
-			if (info.info[i].type != DMX_VIDEO_TYPE &&
-				info.info[i].type != DMX_AUDIO_TYPE)
+		if (!pinfo) {
+			pinfo = kmalloc(sizeof(*pinfo), GFP_KERNEL);
+			if (!pinfo) {
+				dprint("%s kmalloc fail\n", __func__);
+				continue;
+			}
+		}
+		memset(pinfo, 0, sizeof(struct dmx_filter_mem_info));
+		_dmx_get_mem_info(&advb->dmx[h]->dmx_ext.dmx, pinfo);
+		for (i = 0; i < pinfo->filter_num; i++) {
+			if (pinfo->info[i].type != DMX_VIDEO_TYPE &&
+				pinfo->info[i].type != DMX_AUDIO_TYPE)
 				continue;
 
-			fpinfo = &info.info[i];
+			fpinfo = &pinfo->info[i];
 			if (fpinfo->type == DMX_VIDEO_TYPE)
 				r = sprintf(buf, "video info:\n");
 			else
@@ -3004,6 +3011,7 @@ static ssize_t dump_av_level_show(struct class *class,
 			total += r;
 		}
 	}
+	kfree(pinfo);
 	return total;
 }
 
