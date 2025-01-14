@@ -51,7 +51,7 @@ module_param_named(force_skip_fill, force_skip_fill, int, 0664);
 	} while (0)
 
 #define UVM_DECODER_NODE_NUM 32
-#define UVM_DECODER_PARA_NUM 6 // (sizeof(struct uvm_decoder_para) / sizeof(uint32_t))
+#define UVM_DECODER_PARA_NUM 7 // (sizeof(struct uvm_decoder_para) / sizeof(uint32_t))
 static int uvm_decoder_para_num = UVM_DECODER_PARA_NUM * UVM_DECODER_NODE_NUM;
 /*
  * The values in the array represent width and height respectively.
@@ -740,9 +740,9 @@ static int mua_set_decoder_para(struct uvm_decoder_para *para)
 	node = (struct uvm_decoder_para *)decoder_para + para->slot_id;
 	*node = *para;
 
-	MUA_PRINTK(MUA_INFO, "%s: set for slot %u. w*h(%u*%u) align_w*h(%u*%u) size(%u)\n",
+	MUA_PRINTK(MUA_INFO, "%s: set slot %u. w*h(%u*%u) align_w*h(%u*%u) size(%u) compress(%u)\n",
 		__func__, para->slot_id, para->width, para->height,
-		para->w_align, para->h_align, para->size);
+		para->w_align, para->h_align, para->size, para->compress);
 	return ret;
 }
 
@@ -759,9 +759,9 @@ static int mua_get_decoder_para(struct uvm_decoder_para *para)
 	node = (struct uvm_decoder_para *)decoder_para + para->slot_id;
 	*para = *node;
 
-	MUA_PRINTK(MUA_INFO, "%s: get for slot %u. w*h(%u*%u) align_w*h(%u*%u) size(%u)\n",
+	MUA_PRINTK(MUA_INFO, "%s: get slot %u. w*h(%u*%u) align_w*h(%u*%u) size(%u) compress(%u)\n",
 		__func__, para->slot_id, para->width, para->height,
-		para->w_align, para->h_align, para->size);
+		para->w_align, para->h_align, para->size, para->compress);
 	return ret;
 }
 
