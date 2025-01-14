@@ -2956,8 +2956,9 @@ static int crg_udc_reset(struct crg_gadget_dev *crg_udc, unsigned long flags)
 		count++;
 
 		if (count == 50) {
-			CRG_ERROR("reset error\n");
-			return -1;
+			CRG_ERROR("crg udc resetting...\n");
+			break;
+			//return -1;
 		}
 	} while ((tmp & CRG_U3DC_CTRL_SWRST) != 0);
 
@@ -4544,6 +4545,81 @@ static const struct of_device_id of_crg_udc_match[] = {
 MODULE_DEVICE_TABLE(of, of_crg_udc_match);
 #endif
 
+static void crg_udc_cleanup(struct crg_gadget_dev *crg_udc)
+{
+	/* Optional. */
+	crg_udc->mmio_virt_base = NULL;
+	crg_udc->phy_reg_addr = NULL;
+	crg_udc->mmio_phys_base = NULL;
+	crg_udc->mmio_phys_len = 0;
+	crg_udc->uccr = NULL;
+	memset(crg_udc->uicr, 0x00, sizeof(crg_udc->uicr));
+
+	memset(&crg_udc->udc_lock, 0x00, sizeof(crg_udc->udc_lock));
+
+	/* Optional? */
+	crg_udc->dev = NULL;
+
+	/* Must clear. */
+	memset(&crg_udc->gadget, 0x00, sizeof(crg_udc->gadget));
+
+	/* Cleared in crg_gadget_stop. */
+	//crg_udc->gadget_driver = NULL;
+
+	memset(&crg_udc->crg_gadget_lock, 0x00, sizeof(crg_udc->crg_gadget_lock));
+	crg_udc->irq = 0;
+	crg_udc->vbus_task = NULL;
+
+	/* Reused. Don't clear or memory leaks. */
+	//memset(crg_udc->udc_ep, 0x00, sizeof(crg_udc->udc_ep));
+	//memset(&crg_udc->ep_cx, 0x00, sizeof(crg_udc->ep_cx));
+	//crg_udc->p_epcx = NULL;
+	//memset(crg_udc->udc_event, 0x00, sizeof(crg_udc->udc_event));
+
+	/* Must clear. */
+	crg_udc->status_req = NULL;
+	crg_udc->statusbuf = NULL;
+
+	memset(&crg_udc->sel_value, 0x00, sizeof(crg_udc->sel_value));
+	crg_udc->setup_fn_call_back = NULL;
+
+	/* Done in crg_udc_reset. */
+	//crg_udc->setup_status = 0;
+	//memset(crg_udc->ctrl_req_queue, 0x00, sizeof(crg_udc->ctrl_req_queue));
+	//crg_udc->ctrl_req_enq_idx = 0;
+	//crg_udc->device_state = 0;
+	//crg_udc->dev_addr = 0;
+	//crg_udc->num_enabled_eps = 0;
+
+	/* Not used. */
+	crg_udc->resume_state = 0;
+
+	crg_udc->setup_tag = 0;
+	crg_udc->set_tm = 0;
+
+	/* Cleared in crg_gadget_stop. */
+	//crg_udc->connected = 0;
+
+	/* Don't touch. */
+	//crg_udc->async_cb_flag = 0;
+
+	crg_udc->suspend_scheme = 0;
+	crg_udc->u2_RWE = 0;
+
+	/* Cleared in crg_udc_clear_portpm. */
+	//crg_udc->feature_u1_enable = 0;
+	//crg_udc->feature_u2_enable = 0;
+
+	/* Not used. */
+	crg_udc->setup_tag_mismatch_found = 0;
+
+	crg_udc->portsc_on_reconnecting = 0;
+
+	/* Optional. */
+	crg_udc->controller_type = 0;
+	crg_udc->phy_id = 0;
+}
+
 static int crg_udc_probe(struct platform_device *pdev)
 {
 	int ret = 0;
@@ -4569,7 +4645,7 @@ static int crg_udc_probe(struct platform_device *pdev)
 		goto err0;
 	}
 
-	memset(&crg_udc_dev, 0, sizeof(struct crg_gadget_dev));
+	crg_udc_cleanup(&crg_udc_dev);
 
 	crg_udc = &crg_udc_dev;
 	crg_udc->dev = &pdev->dev;
@@ -4622,8 +4698,7 @@ static int crg_udc_probe(struct platform_device *pdev)
 			if (retval < 0)
 				crg_udc->suspend_scheme = SUSPEND_SCHEME_POWER_OFF_ONLY;
 
-			phy_reg_addr = devm_ioremap
-				(&pdev->dev, (resource_size_t)p_phy_reg_addr,
+			phy_reg_addr = ioremap((resource_size_t)p_phy_reg_addr,
 					(unsigned long)phy_reg_addr_size);
 			if (!phy_reg_addr) {
 				ret = -ENOMEM;
@@ -4815,8 +4890,15 @@ static int crg_udc_remove(struct platform_device *pdev)
 
 	amlogic_crg_device_power(crg_udc->phy_id, false, false);
 
-	if (crg_udc->mmio_virt_base)
+	if (crg_udc->mmio_virt_base) {
 		iounmap(crg_udc->mmio_virt_base);
+		crg_udc->mmio_virt_base = NULL;
+	}
+
+	if (crg_udc->phy_reg_addr) {
+		iounmap(crg_udc->phy_reg_addr);
+		crg_udc->phy_reg_addr = NULL;
+	}
 
 	if (crg_udc->controller_type != USB_M31)
 		amlogic_crg_device_usb2_shutdown(g_device_phy_id);
@@ -5034,6 +5116,15 @@ static int crg_udc_resume(struct device *dev)
 	if (crg_udc_suspend_reinit(crg_udc))
 		amlogic_crg_device_power(crg_udc->phy_id, crg_udc_suspend_reinit(crg_udc), true);
 
+	return 0;
+}
+
+/* Threads should be runnable or ums unbind will stuck.
+ * Defer the udc restart and it also helps to shorten the
+ * boot time.
+ */
+static int crg_udc_resume_post(struct crg_gadget_dev *crg_udc)
+{
 #if IS_ENABLED(CONFIG_AMLOGIC_COMMON_USB)
 	/* Actually the crg_rewrite_otg_write_UDC() is used to restart the controller
 	 * to workaround quirks emerge in suspend-resume stress test.
@@ -5043,8 +5134,9 @@ static int crg_udc_resume(struct device *dev)
 		goto done;
 
 	crg_rewrite_otg_write_UDC();
-#endif
+
 done:
+#endif
 	return 0;
 }
 
@@ -5081,11 +5173,11 @@ static int crg_udc_pm_cb(struct notifier_block *notifier,
 	struct crg_gadget_dev *crg_udc = &crg_udc_dev;
 	struct platform_device *pdev;
 
-	pr_info("%s called. pm_event:%lu.\n", __func__, pm_event);
+	CRG_DEBUG("%s called. pm_event:%lu.\n", __func__, pm_event);
 
 	mutex_lock(&crg_udc_driver_lock);
 	if (crg_udc_driver_state != 1) {
-		pr_info("crg udc drv state:%d exit.\n", crg_udc_driver_state);
+		CRG_ERROR("crg udc drv state:%d exit.\n", crg_udc_driver_state);
 		goto exit;
 	}
 	pdev = to_platform_device(crg_udc->dev);
@@ -5103,6 +5195,7 @@ static int crg_udc_pm_cb(struct notifier_block *notifier,
 		 */
 		break;
 	case PM_POST_SUSPEND:
+		crg_udc_resume_post(crg_udc);
 		if (crg_udc_suspend_reinit(crg_udc)) {
 			crg_udc_remove(pdev);
 			crg_udc_probe(pdev);
