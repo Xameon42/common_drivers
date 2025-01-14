@@ -357,8 +357,8 @@ void iec_get_channel_status_info(struct iec958_chsts *chsts,
 	}
 
 	if (codec_is_raw(codec_type)) {
-		chsts->chstat0_l = 0x6;
-		chsts->chstat0_r = 0x6;
+		chsts->chstat0_l = IEC958_AES0_NONAUDIO;
+		chsts->chstat0_r = IEC958_AES0_NONAUDIO;
 		chsts->chstat2_l = IEC958_AES4_CON_WORDLEN_20_16;
 		chsts->chstat2_r = IEC958_AES4_CON_WORDLEN_20_16;
 		if (codec_type == AUD_CODEC_TYPE_EAC3 ||
