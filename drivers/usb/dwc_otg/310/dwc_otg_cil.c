@@ -311,6 +311,7 @@ dwc_otg_core_if_t *dwc_otg_cil_init(const uint32_t *reg_base_addr, int host_only
 void dwc_otg_cil_remove(dwc_otg_core_if_t *core_if)
 {
 	dctl_data_t dctl = {.d32 = 0 };
+
 	/* Disable all interrupts */
 	DWC_MODIFY_REG32(&core_if->core_global_regs->gahbcfg, 1, 0);
 	DWC_WRITE_REG32(&core_if->core_global_regs->gintmsk, 0);

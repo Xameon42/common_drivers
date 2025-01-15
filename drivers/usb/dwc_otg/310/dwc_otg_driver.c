@@ -1635,18 +1635,22 @@ static int dwc2_restore(struct device *dev)
 
 static int dwc2_thaw(struct device *dev)
 {
-	struct platform_device *pdev = to_platform_device(dev);
-	int ret = 0;
+	/* Done in dwc2_pm_cb. */
+//	struct platform_device *pdev = to_platform_device(dev);
+//	int ret = -EINVAL;
+//
+//	dwc2_driver_lock();
+//	if (dwc2_driver_state != 1) {
+//		dev_info(dev, "drv state:%d exit.\n", dwc2_driver_state);
+//		goto exit;
+//	}
+//	ret = dwc_otg_driver_probe(pdev);
+//exit:
+//	dwc2_driver_unlock();
+//	pr_err("%s ret %d.\n", __func__, ret);
+//	return ret;
 
-	dwc2_driver_lock();
-	if (dwc2_driver_state != 1) {
-		dev_info(dev, "drv state:%d exit.\n", dwc2_driver_state);
-		goto exit;
-	}
-	dwc_otg_driver_probe(pdev);
-exit:
-	dwc2_driver_unlock();
-	return ret;
+	return 0;
 }
 
 /* Consider only one dwc pcd controller because this is the only case for now

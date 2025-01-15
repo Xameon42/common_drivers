@@ -12,3 +12,6 @@
 
 # amlogic-usb.ko
   devm_clk_bulk_get
+
+# dwc_otg.ko
+  drain_workqueue

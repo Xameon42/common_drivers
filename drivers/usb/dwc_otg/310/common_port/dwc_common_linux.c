@@ -1054,13 +1054,20 @@ int DWC_WORKQ_WAIT_WORK_DONE(dwc_workq_t *workq, int timeout)
 dwc_workq_t *DWC_WORKQ_ALLOC(char *name)
 {
 	dwc_workq_t *wq = DWC_ALLOC(sizeof(*wq));
+	static struct workqueue_struct *linux_wq;
 
 	if (!wq)
 		return NULL;
 
-	wq->wq = create_singlethread_workqueue(name);
-	if (!wq->wq)
-		goto no_wq;
+	/* The workqueue creation fails at thaw in std cancellation. Keep it private. */
+	if (linux_wq) {
+		wq->wq = linux_wq;
+	} else {
+		wq->wq = create_singlethread_workqueue(name);
+		if (!wq->wq)
+			goto no_wq;
+		linux_wq = wq->wq;
+	}
 
 	wq->pending = 0;
 
@@ -1098,7 +1105,8 @@ void DWC_WORKQ_FREE(dwc_workq_t *wq)
 		}
 	}
 #endif
-	destroy_workqueue(wq->wq);
+	//destroy_workqueue(wq->wq);
+	flush_workqueue(wq->wq);
 	DWC_SPINLOCK_FREE(wq->lock);
 	DWC_WAITQ_FREE(wq->waitq);
 	DWC_FREE(wq);
