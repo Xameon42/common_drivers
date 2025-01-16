@@ -538,6 +538,9 @@ static int host_suspend(struct device *dev)
 		return 0;
 
 	if (pm_runtime_active(dev) && host->host_dsp->pm_support_suspend) {
+		if (host->host_dsp->pm_support_ffv)
+			return 0;
+
 		pr_debug("AP send suspend cmd to dsp...\n");
 		strncpy(message, "HIFI_DEEP_SLEEP", sizeof(message));
 		aml_mbox_transfer_data(host->mbox_chan_to_dev,
@@ -548,10 +551,8 @@ static int host_suspend(struct device *dev)
 				       sizeof(message),
 				       MBOX_SYNC);
 
-		if (!host->host_dsp->pm_support_ffv) {
-			/*clk = 24 M*/
-			clk_set_rate(host->clk, SUSPEND_CLK_FREQ);
-		}
+		/*clk = 24 M*/
+		clk_set_rate(host->clk, SUSPEND_CLK_FREQ);
 	} else if (!host->host_dsp->pm_support_always_on)
 		clk_disable_unprepare(host->clk);
 
@@ -567,17 +568,19 @@ static int host_resume(struct device *dev)
 		return 0;
 
 	if (pm_runtime_active(dev) && host->host_dsp->pm_support_suspend) {
-		pr_debug("AP send resume cmd to dsp...\n");
 		if (host->host_dsp->pm_support_ffv) {
 			if (get_resume_method() == VAD_WAKEUP) {
 				pr_info("input event: vad wakeup in deep sleep\n");
 				host_dsp_vad_report(host);
 			}
-		} else {
-			/*clk = Max M*/
-			clk_set_rate(host->clk, (unsigned long)host->clk_rate * 1000);
+
+			return 0;
 		}
 
+		/*clk = Max M*/
+		clk_set_rate(host->clk, (unsigned long)host->clk_rate * 1000);
+
+		pr_debug("AP send resume cmd to dsp...\n");
 		strncpy(message, "HIFI_RESUME", sizeof(message));
 		aml_mbox_transfer_data(host->mbox_chan_to_dev,
 				       MBOX_CMD_HIFI4RESUME,
