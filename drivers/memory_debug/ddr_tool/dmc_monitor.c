@@ -700,7 +700,8 @@ int dmc_violation_ignore(char *title, void *data, unsigned long vio_bit)
 		goto dmc_ignore;
 
 	/* ignore cma driver pages */
-	if (is_migrate_cma(mon_comm->migratetype) && !mon_comm->mapping) {
+	if ((is_migrate_cma(mon_comm->migratetype) ||
+			mon_comm->migratetype == MIGRATE_ISOLATE) && !mon_comm->mapping) {
 		if (dmc_mon->debug & DMC_DEBUG_CMA) {
 			sprintf(title, "%s", "_cma");
 		} else {
