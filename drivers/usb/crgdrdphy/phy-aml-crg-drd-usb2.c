@@ -681,7 +681,8 @@ static int amlogic_crg_drd_usb2_phy_cali_disc_squelch
 #define DISCONNECT_VAL(x) ((0x7 & (x)) << 4)
 
 		val = readl(cfg + 0xc);
-		val = (val & ~DISCONNECT_MASK) | DISCONNECT_VAL(0x5);
+		/* Set to the MAX. */
+		val = (val & ~DISCONNECT_MASK) | DISCONNECT_VAL(0x7);
 		writel(val, cfg + 0xc);
 
 		if (phy->portspeed == USB_SPEED_HIGH_PLUS) {
@@ -689,6 +690,11 @@ static int amlogic_crg_drd_usb2_phy_cali_disc_squelch
 			val = readl(cfg + 0x5c);
 			val = (val & ~SQUELCH_960M) | SQUELCH_960M_VAL(0x9);
 			writel(val, cfg + 0x5c);
+		/* Set to the MAX. */
+		} else if (phy->portspeed == USB_SPEED_HIGH) {
+			val = readl(cfg + 0x38);
+			val = val | (u32)BIT(28);
+			writel(val, cfg + 0x38);
 		}
 		break;
 	default:
