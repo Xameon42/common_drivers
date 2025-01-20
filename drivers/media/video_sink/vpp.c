@@ -3317,7 +3317,7 @@ static int check_reshape_speed(s32 width_in,
 	u32 sync_duration_den = 1;
 	u64 calc_clk = 0;
 	u32 cur_super_debug = 0;
-	u32 pi_enable;
+	u32 pi_enable, fps = 60;
 
 	if (vpp_flags & VPP_FLAG_MORE_LOG)
 		cur_super_debug = super_debug;
@@ -3336,18 +3336,24 @@ static int check_reshape_speed(s32 width_in,
 #ifdef CONFIG_AMLOGIC_VPU
 	clk_in_pps = vpu_clk_get();
 #endif
+	/* brr_duration only for QMS case */
+	if (vinfo->brr_duration)
+		fps = vinfo->brr_duration;
+	else
+		fps = vinfo->sync_duration_num /
+			sync_duration_den;
+
 	calc_clk = div_u64((u64)width_in *
 		(u64)height_in *
-		(u64)vinfo->sync_duration_num *
+		(u64)fps *
 		(u64)vtotal,
-		height_out *
-		sync_duration_den);
+		height_out);
 	if (pi_enable || frc_n2m_worked())
 		calc_clk /= 2;
 	if (cur_super_debug)
-		pr_info("%s, calc_clk=%lld, clk_in_pps=%d\n",
+		pr_info("%s, calc_clk=%lld, clk_in_pps=%d, fps=%d\n",
 			__func__,
-			calc_clk, clk_in_pps);
+			calc_clk, clk_in_pps, fps);
 	if (calc_clk > clk_in_pps)
 		return SPEED_CHECK_VSKIP;
 	return SPEED_CHECK_DONE;

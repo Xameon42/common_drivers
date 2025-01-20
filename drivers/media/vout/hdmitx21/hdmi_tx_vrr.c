@@ -1547,6 +1547,7 @@ int hdmitx_set_fr_hint(int rate, void *data)
 		/* When disable VRR, here must clear vrr_para_tmp.
 		 * So when enter VRR next time, vrr packet will be updated again
 		 */
+		tx_comm->hdmitx_vinfo.brr_duration = 0;
 		memset(&vrr_para.vrr_para_tmp, 0, sizeof(vrr_para.vrr_para_tmp));
 		if (hdev->vrr_mode == T_VRR_QMS || hdev->vrr_mode == T_VRR_GAME)
 			hdmi_vrr_disable_emp_packet(&vrr_para);
