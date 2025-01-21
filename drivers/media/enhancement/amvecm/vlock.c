@@ -3849,70 +3849,72 @@ ssize_t vlock_debug_store(struct class *cla,
 #endif
 
 	buf_orig = kstrdup(buf, GFP_KERNEL);
+	if (!buf_orig)
+		return -ENOMEM;
 	vlock_parse_param(buf_orig, (char **)&parm);
 	if (!strncmp(parm[0], "vlock_mode", 10)) {
 		if (kstrtol(parm[1], 10, &val) < 0)
-			return -EINVAL;
+			goto free_buf;
 		temp_val = val;
 		sel = VLOCK_MODE;
 	} else if (!strncmp(parm[0], "vlock_en", 8)) {
 		if (kstrtol(parm[1], 10, &val) < 0)
-			return -EINVAL;
+			goto free_buf;
 		temp_val = val;
 		sel = VLOCK_EN;
 	} else if (!strncmp(parm[0], "vlock_adapt", 11)) {
 		if (kstrtol(parm[1], 10, &val) < 0)
-			return -EINVAL;
+			goto free_buf;
 		temp_val = val;
 		sel = VLOCK_ADAPT;
 	} else if (!strncmp(parm[0], "vlock_dis_cnt_limit", 19)) {
 		if (kstrtol(parm[1], 10, &val) < 0)
-			return -EINVAL;
+			goto free_buf;
 		temp_val = val;
 		sel = VLOCK_DIS_CNT_LIMIT;
 	} else if (!strncmp(parm[0], "vlock_delta_limit", 17)) {
 		if (kstrtol(parm[1], 10, &val) < 0)
-			return -EINVAL;
+			goto free_buf;
 		temp_val = val;
 		sel = VLOCK_DELTA_LIMIT;
 	} else if (!strncmp(parm[0], "vlock_pll_m_limit", 17)) {
 		if (kstrtol(parm[1], 10, &val) < 0)
-			return -EINVAL;
+			goto free_buf;
 		temp_val = val;
 		sel = VLOCK_PLL_M_LIMIT;
 	} else if (!strncmp(parm[0], "vlock_delta_cnt_limit", 21)) {
 		if (kstrtol(parm[1], 10, &val) < 0)
-			return -EINVAL;
+			goto free_buf;
 		temp_val = val;
 		sel = VLOCK_DELTA_CNT_LIMIT;
 	} else if (!strncmp(parm[0], "vlock_debug", 11)) {
 		if (kstrtol(parm[1], 16, &val) < 0)
-			return -EINVAL;
+			goto free_buf;
 		temp_val = val;
 		sel = VLOCK_DEBUG;
 	} else if (!strncmp(parm[0], "vlock_dynamic_adjust", 20)) {
 		if (kstrtol(parm[1], 10, &val) < 0)
-			return -EINVAL;
+			goto free_buf;
 		temp_val = val;
 		sel = VLOCK_DYNAMIC_ADJUST;
 	} else if (!strncmp(parm[0], "vlock_line_limit", 17)) {
 		if (kstrtol(parm[1], 10, &val) < 0)
-			return -EINVAL;
+			goto free_buf;
 		temp_val = val;
 		sel = VLOCK_LINE_LIMIT;
 	} else if (!strncmp(parm[0], "vlock_dis_cnt_no_vf_limit", 25)) {
 		if (kstrtol(parm[1], 10, &val) < 0)
-			return -EINVAL;
+			goto free_buf;
 		temp_val = val;
 		sel = VLOCK_DIS_CNT_NO_VF_LIMIT;
 	} else if (!strncmp(parm[0], "vlock_line_limit", 16)) {
 		if (kstrtol(parm[1], 10, &val) < 0)
-			return -EINVAL;
+			goto free_buf;
 		temp_val = val;
 		sel = VLOCK_LINE_LIMIT;
 	} else if (!strncmp(parm[0], "vlock_support", 13)) {
 		if (kstrtol(parm[1], 10, &val) < 0)
-			return -EINVAL;
+			goto free_buf;
 		temp_val = val;
 		sel = VLOCK_SUPPORT;
 	} else if (!strncmp(parm[0], "enable", 6)) {
@@ -3927,7 +3929,7 @@ ssize_t vlock_debug_store(struct class *cla,
 			temp_val = VLOCK_ENC0;
 		} else {
 			if (kstrtol(parm[1], 10, &val) < 0)
-				return -EINVAL;
+				goto free_buf;
 			if (val <= VLOCK_ENC2)
 				temp_val = val;
 			else
@@ -3940,7 +3942,7 @@ ssize_t vlock_debug_store(struct class *cla,
 			temp_val = VLOCK_ENC0;
 		} else {
 			if (kstrtol(parm[1], 10, &val) < 0)
-				return -EINVAL;
+				goto free_buf;
 			if (val <= VLOCK_ENC2)
 				temp_val = val;
 			else
@@ -3956,11 +3958,11 @@ ssize_t vlock_debug_store(struct class *cla,
 		vlock_log_print();
 	} else if (!strncmp(parm[0], "phase", 5)) {
 		if (kstrtol(parm[1], 10, &val) < 0)
-			return -EINVAL;
+			goto free_buf;
 		vlock_set_phase(pvlock, val);
 	} else if (!strncmp(parm[0], "phlock_en", 9)) {
 		if (kstrtol(parm[1], 10, &val) < 0)
-			return -EINVAL;
+			goto free_buf;
 		pvlock = vlock_tab[VLOCK_ENC0];
 		vlock_set_phase_en(pvlock, val);
 		pvlock = vlock_tab[VLOCK_ENC1];
@@ -3969,49 +3971,49 @@ ssize_t vlock_debug_store(struct class *cla,
 		vlock_set_phase_en(pvlock, val);
 	} else if (!strncmp(parm[0], "ss_en", 5)) {
 		if (kstrtol(parm[1], 10, &val) < 0)
-			return -EINVAL;
+			goto free_buf;
 		vlock_ss_en = val;
 		pr_info("vlock_ss_en:%d\n", vlock_ss_en);
 	} else if (!strncmp(parm[0], "loop0lmt", 8)) {
 		if (kstrtol(parm[1], 16, &val) < 0)
-			return -EINVAL;
+			goto free_buf;
 		loop0_err_lmt = val;
 		pr_info("loop0_err_lmt:%d\n", loop0_err_lmt);
 	} else if (!strncmp(parm[0], "loop1lmt", 8)) {
 		if (kstrtol(parm[1], 16, &val) < 0)
-			return -EINVAL;
+			goto free_buf;
 		loop1_err_lmt = val;
 		pr_info("loop1_err_lmt:%d\n", loop1_err_lmt);
 
 	} else if (!strncmp(parm[0], "loop_err_rs", 11)) {
 		if (kstrtol(parm[1], 10, &val) < 0)
-			return -EINVAL;
+			goto free_buf;
 		loop_err_rs = val;
 		pr_info("loop_err_rs:%d\n", loop_err_rs);
 
 	} else if (!strncmp(parm[0], "loop_err_gain", 13)) {
 		if (kstrtol(parm[1], 10, &val) < 0)
-			return -EINVAL;
+			goto free_buf;
 		loop_err_gain = val;
 		pr_info("loop_err_gain:%d\n", loop_err_gain);
 	} else if (!strncmp(parm[0], "speedup", 7)) {
 		if (kstrtol(parm[1], 10, &val) < 0)
-			return -EINVAL;
+			goto free_buf;
 		speed_up_en = val;
 		pr_info("speed_up_en:%d\n", speed_up_en);
 	} else if (!strncmp(parm[0], "loop0_en", 8)) {
 		if (kstrtol(parm[1], 10, &val) < 0)
-			return -EINVAL;
+			goto free_buf;
 		loop0_en = val;
 		pr_info("loop0_en:%d\n", loop0_en);
 	} else if (!strncmp(parm[0], "loop1_en", 8)) {
 		if (kstrtol(parm[1], 10, &val) < 0)
-			return -EINVAL;
+			goto free_buf;
 		loop1_en = val;
 		pr_info("loop1_en:%d\n", loop1_en);
 	} else if (!strncmp(parm[0], "vlock_manual", 12)) {
 		if (kstrtol(parm[1], 10, &val) < 0)
-			return -EINVAL;
+			goto free_buf;
 		vlock_manual = val;
 		pr_info("vlock_manual:%d\n", vlock_manual);
 	} else {
@@ -4048,6 +4050,10 @@ ssize_t vlock_debug_store(struct class *cla,
 		vlock_param_set(temp_val, sel);
 	kfree(buf_orig);
 	return count;
+
+free_buf:
+	kfree(buf_orig);
+	return -EINVAL;
 }
 /*video lock end*/
 #endif

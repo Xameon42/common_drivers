@@ -3265,7 +3265,7 @@ void set_vpp_lut(enum vpp_lut_sel_e lut_sel,
 		if (g && g_map)
 			for (i = 0; i < OSD_OETF_LUT_SIZE; i++)
 				g_map[i] = g[i];
-		if (r && r_map)
+		if (b && b_map)
 			for (i = 0; i < OSD_OETF_LUT_SIZE; i++)
 				b_map[i] = b[i];
 

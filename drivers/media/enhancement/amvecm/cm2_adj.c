@@ -305,16 +305,6 @@ void cm2_curve_update_hue_by_hs(struct cm_color_md cm_color_md_hue_by_hs)
 		data_port = VPP_CHROMA_DATA_PORT;
 	}
 
-	if (cm_color_md_hue_by_hs.color_type == cm_9_color) {
-		colormode = cm_color_md_hue_by_hs.cm_9_color_md;
-		start	= color_start[colormode];
-		end		= color_end[colormode];
-	} else {
-		colormode = cm_color_md_hue_by_hs.cm_14_color_md;
-		start	= cm_14_color_start[colormode];
-		end		= cm_14_color_end[colormode];
-	}
-
 	if (cm_color_md_hue_by_hs.color_type == cm_9_color &&
 		cm_color_md_hue_by_hs.cm_9_color_md == ecm2colormode_max) {
 		pr_info("color_type:9 clr, cm_9_color_md=9 error, return!!!\n");
@@ -323,6 +313,16 @@ void cm2_curve_update_hue_by_hs(struct cm_color_md cm_color_md_hue_by_hs)
 		cm_color_md_hue_by_hs.cm_14_color_md == cm_14_ecm2colormode_max) {
 		pr_info("color_type:14 clr, cm_14_color_md=14 error, return!!!\n");
 		return;
+	}
+
+	if (cm_color_md_hue_by_hs.color_type == cm_9_color) {
+		colormode = cm_color_md_hue_by_hs.cm_9_color_md;
+		start	= color_start[colormode];
+		end		= color_end[colormode];
+	} else {
+		colormode = cm_color_md_hue_by_hs.cm_14_color_md;
+		start	= cm_14_color_start[colormode];
+		end		= cm_14_color_end[colormode];
 	}
 
 	if (cm2_debug & CM_HUE_BY_HIS_DEBUG_FLAG)
@@ -462,16 +462,6 @@ void cm2_curve_update_hue(struct cm_color_md cm_color_md_hue)
 		data_port = VPP_CHROMA_DATA_PORT;
 	}
 
-	if (cm_color_md_hue.color_type == cm_9_color) {
-		colormode = cm_color_md_hue.cm_9_color_md;
-		start	= color_start[colormode];
-		end		= color_end[colormode];
-	} else {
-		colormode = cm_color_md_hue.cm_14_color_md;
-		start	= cm_14_color_start[colormode];
-		end		= cm_14_color_end[colormode];
-	}
-
 	if (cm_color_md_hue.color_type == cm_9_color &&
 		cm_color_md_hue.cm_9_color_md == ecm2colormode_max) {
 		pr_info("color_type:9 clr, cm_9_color_md=9 error, return!!!\n");
@@ -480,6 +470,16 @@ void cm2_curve_update_hue(struct cm_color_md cm_color_md_hue)
 		cm_color_md_hue.cm_14_color_md == cm_14_ecm2colormode_max) {
 		pr_info("color_type:14 clr, cm_14_color_md=14 error, return!!!\n");
 		return;
+	}
+
+	if (cm_color_md_hue.color_type == cm_9_color) {
+		colormode = cm_color_md_hue.cm_9_color_md;
+		start	= color_start[colormode];
+		end		= color_end[colormode];
+	} else {
+		colormode = cm_color_md_hue.cm_14_color_md;
+		start	= cm_14_color_start[colormode];
+		end		= cm_14_color_end[colormode];
 	}
 
 	if (cm2_debug & CM_HUE_DEBUG_FLAG)
@@ -582,16 +582,6 @@ void cm2_curve_update_luma(struct cm_color_md cm_color_md_luma)
 		data_port = VPP_CHROMA_DATA_PORT;
 	}
 
-	if (cm_color_md_luma.color_type == cm_9_color) {
-		colormode = cm_color_md_luma.cm_9_color_md;
-		start	= color_start[colormode];
-		end		= color_end[colormode];
-	} else {
-		colormode = cm_color_md_luma.cm_14_color_md;
-		start	= cm_14_color_start[colormode];
-		end		= cm_14_color_end[colormode];
-	}
-
 	if (cm_color_md_luma.color_type == cm_9_color &&
 		cm_color_md_luma.cm_9_color_md == ecm2colormode_max) {
 		pr_info("color_type:9 clr, cm_9_color_md=9 error, return!!!\n");
@@ -600,6 +590,16 @@ void cm2_curve_update_luma(struct cm_color_md cm_color_md_luma)
 		cm_color_md_luma.cm_14_color_md == cm_14_ecm2colormode_max) {
 		pr_info("color_type:14 clr, cm_14_color_md=14 error, return!!!\n");
 		return;
+	}
+
+	if (cm_color_md_luma.color_type == cm_9_color) {
+		colormode = cm_color_md_luma.cm_9_color_md;
+		start	= color_start[colormode];
+		end		= color_end[colormode];
+	} else {
+		colormode = cm_color_md_luma.cm_14_color_md;
+		start	= cm_14_color_start[colormode];
+		end		= cm_14_color_end[colormode];
 	}
 
 	if (cm2_debug & CM_LUMA_DEBUG_FLAG)
@@ -702,16 +702,6 @@ void cm2_curve_update_sat(struct cm_color_md cm_color_md_sat)
 		data_port = VPP_CHROMA_DATA_PORT;
 	}
 
-	if (cm_color_md_sat.color_type == cm_9_color) {
-		colormode = cm_color_md_sat.cm_9_color_md;
-		start	= color_start[colormode];
-		end		= color_end[colormode];
-	} else {
-		colormode = cm_color_md_sat.cm_14_color_md;
-		start	= cm_14_color_start[colormode];
-		end		= cm_14_color_end[colormode];
-	}
-
 	if (cm_color_md_sat.color_type == cm_9_color &&
 		cm_color_md_sat.cm_9_color_md == ecm2colormode_max) {
 		pr_info("color_type:9 clr, cm_9_color_md=9 error, return!!!\n");
@@ -720,6 +710,16 @@ void cm2_curve_update_sat(struct cm_color_md cm_color_md_sat)
 		cm_color_md_sat.cm_14_color_md == cm_14_ecm2colormode_max) {
 		pr_info("color_type:14 clr, cm_14_color_md=14 error, return!!!\n");
 		return;
+	}
+
+	if (cm_color_md_sat.color_type == cm_9_color) {
+		colormode = cm_color_md_sat.cm_9_color_md;
+		start	= color_start[colormode];
+		end		= color_end[colormode];
+	} else {
+		colormode = cm_color_md_sat.cm_14_color_md;
+		start	= cm_14_color_start[colormode];
+		end		= cm_14_color_end[colormode];
 	}
 
 	if (cm2_debug & CM_SAT_DEBUG_FLAG)

@@ -417,7 +417,7 @@ int vpp_get_vout_viu_mux(void)
 	vinfo3 = NULL;
 	#ifdef CONFIG_AMLOGIC_VOUT_SERVE
 	vinfo1 = get_current_vinfo();
-	if (vinfo1->mode == 2) {
+	if (vinfo1 && vinfo1->mode == 2) {
 		temp = (vinfo1->viu_mux >> 4) & 0xf;
 		if (temp == 0)
 			temp = 1;
@@ -431,7 +431,7 @@ int vpp_get_vout_viu_mux(void)
 
 	#ifdef CONFIG_AMLOGIC_VOUT2_SERVE
 	vinfo2 = get_current_vinfo2();
-	if (vinfo2->mode == 2) {
+	if (vinfo2 && vinfo2->mode == 2) {
 		temp = (vinfo2->viu_mux >> 4) & 0xf;
 		if (temp == 0)
 			temp = 1;
@@ -445,7 +445,7 @@ int vpp_get_vout_viu_mux(void)
 
 	#ifdef CONFIG_AMLOGIC_VOUT3_SERVE
 	vinfo3 = get_current_vinfo3();
-	if (vinfo3->mode == 2) {
+	if (vinfo3 && vinfo3->mode == 2) {
 		temp = (vinfo3->viu_mux >> 4) & 0xf;
 		if (temp == 0)
 			temp = 1;
