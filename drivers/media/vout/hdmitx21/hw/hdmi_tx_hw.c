@@ -3528,6 +3528,15 @@ static int hdmi_move_hdr_pkt(bool flag)
 #define HDMI_AUDIO_PACKET_HBR 0x09
 #define HDMI_AUDIO_PACKET_MUL 0x0e
 
+static void hdmitx_enable_null_pkt(struct hdmitx_dev *hdev)
+{
+	u32 *edid_ptr = (u32 *)hdev->tx_comm.EDID_buf;
+	struct arm_smccc_res res;
+
+	arm_smccc_smc(HDCPTX_IOOPR, CHECK_SPEC_EDID, edid_ptr[2],
+				edid_ptr[3], edid_ptr[4], 0, 0, 0, &res);
+}
+
 /*
  * color_depth: Pixel bit width: 4=24-bit; 5=30-bit; 6=36-bit; 7=48-bit.
  * input_color_format: 0=RGB444; 1=YCbCr422; 2=YCbCr444; 3=YCbCr420.
@@ -3610,6 +3619,7 @@ static void config_hdmi21_tx(struct hdmitx_dev *hdev)
 	hdmitx21_wr_reg(TEST_TXCTRL_IVCTX, 0x02);
 	hdmitx21_wr_reg(CLKRATIO_IVCTX, 0x8a);
 
+	hdmitx_enable_null_pkt(hdev);
 	//---------------
 	//config vp core
 	// For S1A and later chips, delete the vp core hardware and move the yuv to rgb
