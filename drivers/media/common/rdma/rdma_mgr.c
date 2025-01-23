@@ -83,6 +83,7 @@ static int enable[RDMA_NUM];
 int rdma_configured[RDMA_NUM];
 ulong rdma_config_us[RDMA_NUM];
 int enc_num_configed[RDMA_NUM] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+#define DEBUG_RDMA_DONE_SKIP      0x10
 
 MODULE_PARM_DESC(g_vsync_rdma_item_count, "\n g_vsync_rdma_item_count\n");
 module_param(g_vsync_rdma_item_count, uint, 0664);
@@ -688,9 +689,9 @@ irqreturn_t rdma_mgr_isr(int irq, void *dev_id)
 	int i;
 	u32 read_val;
 
-	rdma_done_cpuid = smp_processor_id();
-	if (debug_flag & 0x10)
+	if (debug_flag & DEBUG_RDMA_DONE_SKIP)
 		return IRQ_HANDLED;
+	rdma_done_cpuid = smp_processor_id();
 	rdma_isr_count++;
 QUERY:
 	retry_count++;
@@ -2364,7 +2365,15 @@ static int rdma_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static void rdma_shutdown(struct platform_device *pdev)
+{
+	pr_debug("rdma shutdown\n");
+	debug_flag = DEBUG_RDMA_DONE_SKIP;
+	set_rdma_channel_enable(0);
+}
+
 static struct platform_driver rdma_driver = {
+	.shutdown = rdma_shutdown,
 	.remove = rdma_remove,
 #ifdef CONFIG_PM
 	.suspend  = rdma_suspend,
