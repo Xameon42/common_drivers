@@ -49,8 +49,8 @@ static struct codec_mm_kps_s *get_kps_ctx(struct kprobe *p, int i)
 static int kp_fd_install_pre(struct kprobe *p, struct pt_regs *regs)
 {
 	struct codec_mm_kps_s *kctx = get_kps_ctx(p, DBUF_TRACE_FUNC_0);
-	u32 fd = GET_PARMS(regs, 1);
-	struct file *file = (struct file *)GET_PARMS(regs, 2);
+	u32 fd = GET_PARMS(regs, 0);
+	struct file *file = (struct file *)GET_PARMS(regs, 1);
 
 	if (!is_dma_buf_file_need(file))
 		goto out;

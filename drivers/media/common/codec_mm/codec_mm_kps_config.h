@@ -4,7 +4,7 @@
  */
 
 [DBUF_TRACE_FUNC_0] = {
-	.symbol_name = "__fd_install",
+	.symbol_name = "fd_install",
 	.pre_handler = kp_fd_install_pre,
 	.post_handler = kp_fd_install_post
 },
