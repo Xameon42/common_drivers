@@ -5742,8 +5742,7 @@ void enable_amdv_v2_stb(int enable)
 						VSYNC_WR_DV_REG
 							(AMDV_CORE1A_CLKGATE_CTRL,
 							0x55555455);
-						dv_core1[0].core1_on = true;
-						dv_core1[0].core1_on_cnt = 0;
+						dv_core1[0].core1_on = false;
 					}
 				} else if (is_aml_tm2_stbmode()) {
 					if (is_aml_stb_hdmimode() && !core1_detunnel())
