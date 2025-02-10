@@ -2483,30 +2483,37 @@
 		};
 	};
 
-	pwm_a_pins: pwm_a_pins {
+	pwm_a_pins1: pwm_a_pins1 {
 		mux {
-			groups = "pwm_a_d";
+			groups = "pwm_a_dv1";
+			function = "pwm_a";
+		};
+	};
+
+	pwm_a_pins2: pwm_a_pins2 {
+		mux {
+			groups = "pwm_a_x6";
 			function = "pwm_a";
 		};
 	};
 
 	pwm_b_pins1: pwm_b_pins1 {
 		mux {
-			groups = "pwm_b_d";
+			groups = "pwm_b_d4";
 			function = "pwm_b";
 		};
 	};
 
 	pwm_b_pins2: pwm_b_pins2 {
 		mux {
-			groups = "pwm_b_x";
+			groups = "pwm_b_x19";
 			function = "pwm_b";
 		};
 	};
 
 	pwm_c_pins1: pwm_c_pins1 {
 		mux {
-			groups = "pwm_c_d";
+			groups = "pwm_c_dv2";
 			function = "pwm_c";
 		};
 	};
@@ -2514,20 +2521,20 @@
 	pwm_c_pins2: pwm_c_pins2 {
 		mux {
 			groups = "pwm_c_x";
-			function = "pwm_c";
+			function = "pwm_c_x8";
 		};
 	};
 
 	pwm_d_pins1: pwm_d_pins1 {
 		mux {
-			groups = "pwm_d_d";
+			groups = "pwm_d_dv3";
 			function = "pwm_d";
 		};
 	};
 
 	pwm_d_pins2: pwm_d_pins2 {
 		mux {
-			groups = "pwm_d_h";
+			groups = "pwm_d_h6";
 			function = "pwm_d";
 		};
 	};
@@ -2541,35 +2548,35 @@
 
 	pwm_e_pins2: pwm_e_pins2 {
 		mux {
-			groups = "pwm_e_z";
+			groups = "pwm_e_z6";
 			function = "pwm_e";
 		};
 	};
 
 	pwm_f_pins1: pwm_f_pins1 {
 		mux {
-			groups = "pwm_f_x";
+			groups = "pwm_f_x7";
 			function = "pwm_f";
 		};
 	};
 
 	pwm_f_pins2: pwm_f_pins2 {
 		mux {
-			groups = "pwm_f_z";
+			groups = "pwm_f_z5";
 			function = "pwm_f";
 		};
 	};
 
 	pwm_g_pins1: pwm_g_pins1 {
 		mux {
-			groups = "pwm_g_d";
+			groups = "pwm_g_dv6";
 			function = "pwm_g";
 		};
 	};
 
 	pwm_g_pins2: pwm_g_pins2 {
 		mux {
-			groups = "pwm_g_z";
+			groups = "pwm_g_z4";
 			function = "pwm_g";
 		};
 	};
@@ -2583,14 +2590,14 @@
 
 	pwm_i_pins1: pwm_i_pins1 {
 		mux {
-			groups = "pwm_i_d";
+			groups = "pwm_i_dv4";
 			function = "pwm_i";
 		};
 	};
 
 	pwm_i_pins2: pwm_i_pins2 {
 		mux {
-			groups = "pwm_i_h";
+			groups = "pwm_i_h7";
 			function = "pwm_i";
 		};
 	};
