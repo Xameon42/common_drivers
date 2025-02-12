@@ -35,7 +35,7 @@ static struct aml_efuse_lockable_check efusecheck = {
 
 struct efuse_obj_field_t efuse_field;
 static char mrk_name[16] = {};
-static unsigned int mrk_checksum[6] = {-1, -1, -1, -1, -1, -1};
+static unsigned int mrk_checksum[7] = {-1, -1, -1, -1, -1, -1, -1};
 
 struct aml_efuse_cmd efuse_cmd;
 unsigned int efuse_pattern_size;
@@ -1172,13 +1172,12 @@ static ssize_t efuse_mrk_store(struct class *cla,
 
 	/* short checknum */
 	ret = efuse_mrk_get_checknum(mrk_name, 0, mrk_checksum);
-	if (ret)
-		goto err;
+	mrk_checksum[5] = ret;
 
 	/* long checknum */
 	ret = efuse_mrk_get_checknum(mrk_name, 1, mrk_checksum + 1);
-err:
-	mrk_checksum[5] = ret;
+	mrk_checksum[6] = ret;
+
 	mutex_unlock(&efuse_obj_mutex);
 	return count;
 }
@@ -1193,19 +1192,39 @@ static ssize_t efuse_mrk_show(struct class *class,
 	ret = mrk_checksum[5];
 	switch (ret) {
 	case 0:
-		count = sprintf(buf, "%s Short checknum:%08x, long checknum:%08x %08x %08x %08x\n",
-				mrk_name, mrk_checksum[0], mrk_checksum[1],
-				mrk_checksum[2], mrk_checksum[3], mrk_checksum[4]);
+		count = sprintf(buf, "%s short checknum:%08x\n", mrk_name, mrk_checksum[0]);
 		break;
 	case EFUSE_MRK_CHECKNUM_NOT_SUPPORTED:
-		count = sprintf(buf, "MRK field %s not supported\n", mrk_name);
+		count = sprintf(buf, "MRK field %s not supported short checknum\n", mrk_name);
 		break;
 	case EFUSE_MRK_CHECKNUM_INVALID_ARGUMENT:
-		count = sprintf(buf, "get mrk checknum for %s failed, MRK field may not be written\n",
+		count = sprintf(buf,
+				"get mrk short checknum for %s failed, MRK field may not be written\n",
 				mrk_name);
 		break;
 	default:
-		count = -1;
+		count = 0;
+		break;
+	}
+
+	ret = mrk_checksum[6];
+	switch (ret) {
+	case 0:
+		count += sprintf(buf + count, "%s long checknum:%08x %08x %08x %08x\n",
+				mrk_name, mrk_checksum[1],
+				mrk_checksum[2], mrk_checksum[3], mrk_checksum[4]);
+		break;
+	case EFUSE_MRK_CHECKNUM_NOT_SUPPORTED:
+		count += sprintf(buf + count,
+				"MRK field %s not supported long checknum\n", mrk_name);
+		break;
+	case EFUSE_MRK_CHECKNUM_INVALID_ARGUMENT:
+		count += sprintf(buf + count,
+				"get mrk long checknum for %s failed, MRK field may not be written\n",
+				mrk_name);
+		break;
+	default:
+		count = 0;
 		break;
 	}
 	mutex_unlock(&efuse_obj_mutex);
