@@ -491,6 +491,7 @@ static void hdmi_hwp_init(struct hdmitx_dev *hdev, u8 reset)
 		hd21_set_reg_bits(CLKCTRL_ENC_HDMI_CLK_CTRL, 1, 12, 1);
 		hd21_set_reg_bits(CLKCTRL_ENC_HDMI_CLK_CTRL, 1, 4, 1);
 		hd21_set_reg_bits(CLKCTRL_HDMI_CLK_CTRL, 7, 8, 3);
+		/* tmds clk enable */
 		hd21_set_reg_bits(CLKCTRL_HTX_CLK_CTRL1, 1, 24, 1);
 	}
 
@@ -498,6 +499,7 @@ static void hdmi_hwp_init(struct hdmitx_dev *hdev, u8 reset)
 	if (!reset && hdmitx21_uboot_already_display()) {
 		HDMITX_INFO("uboot already enabled hdmitx\n");
 		/* enable fifo intr if uboot hdmitx output ready */
+		hdev->ignore_fifo_intr5 = false;
 		fifo_flow_enable_intrs(1);
 		hdev->frl_rate = get_current_frl_rate();
 		if (hdev->frl_rate > hdev->tx_hw.base.hdmi_tx_cap.tx_max_frl_rate)
@@ -1601,6 +1603,16 @@ static int hdmitx_set_dispmode(struct hdmitx_hw_common *tx_hw)
 				__func__, hc_active, ret, tri_bytes_per_line, dfm_type);
 
 		} else {
+			HDMITX_INFO("cts_htx_tmds_clk:%d, hdmi_clk_todig:%d, do 10to20 fifo rst\n",
+				 meson_clk_measure(92), meson_clk_measure(93));
+			hdmitx_soft_reset(BIT(0));
+			/* for mode switch flow, add 2ms delay after fifo reset
+			 * before enable fifo intr, to prevent fifo reset operation
+			 * itself trigger new fifo over/under flow
+			 */
+			msleep_interruptible(2);
+			hdev->ignore_fifo_intr5 = false;
+			/* there's fifo intr state clear before enable fifo intr */
 			fifo_flow_enable_intrs(1);
 		}
 
@@ -3267,6 +3279,7 @@ static int hdmitx_cntl_misc(struct hdmitx_hw_common *tx_hw, u32 cmd,
 		/* This action will be executed in vsync interrupt */
 		if (argv == TMDS_PHY_DISABLE) {
 			fifo_flow_enable_intrs(0);
+			hdev->ignore_fifo_intr5 = true;
 			hdmi_phy_suspend();
 		}
 		break;
@@ -3488,6 +3501,12 @@ static void hdmi_phy_suspend(void)
 		 */
 		hd21_write_reg(phy_cntl3, 0x0);
 		hd21_write_reg(phy_cntl5, 0x0);
+		break;
+	case MESON_CPU_ID_S5:
+		#ifndef CONFIG_AMLOGIC_ZAPPER_CUT
+		/* keep clk_todig enabled to optimise 10to20 fifo over/under flow issue */
+		hdmitx_s5_phy_keep_clk_todig(true);
+		#endif
 		break;
 	default:
 		hd21_write_reg(phy_cntl3, 0x3);

@@ -204,6 +204,10 @@ struct hdmitx_dev {
 	bool not_restart_hdcp;
 	unsigned long up_hdcp_timeout_sec;
 	struct delayed_work work_up_hdcp_timeout;
+	u32 hdcp_debug_delay;
+
+	/* ignore fifo intr5 if hdmitx output disabled */
+	bool ignore_fifo_intr5;
 };
 
 struct hdmitx_dev *get_hdmitx21_device(void);

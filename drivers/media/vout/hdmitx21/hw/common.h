@@ -142,6 +142,8 @@ void hdmitx21_phy_bandgap_en_s5(void);
 void hdmitx21_phy_bandgap_en_s7(void);
 void hdmitx21_phy_bandgap_en_s7d(void);
 
+void hdmitx_s5_phy_keep_clk_todig(bool en);
+
 void set21_phy_by_mode_t7(u32 mode);
 void set21_phy_by_mode_s5(u32 mode);
 void set21_phy_by_mode_s1a(u32 mode);

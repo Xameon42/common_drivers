@@ -157,17 +157,25 @@ static void intr2_sw_handler(struct intr_t *intr)
 	}
 }
 
-/* will handle intr5 in top half of interrupt handle
- * as this intr only stop come after reset
+/* for fifo intr which come after mode setting done, in order to
+ * prevent fifo reset operation itself trigger new fifo over/under
+ * flow, the interrupt process flow:
+ * disable fifo intr in interrupt top handler-->do
+ * fifo reset-->clear intr state twice-->
+ * after enter interrupt bottom handler, do clear intr5 state
+ * twice-->enable fifo intr.
+ * there's delay between intr top and bottom half
  */
 static void intr5_sw_handler(struct intr_t *intr)
 {
 	/* clear intr state asap */
-	/* intr->st_data = 0; */
-	/* hdmitx21_set_reg_bits(PWD_SRST_IVCTX, 1, 2, 1); */
-	/* hdmitx21_set_reg_bits(INTR5_SW_TPI_IVCTX, 1, 3, 1); */
-	/* hdmitx21_set_reg_bits(PWD_SRST_IVCTX, 0, 2, 1); */
-	/* HDMITX_INFO("%s[%d]\n", __func__, __LINE__); */
+	intr->st_data = 0;
+	/* clear pfifo intr twice */
+	hdmitx21_set_reg_bits(INTR5_SW_TPI_IVCTX, 1, 3, 1);
+	hdmitx21_set_reg_bits(INTR5_SW_TPI_IVCTX, 1, 3, 1);
+	/* enable fifo intr */
+	fifo_flow_enable_intrs(true);
+	HDMITX_INFO("%s INTR5_SW_TPI_IVCTX pfifo rst\n", __func__);
 }
 
 static void ddc_stall_req_handler(struct intr_t *intr)
@@ -324,7 +332,9 @@ next:
 		pint++;
 		/* HDMITX_INFO("-----i = %d, pint->st_data = 0x%x\n", i, pint->st_data); */
 		/* only process the enabled interrupt */
-		if ((hdmitx21_rd_reg(pint->intr_mask_reg) & pint->mask_data) &&
+		if (((hdmitx21_rd_reg(pint->intr_mask_reg) & pint->mask_data) ||
+			(pint->intr_mask_reg == INTR5_MASK_SW_TPI_IVCTX &&
+			!hdev->ignore_fifo_intr5)) &&
 			(pint->st_data & pint->mask_data)) {
 			val = pint->st_data;
 			/* clear st_data asap in callback function */
@@ -378,12 +388,14 @@ static void intr_status_save_and_clear(void)
 		if (pint->intr_st_reg == INTR5_SW_TPI_IVCTX &&
 			(hdmitx21_rd_reg(pint->intr_mask_reg) & pint->mask_data) &&
 			(pint->st_data & pint->mask_data)) {
-			/* clear pfifo intr and reset asap */
+			/* disable intr5 */
+			fifo_flow_enable_intrs(false);
+			/* reset fifo */
 			hdmitx21_set_reg_bits(PWD_SRST_IVCTX, 1, 2, 1);
-			hdmitx21_set_reg_bits(INTR5_SW_TPI_IVCTX, 1, 3, 1);
 			hdmitx21_set_reg_bits(PWD_SRST_IVCTX, 0, 2, 1);
-			pint->st_data = 0;
-			HDMITX_INFO("INTR5_SW_TPI_IVCTX pfifo rst\n");
+			/* clear pfifo intr twice */
+			hdmitx21_set_reg_bits(INTR5_SW_TPI_IVCTX, 1, 3, 1);
+			hdmitx21_set_reg_bits(INTR5_SW_TPI_IVCTX, 1, 3, 1);
 		} else {
 			hdmitx21_wr_reg(pint->intr_clr_reg, pint->st_data);
 		}

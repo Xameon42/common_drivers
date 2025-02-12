@@ -137,7 +137,10 @@ static void set_s5_htxpll_clk_other(const u32 clk, const bool frl_en)
 	/* HDMIPLL_CTRL4[25] enable tx_phy_clk1618 */
 	/* bit16: spll_div_0p5_en */
 	hd21_write_reg(ANACTRL_HDMIPLL_CTRL4, 0x414412f2 | (frl_en << 25) | (div0p5_en << 16));
-	hd21_write_reg(ANACTRL_HDMIPLL_CTRL5, 0x00000203);
+	/* bit5:4 increase pll lock tolerance of frac part
+	 * to prevent hpll unlock after mode set
+	 */
+	hd21_write_reg(ANACTRL_HDMIPLL_CTRL5, 0x00000223);
 	hd21_write_reg(ANACTRL_HDMIPLL_CTRL6, (!!remainder << 31) | remainder);
 	hd21_set_reg_bits(ANACTRL_HDMIPLL_CTRL3, 1, 0, 1);
 	hd21_set_reg_bits(ANACTRL_HDMIPLL_CTRL3, 1, 1, 1);
@@ -384,17 +387,43 @@ void hdmitx21_phy_bandgap_en_s5(void)
 		hd21_write_reg(ANACTRL_HDMIPHY_CTRL0, 0x0b4242);
 }
 
+void hdmitx_s5_phy_keep_clk_todig(bool en)
+{
+	/* Stage1: reset registers */
+	hd21_write_reg(ANACTRL_HDMIPHY_CTRL0, 0x0);
+	hd21_write_reg(ANACTRL_HDMIPHY_CTRL1, 0x0);
+
+	if (en) {
+		/* keep the registers setting of stage2-5 so that to keep clk_todig enabled */
+		/* keep bit[31:24] not changed */
+		hd21_write_reg(ANACTRL_HDMIPHY_CTRL3,
+			hd21_read_reg(ANACTRL_HDMIPHY_CTRL3) & 0xFF000000);
+		/* keep bit[15:0] not changed */
+		hd21_write_reg(ANACTRL_HDMIPHY_CTRL5,
+			hd21_read_reg(ANACTRL_HDMIPHY_CTRL5) & 0x0000FFFF);
+		/* keep bit[15:0] not changed */
+		hd21_write_reg(ANACTRL_HDMIPHY_CTRL6,
+			hd21_read_reg(ANACTRL_HDMIPHY_CTRL6) & 0x0000FFFF);
+		ndelay(10);
+	} else {
+		/* set bit[31:24] to 0 */
+		hd21_write_reg(ANACTRL_HDMIPHY_CTRL3,
+			hd21_read_reg(ANACTRL_HDMIPHY_CTRL3) & 0x00FFFFFF);
+		/* set bit[15:0] to 0 */
+		hd21_write_reg(ANACTRL_HDMIPHY_CTRL5,
+			hd21_read_reg(ANACTRL_HDMIPHY_CTRL5) & 0xFFFF0000);
+		/* set bit[15:0] to 0 */
+		hd21_write_reg(ANACTRL_HDMIPHY_CTRL6,
+			hd21_read_reg(ANACTRL_HDMIPHY_CTRL6) & 0xFFFF0000);
+		ndelay(10);
+	}
+}
+
 void hdmitx_s5_phy_pre_init(struct hdmitx_dev *hdev)
 {
 	enum frl_rate_enum frl_rate = hdev->frl_rate;
 
-	/* Stage1: reset registers */
-	hd21_write_reg(ANACTRL_HDMIPHY_CTRL0, 0x0);
-	hd21_write_reg(ANACTRL_HDMIPHY_CTRL1, 0x0);
-	hd21_write_reg(ANACTRL_HDMIPHY_CTRL3, 0x0);
-	hd21_write_reg(ANACTRL_HDMIPHY_CTRL5, 0x0);
-	hd21_write_reg(ANACTRL_HDMIPHY_CTRL6, 0x0);
-	ndelay(10);
+	hdmitx_s5_phy_keep_clk_todig(true);
 
 	/* Stage2: enable Bandgap */
 	hd21_set_reg_bits(ANACTRL_HDMIPHY_CTRL5, 0x03, 0, 8);
