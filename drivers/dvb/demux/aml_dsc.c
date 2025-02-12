@@ -54,6 +54,9 @@ struct dsc_channel {
 	enum ca_sc2_dsc_type dsc_type;
 	int index;
 	int index00;
+	int index00_algo;
+	int index00_scb_as_is;
+	int index00_scb;
 
 	int sid;
 	int pid;
@@ -304,6 +307,8 @@ static int _dsc_chan_alloc(struct aml_dsc *dsc, struct file *file,
 	ch->state = DSC_STATE_READY;
 	ch->index = index;
 	ch->index00 = -1;
+	ch->index00_algo = -1;
+	ch->index00_scb_as_is = -1;
 	ch->file = file;
 	ch->next = NULL;
 	ch->id = global_ch_id;
@@ -351,6 +356,8 @@ static int _dsc_chan_set_key(struct dsc_channel *ch,
 	int handle_has_iv = 0;
 	int type_has_iv = 0;
 	u32 kte;
+	int index00_algo = -1;
+
 #define KTE_MAX_NUM				256
 #define IV_FLAG_OFFSET    31
 #define HANDLE_TO_KTE(h) ((h) & (KTE_MAX_NUM - 1))
@@ -399,6 +406,11 @@ static int _dsc_chan_set_key(struct dsc_channel *ch,
 			ptmp->scb_as_is = 0;
 			ptmp->scb_out = 0;
 		}
+		index00_algo = ch->index00_algo;
+		if (ch->index00_scb_as_is != -1) {
+			ptmp->scb_as_is = ch->index00_scb_as_is;
+			ptmp->scb_out = ch->index00_scb;
+		}
 	} else {
 		ptmp = _get_dsc_pid_table(ch->index, ch->dsc_type);
 		if (!ptmp) {
@@ -422,7 +434,10 @@ static int _dsc_chan_set_key(struct dsc_channel *ch,
 		}
 	}
 	ptmp->valid = 1;
-	ptmp->algo = ch->algo;
+	if (index00_algo == -1)
+		ptmp->algo = ch->algo;
+	else
+		ptmp->algo = index00_algo;
 	ptmp->sid = ch->sid;
 	ptmp->pid = ch->pid;
 
@@ -718,9 +733,16 @@ static int handle_desc_ext(struct aml_dsc *dsc, struct file *file, struct ca_sc2
 				       d->params.scb_params.ca_scb,
 				       d->params.scb_params.ca_scb_as_is);
 				if (get_dmx_version() < 5 &&
-					d->params.scb_params.ca_scb_as_is >= 2) {
+					d->params.scb_params.ca_scb_as_is > 2) {
 					dprint("invalid ca_scb_as_is, not support\n");
 					ret = -1;
+					break;
+				}
+				/*for 00 key ts dsc scb*/
+				if (d->params.scb_params.ca_scb_as_is == 2) {
+					ch->index00_scb_as_is = 0;
+					ch->index00_scb = d->params.scb_params.ca_scb;
+					ret = 0;
 					break;
 				}
 				ret = _dsc_chan_set_scb(ch,
@@ -738,6 +760,12 @@ static int handle_desc_ext(struct aml_dsc *dsc, struct file *file, struct ca_sc2
 				pr_dbg("%s algo:%d\n",
 				       __func__,
 				       d->params.algo_params.algo);
+				/*support PASS algo for 00 key*/
+				if (d->params.algo_params.algo == -1) {
+					ch->index00_algo = 0;
+					ret = 0;
+					break;
+				}
 				ret = _dsc_chan_set_algo(ch,
 					_transition_algo(d->params.algo_params.algo));
 			}
@@ -1157,9 +1185,9 @@ int dsc_dump_info(char *buf)
 				    _get_dsc_pid_table(chans->index00,
 						       chans->dsc_type);
 				if (ptmp) {
-					r = sprintf(buf, "  slot:%d, 00:%d, 00 iv:%d\n",
+					r = sprintf(buf, "  slot:%d, 00:%d, 00 iv:%d, algo:%d\n",
 					    chans->index, ptmp->kte_even_00,
-					    ptmp->even_00_iv);
+					    ptmp->even_00_iv, chans->index00_algo);
 					buf += r;
 					total += r;
 				}
