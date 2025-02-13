@@ -62,8 +62,10 @@ static int meson_pwm_tee_request(struct pwm_chip *chip, struct pwm_device *pwm)
 	int err;
 
 #ifdef DOUBLE_CHAN_COMPAT
-		if (pwm->hwpwm != CHANNEL_MAIN)
-			return 0;
+	if (pwm->hwpwm != CHANNEL_MAIN) {
+		channel->rate = clk_get_rate(channel->clk);
+		return 0;
+	}
 #endif
 	err = clk_prepare_enable(channel->clk);
 	if (err < 0) {
