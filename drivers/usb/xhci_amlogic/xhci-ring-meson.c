@@ -2146,14 +2146,26 @@ struct aml_xhci_segment *aml_trb_in_td(struct aml_xhci_hcd *xhci,
 	dma_addr_t start_dma;
 	dma_addr_t end_seg_dma;
 	dma_addr_t end_trb_dma;
+	unsigned long segment_offset;
 	struct aml_xhci_segment *cur_seg;
 
 	start_dma = aml_xhci_trb_virt_to_dma(start_seg, start_trb);
 	cur_seg = start_seg;
 
 	do {
+#if IS_ENABLED(CONFIG_AMLOGIC_COMMON_USB)
+		if (start_dma == 0) {
+			if (!start_seg || !start_trb || start_trb < start_seg->trbs)
+				return NULL;
+			/* offset in TRBs */
+			segment_offset = start_trb - start_seg->trbs;
+			if (segment_offset >= TRBS_PER_SEGMENT)
+				return NULL;
+		}
+#else
 		if (start_dma == 0)
 			return NULL;
+#endif
 		/* We may get an event for a Link TRB in the middle of a TD */
 		end_seg_dma = aml_xhci_trb_virt_to_dma(cur_seg,
 				&cur_seg->trbs[TRBS_PER_SEGMENT - 1]);

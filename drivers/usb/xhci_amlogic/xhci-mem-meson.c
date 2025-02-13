@@ -65,6 +65,10 @@ static struct aml_xhci_segment *xhci_segment_alloc(struct aml_xhci_hcd *xhci,
 	}
 	seg->dma = dma;
 	seg->next = NULL;
+#if IS_ENABLED(CONFIG_AMLOGIC_COMMON_USB)
+	if (dma == 0)
+		aml_xhci_warn(xhci, "f=%s, dma=0\n", __func__);
+#endif
 
 	return seg;
 }

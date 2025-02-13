@@ -66,6 +66,9 @@ struct crg_drd {
 	bool		usb_phy_init;
 	bool		usb_suspend;
 	struct clk		*general_clk;
+	unsigned int wr_outstanding_tune;
+	unsigned int rd_outstanding_tune;
+	unsigned int innakrty;
 };
 
 /* -------------------------------------------------------------------------- */
@@ -143,6 +146,36 @@ static int crg_core_init(struct crg_drd *crg)
 	return 0;
 }
 
+static void crg_set_ctr_parameters(struct crg_drd *crg)
+{
+	unsigned int wr_outstanding_tune = 0;
+	unsigned int rd_outstanding_tune = 0;
+	unsigned int innakrty = 0;
+	u32 tmp;
+
+	if (crg->wr_outstanding_tune) {
+		wr_outstanding_tune = crg->wr_outstanding_tune;
+		wr_outstanding_tune = readl((void __iomem *)((unsigned long)crg->regs + 0x210c));
+		wr_outstanding_tune &= (~0x7f000);
+		writel(wr_outstanding_tune, (void __iomem *)((unsigned long)crg->regs + 0x210c));
+	}
+
+	if (crg->rd_outstanding_tune) {
+		rd_outstanding_tune = crg->rd_outstanding_tune;
+		tmp = readl((void __iomem *)((unsigned long)crg->regs + 0x210c));
+		tmp &= ~(u32)GENMASK(25, 19);
+		tmp |= rd_outstanding_tune << 19 & (u32)GENMASK(25, 19);
+		writel(tmp, (void __iomem *)((unsigned long)crg->regs + 0x210c));
+	}
+
+	if (crg->innakrty) {
+		innakrty = crg->innakrty;
+		innakrty = (readl((void __iomem *)((unsigned long)crg->regs + 0x2110)) &
+					~(0xff << 13)) | (innakrty << 13);
+		writel(innakrty, (void __iomem *)((unsigned long)crg->regs + 0x2110));
+	}
+}
+
 static int crg_core_resume(struct crg_drd *crg)
 {
 	int			ret;
@@ -150,6 +183,7 @@ static int crg_core_resume(struct crg_drd *crg)
 	ret = crg_core_soft_reset(crg);
 	if (ret)
 		return ret;
+	crg_set_ctr_parameters(crg);
 
 	usb_phy_set_suspend(crg->usb2_phy, 0);
 	usb_phy_set_suspend(crg->usb3_phy, 0);
@@ -474,11 +508,15 @@ static int crg_probe(struct platform_device *pdev)
 	if (ret)
 		goto err0;
 	prop = of_get_property(pdev->dev.of_node, "wr-outstanding-tune", NULL);
-	if (prop)
+	if (prop) {
 		wr_outstanding_tune = of_read_ulong(prop, 1);
+		crg->wr_outstanding_tune = wr_outstanding_tune;
+	}
 	prop = of_get_property(pdev->dev.of_node, "rd-outstanding-tune", NULL);
-	if (prop)
+	if (prop) {
 		rd_outstanding_tune = of_read_ulong(prop, 1);
+		crg->rd_outstanding_tune = rd_outstanding_tune;
+	}
 
 	if (wr_outstanding_tune) {
 		wr_outstanding_tune = readl((void __iomem *)((unsigned long)crg->regs + 0x210c));
@@ -496,6 +534,7 @@ static int crg_probe(struct platform_device *pdev)
 	prop = of_get_property(dev->of_node, "in-nak-rty", NULL);
 	if (prop) {
 		innakrty = of_read_ulong(prop, 1);
+		crg->innakrty = innakrty;
 		innakrty = (readl((void __iomem *)((unsigned long)crg->regs + 0x2110)) &
 					~(0xff << 13)) | (innakrty << 13);
 		writel(innakrty, (void __iomem *)((unsigned long)crg->regs + 0x2110));
