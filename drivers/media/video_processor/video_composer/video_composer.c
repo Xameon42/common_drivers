@@ -2734,8 +2734,8 @@ static void vframe_composer(struct composer_dev *dev)
 		common_para.input_para.pic_info.width = vframe_info_cur->buffer_w;
 		common_para.input_para.pic_info.height = vframe_info_cur->buffer_h;
 		common_para.input_para.pic_info.addr[0] = addr;
-		common_para.input_para.pic_info.align_w = vframe_info_cur->buffer_w;
-		common_para.input_para.pic_info.align_h = vframe_info_cur->buffer_h;
+		common_para.input_para.pic_info.align_w = vframe_info_cur->reserved[0];
+		common_para.input_para.pic_info.align_h = vframe_info_cur->reserved[1];
 
 		common_para.output_para.pic_info.align_w =
 			(vframe_info_cur->dst_w * dst_buf->buf_w / dev->vinfo_w + 0xf) & ~0xf;

@@ -518,7 +518,7 @@ int dewarp_data_composer(struct dewarp_composer_para *param, bool is_tvp)
 		if (dewarp_com_dump != dewarp_com_dump_last) {
 			sprintf(dump_name, "/data/src_%d.yuv", dewarp_com_dump);
 			dump_dewarp_vframe(dump_name,
-				param->vf_para->src_vf_width,
+				param->vf_para->src_buf_stride0,
 				param->vf_para->src_vf_height,
 				param->vf_para->src_buf_addr0,
 				param->vf_para->src_buf_addr1);
