@@ -224,15 +224,16 @@ int unload_dewarp_firmware(struct dewarp_composer_para *param)
 
 bool is_dewarp_supported(int vc_index, struct composer_vf_para *vf_param)
 {
+#ifdef CONFIG_AMLOGIC_MEDIA_GDC
 #ifdef CONFIG_AMLOGIC_ENABLE_MEDIA_FILE
 	int ret;
 	struct kstat stat;
 #endif
 	char file_name[64];
-#ifdef CONFIG_AMLOGIC_MEDIA_GDC
+
 	if (!is_aml_gdc_supported())
 		return false;
-#endif
+
 	if (IS_ERR_OR_NULL(vf_param)) {
 		pr_info("vc:[%d] %s: NULL param, please check.\n",
 			vc_index,
@@ -282,6 +283,9 @@ bool is_dewarp_supported(int vc_index, struct composer_vf_para *vf_param)
 		return false;
 #endif
 	}
+#else
+	return false;
+#endif
 }
 
 int init_dewarp_composer(struct dewarp_composer_para *param)
