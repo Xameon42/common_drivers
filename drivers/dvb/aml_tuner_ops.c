@@ -146,9 +146,9 @@ static int tuner_detect(struct dvb_tuner *tuner)
 			else
 				ops->valid = false;
 
-			pr_info("Tuner: detect tuner%d [id %d] %s\n",
+			pr_info("Tuner: detect tuner%d [id %d] %s %d\n",
 					ops->index, ops->cfg.id,
-					ops->valid ? "done" : "fail");
+					ops->valid ? "done" : "fail", ret);
 
 			if (ops->fe.ops.tuner_ops.release)
 				ops->fe.ops.tuner_ops.release(&ops->fe);

@@ -553,7 +553,7 @@ static int aml_tuner_detect(const struct tuner_config *cfg)
 	int ret = 0;
 	unsigned char data_w[4] = { 0, 0, 0, 0 };
 	unsigned char data_r[4] = { 0, 0, 0, 0 };
-	struct i2c_msg msg_w, msg_r;
+	struct i2c_msg msg_w, msg_r, msg_wr[2];
 
 	if (IS_ERR_OR_NULL(cfg) || IS_ERR_OR_NULL(cfg->i2c_adap))
 		return -EFAULT;
@@ -569,6 +569,18 @@ static int aml_tuner_detect(const struct tuner_config *cfg)
 	msg_r.flags = I2C_M_RD;
 	msg_r.len = 0;
 	msg_r.buf = data_r;
+
+	msg_wr[0].addr = (cfg->i2c_addr & 0x80) ?
+			(cfg->i2c_addr >> 1) : cfg->i2c_addr;
+	msg_wr[0].flags = 0;
+	msg_wr[0].len = 0;
+	msg_wr[0].buf = data_w;
+
+	msg_wr[1].addr = (cfg->i2c_addr & 0x80) ?
+			(cfg->i2c_addr >> 1) : cfg->i2c_addr;
+	msg_wr[1].flags = I2C_M_RD;
+	msg_wr[1].len = 0;
+	msg_wr[1].buf = data_r;
 
 	switch (cfg->id) {
 	case AM_TUNER_ATBM2040:
@@ -728,7 +740,56 @@ static int aml_tuner_detect(const struct tuner_config *cfg)
 
 		break;
 
+	case AM_TUNER_RT710:
+		msg_r.len = 1;
+		data_r[0] = 0x00;
+
+		ret = aml_tuner_rw(cfg->i2c_adap, &msg_r, 1);
+		if (ret)
+			return ret;
+
+		pr_info("Tuner: rt710/r720 data_r(0x0): 0x%x\n", data_r[0]);
+		if (data_r[0] == 0x96 || data_r[0] == 0x69)
+			return 0;
+		else
+			return -ENXIO;
+
+		break;
+
+	case AM_TUNER_RDA5815M:
+		msg_wr[0].len = 1;
+		data_w[0] = 0x00;
+		msg_wr[1].len = 1;
+		data_r[0] = 0x00;
+
+		ret = aml_tuner_rw(cfg->i2c_adap, msg_wr, 2);
+		if (ret)
+			return ret;
+
+		pr_info("Tuner: rda5815m data_r(0x0): 0x%x\n", data_r[0]);
+		if (data_r[0] == 0x58) {
+			msg_wr[0].len = 1;
+			data_w[0] = 0x01;
+			msg_wr[1].len = 1;
+			data_r[0] = 0x00;
+
+			ret = aml_tuner_rw(cfg->i2c_adap, msg_wr, 2);
+			if (ret)
+				return ret;
+
+			pr_info("Tuner: rda5815m data_r(0x1): 0x%x\n", data_r[0]);
+			if (data_r[0] == 0xf8)
+				return 0; // RDA5815m
+			else
+				return -ENXIO; // RDA chip, not RDA5815m
+		} else {
+			return -ENXIO; // not RDA chip, or IIC error
+		}
+
+		break;
+
 	default:
+		pr_info("Tuner: %d unsupported detect\n", cfg->id);
 		return -EINVAL;
 	}
 
