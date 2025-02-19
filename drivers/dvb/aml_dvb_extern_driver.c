@@ -24,7 +24,7 @@
 #include "aml_dvb_extern_i2c.h"
 
 #define AML_DVB_EXTERN_DEVICE_NAME "aml_dvb_extern"
-#define AML_DVB_EXTERN_VERSION     "V1.27"
+#define AML_DVB_EXTERN_VERSION     "V1.28"
 
 static struct dvb_extern_device *dvb_extern_dev;
 static struct mutex dvb_extern_mutex;
