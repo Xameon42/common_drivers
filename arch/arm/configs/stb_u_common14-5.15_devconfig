@@ -140,7 +140,8 @@ CONFIG_DEBUG_LIST=y
 # CONFIG_F2FS_FS is not set
 # CONFIG_NTFS3_FS is not set
 
-
+# Enabled ntfs3
+CONFIG_NTFS3_FS=y
 
 
 
