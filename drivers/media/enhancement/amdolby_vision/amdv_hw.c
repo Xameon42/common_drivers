@@ -3918,11 +3918,11 @@ void video_effect_bypass(int bypass)
 			dv_pq_ctl(DV_PQ_TV_BYPASS);
 		else
 			dv_pq_ctl(DV_PQ_STB_BYPASS);
-		dv_pq_ctl(DV_PQ_EP_BYPASS);
+		dv_pq_ctl(DV_PQ_EP_IPT);
 		return;
 	} else if (debug_bypass_vpp_pq == 2) {
 		dv_pq_ctl(DV_PQ_REC);
-		dv_pq_ctl(DV_PQ_EP_REC);
+		dv_pq_ctl(DV_PQ_EP_YUV);
 		return;
 	} else if (debug_bypass_vpp_pq == 3) {
 		return;
@@ -3967,7 +3967,7 @@ void video_effect_bypass(int bypass)
 				if ((dolby_vision_flags & FLAG_CERTIFICATION) ||
 				    bypass_all_vpp_pq) {
 					dv_pq_ctl(DV_PQ_CERT);
-					dv_pq_ctl(DV_PQ_EP_BYPASS);
+					dv_pq_ctl(DV_PQ_EP_IPT);
 				} else if (is_aml_tvmode()) {
 					dv_pq_ctl(DV_PQ_TV_BYPASS);
 				} else {
@@ -3986,9 +3986,9 @@ void video_effect_bypass(int bypass)
 							g_dst_format, eye_pr_byass);
 				}
 				if (eye_pr_byass)
-					dv_pq_ctl(DV_PQ_EP_BYPASS);
+					dv_pq_ctl(DV_PQ_EP_IPT);
 				else
-					dv_pq_ctl(DV_PQ_EP_REC);
+					dv_pq_ctl(DV_PQ_EP_YUV);
 			}
 		}
 		is_video_effect_bypass = true;
@@ -4021,7 +4021,7 @@ void video_effect_bypass(int bypass)
 		{
 #endif
 			dv_pq_ctl(DV_PQ_REC);
-			dv_pq_ctl(DV_PQ_EP_REC);
+			dv_pq_ctl(DV_PQ_EP_YUV);
 		}
 		is_video_effect_bypass = false;
 	}

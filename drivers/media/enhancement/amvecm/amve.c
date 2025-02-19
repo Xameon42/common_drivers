@@ -240,6 +240,7 @@ MODULE_PARM_DESC(sr_adapt_level, "\n sr_adapt_level\n");
 /*sharpness gain for ai pq*/
 int sr_gain[2];
 
+static int ep_ipt_flag;
 /* *********************************************************************** */
 /* *** VPP_FIQ-oriented functions **************************************** */
 /* *********************************************************************** */
@@ -3742,13 +3743,19 @@ int dv_pq_ctl(enum dv_pq_ctl_e ctl)
 		pr_amve_dbg("dv disable, pq recovery, dv_pq_bypass = %d\n",
 			    dv_pq_bypass);
 		break;
-	case DV_PQ_EP_BYPASS:
-		eye_proc(eye_protect.mtx_ep, 0, vpp_index);
-		pr_amve_dbg("dv enable, sink-led bypass eye protect for stb\n");
+	case DV_PQ_EP_IPT:
+		if (!ep_ipt_flag) {
+			vecm_latch_flag2 |= VPP_EYE_PROTECT_UPDATE;
+			pr_amve_dbg("dv enable, set ipt out eye protect for stb\n");
+		}
+		ep_ipt_flag = 1;
 		break;
-	case DV_PQ_EP_REC:
-		vecm_latch_flag2 |= VPP_EYE_PROTECT_UPDATE;
-		pr_amve_dbg("dv enable, enable eye protect for stb\n");
+	case DV_PQ_EP_YUV:
+		if (ep_ipt_flag) {
+			vecm_latch_flag2 |= VPP_EYE_PROTECT_UPDATE;
+			pr_amve_dbg("dv enable, set yuv out eye protect for stb\n");
+		}
+		ep_ipt_flag = 0;
 		break;
 
 	default:
@@ -3758,6 +3765,11 @@ int dv_pq_ctl(enum dv_pq_ctl_e ctl)
 	return 0;
 }
 EXPORT_SYMBOL(dv_pq_ctl);
+
+int get_ep_ipt_flag(void)
+{
+	return ep_ipt_flag;
+}
 
 int mtx_mul_mtx(int (*mtx_a)[3], int (*mtx_b)[3], int (*mtx_out)[3])
 {
@@ -3779,25 +3791,48 @@ int mtx_mul_mtx(int (*mtx_a)[3], int (*mtx_b)[3], int (*mtx_out)[3])
 	return 0;
 }
 
-int mtx_multi(int mtx_ep[][4], int (*mtx_out)[3])
+static int mtx_rgbto709l[3][3] = {
+	{187, 629, 63},
+	{-103, -346, 450},
+	{450, -409, -41},
+};
+
+static int mtx_709ltorgb[3][3] = {
+	{1192, 0, 1836},
+	{1192, -218, -547},
+	{1192, 2166, 0},
+};
+
+static int mtx_rgbto2020l[3][3] = {
+	{230, 593, 51},
+	{-125, -322, 448},
+	{448, -411, -36},
+};
+
+static int mtx_2020ltorgb[3][3] = {
+	{1197, 0, 1725},
+	{1197, -192, -668},
+	{1197, 2063, 0},
+};
+
+int mtx_multi(int mtx_ep[][4], int (*mtx_out)[3], enum ep_mode_e mode)
 {
 	int i, j;
 	int mtx_rgb[3][3] = {0};
 	int mtx_in[3][3] = {0};
-	int mtx_rgbto709l[3][3] = {
-		{187, 629, 63},
-		{-103, -346, 450},
-		{450, -409, -41},
-	};
-	int mtx_709ltorgb[3][3] = {
-		{1192, 0, 1836},
-		{1192, -218, -547},
-		{1192, 2166, 0},
-	};
+	int mtx_torgb[3][3];
+	int mtx_rgbto[3][3];
 
+	if (mode == IPT_MOD) {
+		memcpy(&mtx_torgb[0][0], &mtx_2020ltorgb[0][0], sizeof(int) * 9);
+		memcpy(&mtx_rgbto[0][0], &mtx_rgbto2020l[0][0], sizeof(int) * 9);
+	} else {
+		memcpy(&mtx_torgb[0][0], &mtx_709ltorgb[0][0], sizeof(int) * 9);
+		memcpy(&mtx_rgbto[0][0], &mtx_rgbto709l[0][0], sizeof(int) * 9);
+	}
 	for (i = 0; i < 4; i++) {
 		for (j = 0; j < 4; j++)
-			pr_amve_dbg("mtx_out[%d][%d] = %d\n",
+			pr_amve_dbg("mtx_in[%d][%d] = %d\n",
 			i, j, mtx_ep[i][j]);
 	}
 
@@ -3808,8 +3843,8 @@ int mtx_multi(int mtx_ep[][4], int (*mtx_out)[3])
 		for (j = 0; j < 3; j++)
 			mtx_in[i][j] = mtx_ep[j][i];
 
-	mtx_mul_mtx(mtx_in, mtx_709ltorgb, mtx_rgb);
-	mtx_mul_mtx(mtx_rgbto709l, mtx_rgb, mtx_out);
+	mtx_mul_mtx(mtx_in, mtx_torgb, mtx_rgb);
+	mtx_mul_mtx(mtx_rgbto, mtx_rgb, mtx_out);
 
 	for (i = 0; i < 3; i++) {
 		for (j = 0; j < 3; j++)
@@ -3822,7 +3857,6 @@ int mtx_multi(int mtx_ep[][4], int (*mtx_out)[3])
 #ifndef CONFIG_AMLOGIC_ZAPPER_CUT
 void eye_proc(int mtx_ep[][4], int mtx_on, int vpp_index)
 {
-	unsigned int temp;
 	unsigned int matrix_coef00_01 = 0;
 	unsigned int matrix_coef02_10 = 0;
 	unsigned int matrix_coef11_12 = 0;
@@ -3837,11 +3871,11 @@ void eye_proc(int mtx_ep[][4], int mtx_on, int vpp_index)
 	unsigned int matrix_pre_offset0_1 = 0;
 	unsigned int matrix_pre_offset2 = 0;
 	unsigned int matrix_en_ctrl = 0;
+	unsigned int matrix2_en_ctrl = 0;
 	int mtx_out[3][3] = {0};
 	int pre_offset[3] = {
 		-64, -512, -512
 	};
-
 	int offset[3] = {
 		64, 512, 512
 	};
@@ -3849,29 +3883,56 @@ void eye_proc(int mtx_ep[][4], int mtx_on, int vpp_index)
 	if (vinfo_lcd_support())
 		return;
 
-	matrix_coef00_01 = VPP_POST_MATRIX_COEF00_01;
-	matrix_coef02_10 = VPP_POST_MATRIX_COEF02_10;
-	matrix_coef11_12 = VPP_POST_MATRIX_COEF11_12;
-	matrix_coef20_21 = VPP_POST_MATRIX_COEF20_21;
-	matrix_coef22 = VPP_POST_MATRIX_COEF22;
-	matrix_coef13_14 = VPP_POST_MATRIX_COEF13_14;
-	matrix_coef23_24 = VPP_POST_MATRIX_COEF23_24;
-	matrix_coef15_25 = VPP_POST_MATRIX_COEF15_25;
-	matrix_clip = VPP_POST_MATRIX_CLIP;
-	matrix_offset0_1 = VPP_POST_MATRIX_OFFSET0_1;
-	matrix_offset2 = VPP_POST_MATRIX_OFFSET2;
-	matrix_pre_offset0_1 = VPP_POST_MATRIX_PRE_OFFSET0_1;
-	matrix_pre_offset2 = VPP_POST_MATRIX_PRE_OFFSET2;
-	matrix_en_ctrl = VPP_POST_MATRIX_EN_CTRL;
+	if (ep_ipt_flag) {
+		matrix_coef00_01 = VPP_POST2_MATRIX_COEF00_01;
+		matrix_coef02_10 = VPP_POST2_MATRIX_COEF02_10;
+		matrix_coef11_12 = VPP_POST2_MATRIX_COEF11_12;
+		matrix_coef20_21 = VPP_POST2_MATRIX_COEF20_21;
+		matrix_coef22 = VPP_POST2_MATRIX_COEF22;
+		matrix_coef13_14 = VPP_POST2_MATRIX_COEF13_14;
+		matrix_coef23_24 = VPP_POST2_MATRIX_COEF23_24;
+		matrix_coef15_25 = VPP_POST2_MATRIX_COEF15_25;
+		matrix_clip = VPP_POST2_MATRIX_CLIP;
+		matrix_offset0_1 = VPP_POST2_MATRIX_OFFSET0_1;
+		matrix_offset2 = VPP_POST2_MATRIX_OFFSET2;
+		matrix_pre_offset0_1 = VPP_POST2_MATRIX_PRE_OFFSET0_1;
+		matrix_pre_offset2 = VPP_POST2_MATRIX_PRE_OFFSET2;
+		matrix_en_ctrl = VPP_POST_MATRIX_EN_CTRL;
+		matrix2_en_ctrl = VPP_POST2_MATRIX_EN_CTRL;
+	}  else {
+		matrix_coef00_01 = VPP_POST_MATRIX_COEF00_01;
+		matrix_coef02_10 = VPP_POST_MATRIX_COEF02_10;
+		matrix_coef11_12 = VPP_POST_MATRIX_COEF11_12;
+		matrix_coef20_21 = VPP_POST_MATRIX_COEF20_21;
+		matrix_coef22 = VPP_POST_MATRIX_COEF22;
+		matrix_coef13_14 = VPP_POST_MATRIX_COEF13_14;
+		matrix_coef23_24 = VPP_POST_MATRIX_COEF23_24;
+		matrix_coef15_25 = VPP_POST_MATRIX_COEF15_25;
+		matrix_clip = VPP_POST_MATRIX_CLIP;
+		matrix_offset0_1 = VPP_POST_MATRIX_OFFSET0_1;
+		matrix_offset2 = VPP_POST_MATRIX_OFFSET2;
+		matrix_pre_offset0_1 = VPP_POST_MATRIX_PRE_OFFSET0_1;
+		matrix_pre_offset2 = VPP_POST_MATRIX_PRE_OFFSET2;
+		matrix_en_ctrl = VPP_POST_MATRIX_EN_CTRL;
+		matrix2_en_ctrl = VPP_POST2_MATRIX_EN_CTRL;
+	}
 
-	temp = VSYNC_READ_VPP_REG(matrix_en_ctrl);
-	VSYNC_WRITE_VPP_REG_VPP_SEL(matrix_en_ctrl,
-		(temp & 0xfffffffe) | (mtx_on & 0x1), vpp_index);
+	if (ep_ipt_flag) {
+		VSYNC_WRITE_VPP_REG_VPP_SEL(matrix2_en_ctrl, mtx_on & 0x1, vpp_index);
+		VSYNC_WRITE_VPP_REG_VPP_SEL(matrix_en_ctrl, 0, vpp_index);
+	} else {
+		VSYNC_WRITE_VPP_REG_VPP_SEL(matrix2_en_ctrl, 0, vpp_index);
+		VSYNC_WRITE_VPP_REG_VPP_SEL(matrix_en_ctrl, mtx_on & 0x1, vpp_index);
+	}
 
 	if (!mtx_on)
 		return;
 
-	mtx_multi(mtx_ep, mtx_out);
+	if (ep_ipt_flag)
+		mtx_multi(mtx_ep, mtx_out, IPT_MOD);
+	else
+		mtx_multi(mtx_ep, mtx_out, YUV_MOD);
+
 	VSYNC_WRITE_VPP_REG_VPP_SEL(matrix_coef00_01,
 		((mtx_out[0][0] & 0x1fff) << 16) | (mtx_out[0][1] & 0x1fff), vpp_index);
 	VSYNC_WRITE_VPP_REG_VPP_SEL(matrix_coef02_10,

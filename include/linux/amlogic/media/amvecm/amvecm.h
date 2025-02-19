@@ -211,8 +211,8 @@ enum dv_pq_ctl_e {
 	DV_PQ_STB_BYPASS,
 	DV_PQ_CERT,
 	DV_PQ_REC,
-	DV_PQ_EP_BYPASS,
-	DV_PQ_EP_REC,
+	DV_PQ_EP_IPT,
+	DV_PQ_EP_YUV,
 };
 
 enum wr_md_e {
@@ -223,6 +223,11 @@ enum wr_md_e {
 enum rw_md_e {
 	RD_MOD = 1,
 	WR_MOD
+};
+
+enum ep_mode_e {
+	YUV_MOD = 0,
+	IPT_MOD
 };
 
 struct ve_pq_table_s {
@@ -554,6 +559,7 @@ int vinfo_hdmi_out_fmt(void);
 int dv_pq_ctl(enum dv_pq_ctl_e ctl);
 int cm_force_update_flag(void);
 int get_lum_ave(void);
+int get_ep_ipt_flag(void);
 
 enum demo_module_e {
 	E_DEMO_SR = 0,/*SHARPNESS/DEJAGGY/DNLP/LC*/
