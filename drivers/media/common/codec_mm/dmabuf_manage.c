@@ -21,6 +21,8 @@
 #include <linux/amlogic/media/codec_mm/dmabuf_manage.h>
 #include <linux/amlogic/media/codec_mm/configs.h>
 #if IS_ENABLED(CONFIG_AMLOGIC_OPTEE)
+#include <linux/notifier.h>
+#include <linux/reboot.h>
 #include <linux/amlogic/tee_drv.h>
 #endif
 
@@ -56,15 +58,18 @@ static u32 secure_vdec_config = 0x7C;
 #if IS_ENABLED(CONFIG_AMLOGIC_OPTEE)
 #define DMABUF_MANAGE_BLOCK_MIN_SIZE_KB				(256 * 1024)
 
+#define TA_SECMEM_CMD_GET_NO_HEAD_SUPPORT			2
 #define TA_SECMEM_V2_CMD_INIT						294
 #define TA_SECMEM_V2_CMD_MEM_CREATE					251
 #define TA_SECMEM_V2_CMD_MEM_FREE					258
 #define TA_SECMEM_V2_CMD_CLOSE						266
+#define TA_SECMEM_V2_CMD_PROBE_VP9_METADATA			298
 
 #define TA_SECMEM_V3_CMD_INIT						3049
 #define TA_SECMEM_V3_CMD_MEM_CREATE					3002
 #define TA_SECMEM_V3_CMD_MEM_FREE					3009
 #define TA_SECMEM_V3_CMD_CLOSE						3017
+#define TA_SECMEM_V3_CMD_PROBE_VP9_METADATA			3060
 
 #define TA_SECMEM_SHM_SIZE							4096
 #define TEE_CMD_PARAM_NUM							4
@@ -101,6 +106,7 @@ struct secure_pool_info {
 
 static long dmabuf_manage_release_channel(u32 id_high, u32 id_low);
 static int dmabuf_manage_release_dmabufheap_resource(struct secure_pool_info *release_pool);
+static u32 dmabuf_manage_secure_negotiated_version(void);
 
 static struct list_head pool_list;
 static int dev_no;
@@ -108,6 +114,10 @@ static struct device *dmabuf_manage_dev;
 static DEFINE_MUTEX(g_secure_pool_mutex);
 #if IS_ENABLED(CONFIG_AMLOGIC_OPTEE)
 static struct tee_context *g_secmem_context;
+struct tee_ioctl_open_session_arg g_secmem_session;
+struct tee_shm *g_shm_pool;
+static int g_secmem_inited;
+static DEFINE_MUTEX(g_no_head_mutex);
 
 enum TEE_CMD_PARAMTYPE {
 	TEE_CMD_PARAMTYPE_BUF,
@@ -217,6 +227,41 @@ static int dmabuf_manage_tee_unpack_u64(const char *shm, u64 *num, u32 *poff)
 
 	*num = p.param.u64_value;
 	*poff = (off + sizeof(struct tee_cmdparam) + PARAM_ALIGN) & ~(PARAM_ALIGN - 1);
+
+	return 0;
+}
+
+static int dmabuf_manage_tee_unpack_buf(const char *shm, char *pbuf_addr,
+	u32 *size, u32 *poff)
+{
+	struct tee_cmdparam p;
+	u32 off = 0;
+
+	if (!shm || !pbuf_addr || !size || !poff)
+		return -1;
+
+	off = *poff;
+	if (off > TA_SECMEM_SHM_SIZE - sizeof(struct tee_cmdparam))
+		return -1;
+
+	memcpy((void *)&p, (void *)(shm + off), sizeof(struct tee_cmdparam));
+	if (p.type != TEE_CMD_PARAMTYPE_BUF) {
+		pr_error("error param type %d", p.type);
+		return -1;
+	}
+
+	*size = p.param.buf.buflen;
+	if (*size > TA_SECMEM_SHM_SIZE ||
+		off + sizeof(struct tee_cmdparam) + *size > TA_SECMEM_SHM_SIZE) {
+		pr_error("unpack param len error, size %u, off %d", *size, off);
+		return -1;
+	}
+
+	memcpy((void *)pbuf_addr,
+		(void *)(shm + off + offsetof(struct tee_cmdparam, param.buf.pbuf)),
+		*size);
+	*poff = (off + sizeof(struct tee_cmdparam) + *size + PARAM_ALIGN)
+		& ~(PARAM_ALIGN - 1);
 
 	return 0;
 }
@@ -396,6 +441,216 @@ bool dmabuf_is_esbuf(struct dma_buf *dmabuf)
 	return dmabuf->ops == &dmabuf_manage_ops;
 }
 EXPORT_SYMBOL(dmabuf_is_esbuf);
+
+#if IS_ENABLED(CONFIG_AMLOGIC_OPTEE)
+static int dmabuf_manage_secmem_ctx_match(struct tee_ioctl_version_data *ver,
+	const void *data)
+{
+	return (ver && ver->impl_id == TEE_IMPL_ID_OPTEE);
+}
+
+static int dmabuf_manage_secmem_tee_init(void)
+{
+	int res = -1;
+	uuid_t uuid = SECMEM_TA_UUID;
+
+	if (!g_secmem_inited) {
+		if (!g_secmem_context) {
+			g_secmem_context = tee_client_open_context(NULL,
+				dmabuf_manage_secmem_ctx_match, NULL, NULL);
+			if (IS_ERR(g_secmem_context)) {
+				pr_error("%s open context failed\n", __func__);
+				return -1;
+			}
+		}
+
+		memcpy(g_secmem_session.uuid, uuid.b, TEE_IOCTL_UUID_LEN);
+		g_secmem_session.clnt_login = TEE_IOCTL_LOGIN_PUBLIC;
+		g_secmem_session.num_params = 0;
+
+		res = tee_client_open_session(g_secmem_context, &g_secmem_session, NULL);
+		if (res < 0 || g_secmem_session.ret != TEEC_SUCCESS) {
+			pr_error("%s open session ret %d, res 0x%x, origin 0x%x\n",
+				__func__, res, g_secmem_session.ret, g_secmem_session.ret_origin);
+			return -1;
+		}
+
+		g_shm_pool = tee_shm_alloc_kernel_buf(g_secmem_context, TA_SECMEM_SHM_SIZE);
+		if (IS_ERR(g_shm_pool)) {
+			pr_error("%s tee_shm_alloc failed\n", __func__);
+			tee_client_close_session(g_secmem_context, g_secmem_session.session);
+			return -1;
+		}
+
+		g_secmem_inited = 1;
+	}
+
+	return 0;
+}
+#endif
+
+int dmabuf_manage_support_nohead(void)
+{
+#if IS_ENABLED(CONFIG_AMLOGIC_OPTEE)
+	int res = -1;
+	u32 in_len = 0;
+	char *shm_data = NULL;
+	struct tee_param param[TEE_CMD_PARAM_NUM] = { 0 };
+	struct tee_ioctl_invoke_arg inv_arg = { 0 };
+
+	mutex_lock(&g_no_head_mutex);
+	res = dmabuf_manage_secmem_tee_init();
+	if (res)
+		goto error;
+
+	shm_data = tee_shm_get_va(g_shm_pool, 0);
+	if (IS_ERR(shm_data)) {
+		pr_error("%s tee_shm_get_va failed\n", __func__);
+		goto error;
+	}
+
+	res = dmabuf_manage_tee_pack_u32(shm_data, TA_SECMEM_CMD_GET_NO_HEAD_SUPPORT, &in_len);
+	if (res) {
+		pr_error("%s pass tee parameter failed\n", __func__);
+		goto error;
+	}
+
+	param[0].attr = TEE_IOCTL_PARAM_ATTR_TYPE_MEMREF_INOUT;
+	param[0].u.memref.shm = g_shm_pool;
+	param[0].u.memref.size = in_len;
+	param[0].u.memref.shm_offs = 0;
+	param[3].attr = TEE_IOCTL_PARAM_ATTR_TYPE_VALUE_OUTPUT;
+
+	inv_arg.func = TA_SECMEM_CMD_GET_NO_HEAD_SUPPORT;
+	inv_arg.session = g_secmem_session.session;
+	inv_arg.num_params = TEE_CMD_PARAM_NUM;
+	res = tee_client_invoke_func(g_secmem_context, &inv_arg, param);
+	if (!res) {
+		if (inv_arg.ret != TEEC_SUCCESS) {
+			pr_error("%s invoke func failed %d 0x%x 0x%x 0x%x\n",
+				__func__, res, inv_arg.ret, inv_arg.ret_origin,
+				(u32)param[3].u.value.a);
+			goto error;
+		} else {
+			if (param[3].u.value.a != TEEC_SUCCESS) {
+				pr_error("%s invoke func failed %d 0x%x  0x%x 0x%x\n",
+					__func__, res, inv_arg.ret, inv_arg.ret_origin,
+					(u32)param[3].u.value.a);
+				goto error;
+			}
+		}
+	} else {
+		goto error;
+	}
+
+	mutex_unlock(&g_no_head_mutex);
+	return 1;
+error:
+	mutex_unlock(&g_no_head_mutex);
+	return 0;
+#else
+	return 0;
+#endif
+}
+EXPORT_SYMBOL(dmabuf_manage_support_nohead);
+
+int dmabuf_manage_vp9_probe_metadata(phys_addr_t phy, u32 size, unsigned char *meta, u32 *meta_size)
+{
+#if IS_ENABLED(CONFIG_AMLOGIC_OPTEE)
+	int res = -1;
+	u32 in_len = 0;
+	u32 out_len = 0;
+	char *shm_data = NULL;
+	struct tee_param param[TEE_CMD_PARAM_NUM] = { 0 };
+	struct tee_ioctl_invoke_arg inv_arg = { 0 };
+	u32 version = dmabuf_manage_secure_negotiated_version();
+	u32 id = 0;
+
+	if (!phy || !size || !meta || !meta_size || *meta_size < 40)
+		return -1;
+
+	mutex_lock(&g_no_head_mutex);
+	if (version < SECURE_HEAP_USER_TA_VERSION_EXTEND)
+		id = TA_SECMEM_V2_CMD_PROBE_VP9_METADATA;
+	else
+		id = TA_SECMEM_V3_CMD_PROBE_VP9_METADATA;
+
+	res = dmabuf_manage_secmem_tee_init();
+	if (res)
+		goto error;
+
+	shm_data = tee_shm_get_va(g_shm_pool, 0);
+	if (IS_ERR(shm_data)) {
+		pr_error("%s tee_shm_get_va failed\n", __func__);
+		res = -EBUSY;
+		goto error;
+	}
+
+	res = dmabuf_manage_tee_pack_u32(shm_data, id, &in_len);
+	if (res) {
+		pr_error("%s pass tee parameter failed\n", __func__);
+		res = -EFAULT;
+		goto error;
+	}
+
+	res = dmabuf_manage_tee_pack_u64(shm_data, phy, &in_len);
+	if (res) {
+		pr_error("%s pass tee parameter failed\n", __func__);
+		res = -EFAULT;
+		goto error;
+	}
+
+	res = dmabuf_manage_tee_pack_u32(shm_data, size, &in_len);
+	if (res) {
+		pr_error("%s pass tee parameter failed\n", __func__);
+		res = -EFAULT;
+		goto error;
+	}
+
+	res = dmabuf_manage_tee_pack_u32(shm_data, *meta_size, &in_len);
+	if (res) {
+		pr_error("%s pass tee parameter failed\n", __func__);
+		res = -EFAULT;
+		goto error;
+	}
+
+	param[0].attr = TEE_IOCTL_PARAM_ATTR_TYPE_MEMREF_INOUT;
+	param[0].u.memref.shm = g_shm_pool;
+	param[0].u.memref.size = in_len;
+	param[0].u.memref.shm_offs = 0;
+	param[3].attr = TEE_IOCTL_PARAM_ATTR_TYPE_VALUE_OUTPUT;
+
+	inv_arg.func = id;
+	inv_arg.session = g_secmem_session.session;
+	inv_arg.num_params = TEE_CMD_PARAM_NUM;
+	res = tee_client_invoke_func(g_secmem_context, &inv_arg, param);
+	if (!res) {
+		if (inv_arg.ret != TEEC_SUCCESS) {
+			pr_error("%s invoke func failed 0x%x 0x%x\n", __func__,
+				inv_arg.ret, inv_arg.ret_origin);
+			res = inv_arg.ret;
+			goto error;
+		} else {
+			if (param[3].u.value.a != TEEC_SUCCESS) {
+				pr_error("%s invoke func failed 0x%x\n",
+					__func__, (u32)param[3].u.value.a);
+				res = param[3].u.value.a;
+				goto error;
+			}
+		}
+	} else {
+		goto error;
+	}
+
+	res = dmabuf_manage_tee_unpack_buf(shm_data, meta, meta_size, &out_len);
+error:
+	mutex_unlock(&g_no_head_mutex);
+	return res;
+#else
+	return -1;
+#endif
+}
+EXPORT_SYMBOL(dmabuf_manage_vp9_probe_metadata);
 
 static struct dma_buf *get_dmabuf(struct dmabuf_manage_block *block,
 				  unsigned long flags)
@@ -987,12 +1242,6 @@ static struct secure_pool_info *dmabuf_manage_get_secure_vdec_pool(u32 id_high,
 }
 
 #if IS_ENABLED(CONFIG_AMLOGIC_OPTEE)
-static int dmabuf_manage_secmem_ctx_match(struct tee_ioctl_version_data *ver,
-	const void *data)
-{
-	return (ver && ver->impl_id == TEE_IMPL_ID_OPTEE);
-}
-
 static int dmabuf_manage_secure_v2_init(struct secure_pool_info *pool, u32 flags)
 {
 	int res = 0;
@@ -1097,10 +1346,20 @@ static int dmabuf_manage_secure_v2_init(struct secure_pool_info *pool, u32 flags
 	inv_arg.session = pool->secmem_session.session;
 	inv_arg.num_params = TEE_CMD_PARAM_NUM;
 	res = tee_client_invoke_func(g_secmem_context, &inv_arg, param);
-	if (res < 0 || inv_arg.ret != TEEC_SUCCESS) {
-		pr_error("%s invoke func failed, res %d, res 0x%x,origin = 0x%x\n",
-			__func__, res, inv_arg.ret, inv_arg.ret_origin);
-		res = inv_arg.ret;
+	if (!res) {
+		if (inv_arg.ret != TEEC_SUCCESS) {
+			pr_error("%s invoke func failed %d  0x%x 0x%x 0x%x\n",
+				__func__, res, inv_arg.ret, inv_arg.ret_origin,
+				(u32)param[3].u.value.a);
+			res = inv_arg.ret;
+		} else {
+			if (param[3].u.value.a != TEEC_SUCCESS) {
+				pr_error("%s invoke func failed %d 0x%x 0x%x 0x%x\n",
+					__func__, res, inv_arg.ret, inv_arg.ret_origin,
+					(u32)param[3].u.value.a);
+				res = param[3].u.value.a;
+			}
+		}
 	}
 
 error:
@@ -1211,10 +1470,20 @@ static int dmabuf_manage_secure_v3_init(struct secure_pool_info *pool, u32 flags
 	inv_arg.session = pool->secmem_session.session;
 	inv_arg.num_params = TEE_CMD_PARAM_NUM;
 	res = tee_client_invoke_func(g_secmem_context, &inv_arg, param);
-	if (res < 0 || inv_arg.ret != TEEC_SUCCESS) {
-		pr_error("%s invoke func failed, res %d, res 0x%x,origin = 0x%x\n",
-			__func__, res, inv_arg.ret, inv_arg.ret_origin);
-		res = inv_arg.ret;
+	if (!res) {
+		if (inv_arg.ret != TEEC_SUCCESS) {
+			pr_error("%s invoke func failed %d 0x%x 0x%x 0x%x\n",
+				__func__, res, inv_arg.ret, inv_arg.ret_origin,
+				(u32)param[3].u.value.a);
+			res = inv_arg.ret;
+		} else {
+			if (param[3].u.value.a != TEEC_SUCCESS) {
+				pr_error("%s invoke func failed  %d 0x%x 0x%x 0x%x\n",
+					__func__, res, inv_arg.ret, inv_arg.ret_origin,
+					(u32)param[3].u.value.a);
+				res = param[3].u.value.a;
+			}
+		}
 	}
 
 error:
@@ -1265,8 +1534,9 @@ static int dmabuf_manage_secmem_pool_init(u32 id_high, u32 id_low, u32 block_siz
 
 	res = tee_client_open_session(g_secmem_context, &pool->secmem_session, NULL);
 	if (res < 0 || pool->secmem_session.ret != TEEC_SUCCESS) {
-		pr_error("%s open session ret %d, res 0x%x, origin 0x%x\n",
-			__func__, res, pool->secmem_session.ret, pool->secmem_session.ret_origin);
+		pr_error("%s open session ret %d 0x%x  0x%x\n",
+			__func__, res, pool->secmem_session.ret,
+			pool->secmem_session.ret_origin);
 		res = pool->secmem_session.ret;
 		goto error_alloc;
 	}
@@ -1343,12 +1613,21 @@ static void dmabuf_manage_destroy_secmem_pool(struct secure_pool_info *pool)
 			inv_arg.session = pool->secmem_session.session;
 			inv_arg.num_params = TEE_CMD_PARAM_NUM;
 			res = tee_client_invoke_func(g_secmem_context, &inv_arg, param);
-			if (res < 0 || inv_arg.ret != TEEC_SUCCESS) {
-				pr_error("%s invoke func failed, res %d, res 0x%x, origin = 0x%x\n",
-					__func__, res, inv_arg.ret, inv_arg.ret_origin);
-				res = inv_arg.ret;
-				return;
+			if (!res) {
+				if (inv_arg.ret != TEEC_SUCCESS) {
+					pr_error("failed 0x%x\n", inv_arg.ret);
+					res = inv_arg.ret;
+				} else {
+					if (param[3].u.value.a != TEEC_SUCCESS) {
+						pr_error("failed 0x%x\n", (u32)param[3].u.value.a);
+						res = param[3].u.value.a;
+					}
+				}
 			}
+
+			if (res)
+				return;
+
 			tee_shm_free(pool->shm_pool);
 			res = tee_client_close_session(g_secmem_context,
 				pool->secmem_session.session);
@@ -1550,10 +1829,23 @@ static int dmabuf_manage_secmem_block_alloc(struct secure_pool_info *pool, u32 s
 	inv_arg.session = pool->secmem_session.session;
 	inv_arg.num_params = TEE_CMD_PARAM_NUM;
 	res = tee_client_invoke_func(g_secmem_context, &inv_arg, param);
-	if (res < 0 || inv_arg.ret != TEEC_SUCCESS) {
-		pr_error("%s invoke func failed, res %d, res 0x%x,origin = 0x%x\n",
-			__func__, res, inv_arg.ret, inv_arg.ret_origin);
-		res = inv_arg.ret;
+	if (!res) {
+		if (inv_arg.ret != TEEC_SUCCESS) {
+			pr_error("%s invoke func failed %d 0x%x  0x%x 0x%x\n",
+				__func__, res, inv_arg.ret, inv_arg.ret_origin,
+				(u32)param[3].u.value.a);
+			res = inv_arg.ret;
+			goto error;
+		} else {
+			if (param[3].u.value.a != TEEC_SUCCESS) {
+				pr_error("%s invoke func failed %d 0x%x 0x%x 0x%x\n",
+					__func__, res, inv_arg.ret, inv_arg.ret_origin,
+					(u32)param[3].u.value.a);
+				res = param[3].u.value.a;
+				goto error;
+			}
+		}
+	} else {
 		goto error;
 	}
 
@@ -1618,10 +1910,20 @@ static int dmabuf_manage_secmem_block_free(struct secure_pool_info *pool, u64 ha
 	inv_arg.session = pool->secmem_session.session;
 	inv_arg.num_params = TEE_CMD_PARAM_NUM;
 	res = tee_client_invoke_func(g_secmem_context, &inv_arg, param);
-	if (res < 0 || inv_arg.ret != TEEC_SUCCESS) {
-		pr_error("%s invoke func failed, res %d, res 0x%x, origin = 0x%x\n",
-			 __func__, res, inv_arg.ret, inv_arg.ret_origin);
-		res = inv_arg.ret;
+	if (!res) {
+		if (inv_arg.ret != TEEC_SUCCESS) {
+			pr_error("%s invoke func failed %d  0x%x  0x%x 0x%x\n",
+				__func__, res, inv_arg.ret, inv_arg.ret_origin,
+				(u32)param[3].u.value.a);
+			res = inv_arg.ret;
+		} else {
+			if (param[3].u.value.a != TEEC_SUCCESS) {
+				pr_error("%s invoke func failed  %d, 0x%x, 0x%x 0x%x\n",
+					__func__, res, inv_arg.ret, inv_arg.ret_origin,
+					(u32)param[3].u.value.a);
+				res = param[3].u.value.a;
+			}
+		}
 	}
 
 error:
@@ -1702,7 +2004,7 @@ int dmabuf_manage_secure_block_free(u32 id_high, u32 id_low,
 	if (pool) {
 		if (addr && size > 0) {
 #if IS_ENABLED(CONFIG_AMLOGIC_OPTEE)
-			if (version > SECURE_HEAP_USER_TA_VERSION)
+			if (version >= SECURE_HEAP_USER_TA_VERSION)
 				dmabuf_manage_secmem_block_free(pool, addr);
 #endif
 
@@ -1941,6 +2243,33 @@ static struct class dmabuf_manage_class = {
 	.class_groups = dmabuf_manage_class_groups,
 };
 
+#if IS_ENABLED(CONFIG_AMLOGIC_OPTEE)
+static int dmabuf_manage_reboot_notifier(struct notifier_block *nb,
+	unsigned long action, void *data)
+{
+	mutex_lock(&g_no_head_mutex);
+	if (g_secmem_inited) {
+		if (g_shm_pool) {
+			tee_shm_free(g_shm_pool);
+			g_shm_pool = NULL;
+		}
+
+		if (g_secmem_context) {
+			tee_client_close_session(g_secmem_context, g_secmem_session.session);
+			tee_client_close_context(g_secmem_context);
+			g_secmem_context = NULL;
+		}
+		g_secmem_inited = 0;
+	}
+	mutex_unlock(&g_no_head_mutex);
+	return NOTIFY_DONE;
+}
+
+static struct notifier_block dmabuf_manage_reboot_nb = {
+	.notifier_call = dmabuf_manage_reboot_notifier,
+};
+#endif
+
 int __init dmabuf_manage_init(void)
 {
 	int ret;
@@ -1966,6 +2295,9 @@ int __init dmabuf_manage_init(void)
 	}
 	REG_PATH_CONFIGS(CONFIG_PATH, dmabuf_manage_configs);
 	INIT_LIST_HEAD(&pool_list);
+#if IS_ENABLED(CONFIG_AMLOGIC_OPTEE)
+	register_reboot_notifier(&dmabuf_manage_reboot_nb);
+#endif
 	pr_dbg("init done\n");
 	return 0;
 error_create:
@@ -1982,6 +2314,9 @@ void __exit dmabuf_manage_exit(void)
 	class_unregister(&dmabuf_manage_class);
 	class_destroy(&dmabuf_manage_class);
 	unregister_chrdev(dev_no, DEVICE_NAME);
+#if IS_ENABLED(CONFIG_AMLOGIC_OPTEE)
+	unregister_reboot_notifier(&dmabuf_manage_reboot_nb);
+#endif
 	pr_dbg("exit done\n");
 }
 

@@ -127,6 +127,9 @@ unsigned int dmabuf_manage_get_type(struct dma_buf *dbuf);
 void *dmabuf_manage_get_info(struct dma_buf *dbuf, unsigned int type);
 
 bool dmabuf_is_esbuf(struct dma_buf *dmabuf);
+int dmabuf_manage_support_nohead(void);
+int dmabuf_manage_vp9_probe_metadata(phys_addr_t phy, u32 size,
+	unsigned char *meta, u32 *meta_size);
 
 #define DMABUF_MANAGE_IOC_MAGIC			'S'
 
