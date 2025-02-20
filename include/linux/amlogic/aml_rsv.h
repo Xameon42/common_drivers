@@ -140,4 +140,7 @@ int meson_rsv_check(struct meson_rsv_info_t *rsv_info);
 int meson_rsv_scan(struct meson_rsv_info_t *rsv_info);
 int meson_rsv_read(struct meson_rsv_info_t *rsv_info, u_char *buf);
 u32 meson_rsv_get_block_cnt(enum meson_rsv_blk_cnt name);
+
+s32 amlnf_key_read(u8 *buf, u32 len, u32 *actual_length);
+s32 amlnf_key_write(u8 *buf, u32 len, u32 *actual_length);
 #endif/* __MESON_RSV_H_ */

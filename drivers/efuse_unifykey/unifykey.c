@@ -36,6 +36,16 @@ typedef int (*key_unify_dev_init)(struct key_info_t *uk_info,
 
 static struct aml_uk_dev *ukdev_global;
 static int lock;
+static DEFINE_MUTEX(attach_mutex);
+struct unifykey_type *storage_device[] = {
+#if IS_ENABLED(CONFIG_AMLOGIC_MMC_MESON_GX)
+	&uk_mmc,
+#endif
+#if IS_ENABLED(CONFIG_AMLOGIC_MTD_COMMON)
+	&uk_nand,
+#endif
+	NULL
+};
 
 /*
  * This strange API is for LCD driver to call my internal APIs,
@@ -228,23 +238,64 @@ static int key_unify_init(struct aml_uk_dev *ukdev, char *buf,
 	return 0;
 }
 
-void auto_attach(void)
+int auto_attach(struct unifykey_type *uk_type)
 {
-	int ret = 0;
+	static int init;
+	int ret = -1;
 	struct aml_uk_dev *ukdev =  get_ukdev();
+
+	mutex_lock(&attach_mutex);
+	if (init) {
+		ret = 0;
+		goto err;
+	}
 
 	if (!ukdev) {
 		pr_err("not found unifykey device\n");
-		return;
+		ret = -ENODEV;
+		goto err;
 	}
+
+	if (!uk_type->ops) {
+		pr_err("the uk_type %s ops is NULL\n",
+			uk_type->storage_type == UNIFYKEY_STORAGE_TYPE_NAND ? "nand" : "mmc");
+		ret = -EINVAL;
+		goto err;
+	}
+
+	ret = register_unifykey_types(uk_type);
+	if (ret < 0) {
+		pr_info("%s:%d, register_unifykey_types failed\n",
+				__func__, __LINE__);
+		goto err;
+	}
+
 	ret = key_unify_init(ukdev, NULL, KEY_UNIFY_NAME_LEN);
 	if (ret < 0) {
 		pr_err("%s:%d,key unify init fail\n",
 				__func__, __LINE__);
+		goto err;
 	}
+	init = 1;
+
+err:
+	mutex_unlock(&attach_mutex);
+	return ret;
 }
 EXPORT_SYMBOL(auto_attach);
 
+int key_notifier_callback(struct notifier_block *nb, unsigned long action, void *data)
+{
+	struct unifykey_type *uk_type = (struct unifykey_type *)data;
+
+	auto_attach(uk_type);
+	return NOTIFY_OK;
+}
+
+struct notifier_block key_notifier = {
+	.notifier_call = key_notifier_callback,
+	.priority = 0,
+};
 int key_unify_write(struct aml_uk_dev *ukdev, char *name,
 		    unsigned char *data, unsigned int len)
 {
@@ -1270,9 +1321,10 @@ ATTRIBUTE_GROUPS(unifykey_class);
 
 static int __init aml_unifykeys_probe(struct platform_device *pdev)
 {
-	int ret;
+	int ret, i = 0;
 	struct device *devp;
 	struct aml_uk_dev *ukdev;
+	int attach = -EINVAL;
 
 	if (amlkey_if_init(pdev) != 0) {
 		pr_err("fail to initialize aml key\n");
@@ -1332,8 +1384,20 @@ static int __init aml_unifykeys_probe(struct platform_device *pdev)
 	}
 
 	devp->platform_data = get_unifykeys_drv_data(pdev);
-
+	while (storage_device[i]) {
+		mutex_lock(&storage_device[i]->unifykey_mutex);
+		if (!storage_device[i]->notifier_flag)
+			raw_notifier_chain_register(&storage_device[i]->unifykey_notifier_list,
+					       &key_notifier);
+		else
+			attach = auto_attach(storage_device[i]);
+		mutex_unlock(&storage_device[i]->unifykey_mutex);
+		if (attach == 0)
+			break;
+		i++;
+	}
 	pr_debug("device %s created ok\n", UNIFYKEYS_DEVICE_NAME);
+
 	return 0;
 
 error4:
@@ -1352,6 +1416,7 @@ out:
 static int aml_unifykeys_remove(struct platform_device *pdev)
 {
 	struct aml_uk_dev *ukdev = platform_get_drvdata(pdev);
+	int i = 0;
 
 	if (pdev->dev.of_node)
 		uk_dt_release(pdev);
@@ -1362,7 +1427,12 @@ static int aml_unifykeys_remove(struct platform_device *pdev)
 	class_unregister(&ukdev->cls);
 	platform_set_drvdata(pdev, NULL);
 	amlkey_if_deinit();
-
+	while (storage_device[i]) {
+		if (storage_device[i]->unifykey_notifier_list.head)
+			raw_notifier_chain_unregister(&storage_device[i]->unifykey_notifier_list,
+						&key_notifier);
+		i++;
+	}
 	return 0;
 }
 

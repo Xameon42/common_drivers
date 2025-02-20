@@ -60,10 +60,6 @@ int register_unifykey_types(struct unifykey_type *uk_type)
 {
 	u32 type;
 
-	if (!uk_type) {
-		pr_err("the uk_type is NULL\n");
-		return -EINVAL;
-	}
 	type = uk_type->storage_type;
 
 	if (!is_valid_unifykey_storage_type(type)) {

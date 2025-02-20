@@ -2061,8 +2061,6 @@ static int meson_nfc_probe(struct platform_device *pdev)
 	ret = clk_get_rate(nfc->nand_div_clk);
 	ret = readl(nfc->reg_base + NFC_REG_CFG);
 
-	auto_attach();
-
 	return 0;
 err_clk:
 	meson_nfc_disable_clk(nfc);

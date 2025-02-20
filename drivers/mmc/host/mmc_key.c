@@ -43,6 +43,14 @@
 
 struct task_struct      *thread_dtb_key_task;
 unsigned int    key_stamp;
+struct unifykey_type uk_mmc = {
+	.storage_type = UNIFYKEY_STORAGE_TYPE_EMMC,
+	.unifykey_mutex = __MUTEX_INITIALIZER(uk_mmc.unifykey_mutex),
+	.unifykey_notifier_list = RAW_NOTIFIER_INIT(uk_mmc.unifykey_notifier_list),
+	.notifier_flag  = false,
+};
+EXPORT_SYMBOL_GPL(uk_mmc);
+
 #define		EMMC_BLOCK_SIZE		(0x100)
 #define		MAX_EMMC_BLOCK_SIZE	(128 * 1024)
 
@@ -447,14 +455,17 @@ static int aml_emmc_key_check(void)
 	return 0;
 }
 
+struct unifykey_storage_ops mmc_ops = {
+	.read = emmc_key_read,
+	.write = emmc_key_write
+};
+
 void emmc_key_init(struct mmc_card *card, int *retp)
 {
 	u64  addr = 0;
 	u32  size = 0;
 	u64  lba_start = 0, lba_end = 0;
 	int bit = 0;
-	struct unifykey_type *uk_type = NULL;
-	struct unifykey_storage_ops ops;
 
 	mmc_claim_host(card->host);
 	bit = card->csd.read_blkbits;
@@ -465,11 +476,7 @@ void emmc_key_init(struct mmc_card *card, int *retp)
 		*retp = -ENOMEM;
 		goto exit;
 	}
-	uk_type = kmalloc(sizeof(*uk_type), GFP_KERNEL);
-	if (!uk_type) {
-		*retp = -ENOMEM;
-		goto exit_err;
-	}
+
 	memset(emmckey_info, 0, sizeof(*emmckey_info));
 	emmckey_info->key_init = 0;
 #ifdef KEY_BACKUP
@@ -479,7 +486,7 @@ void emmc_key_init(struct mmc_card *card, int *retp)
 #endif
 	if (get_reserve_partition_off_from_tbl() < 0) {
 		*retp = -EINVAL;
-		goto exit_err1;
+		goto exit_err;
 	}
 	addr = get_reserve_partition_off_from_tbl() + EMMCKEY_RESERVE_OFFSET;
 	lba_start = addr >> bit;
@@ -493,7 +500,7 @@ void emmc_key_init(struct mmc_card *card, int *retp)
 		*retp = -EINVAL;
 
 		pr_info("%s:%d,emmc key init fail\n", __func__, __LINE__);
-		goto exit_err1;
+		goto exit_err;
 	}
 	emmckey_info->keyarea_phy_addr = addr;
 	emmckey_info->keyarea_phy_size = size;
@@ -506,25 +513,18 @@ void emmc_key_init(struct mmc_card *card, int *retp)
 	*retp = aml_emmc_key_check();
 	if (*retp) {
 		pr_info("%s:%d,emmc key check fail\n", __func__, __LINE__);
-		goto exit_err1;
+		goto exit_err;
 	}
 
-	uk_type->storage_type = UNIFYKEY_STORAGE_TYPE_EMMC;
-	uk_type->ops = &ops;
-	uk_type->ops->read = emmc_key_read;
-	uk_type->ops->write = emmc_key_write;
+	mutex_lock(&uk_mmc.unifykey_mutex);
+	uk_mmc.ops = &mmc_ops;
+	if (uk_mmc.unifykey_notifier_list.head)
+		raw_notifier_call_chain(&uk_mmc.unifykey_notifier_list, 0, &uk_mmc);
+	uk_mmc.notifier_flag = true;
+	mutex_unlock(&uk_mmc.unifykey_mutex);
 
-	if (register_unifykey_types(uk_type)) {
-		*retp = -EINVAL;
-		pr_info("%s:%d,emmc key check fail\n", __func__, __LINE__);
-		goto exit_err1;
-	}
 	pr_info("emmc key: %s:%d ok.\n", __func__, __LINE__);
 
-	auto_attach();
-
-exit_err1:
-		kfree(uk_type);
 exit_err:
 		kfree(emmckey_info);
 exit:

@@ -5,6 +5,7 @@
 
 #ifndef __KEYMANAGE__
 #define __KEYMANAGE__
+#include <linux/notifier.h>
 
 enum {
 	UNIFYKEY_STORAGE_TYPE_INVALID = 0,
@@ -21,9 +22,22 @@ struct unifykey_storage_ops {
 struct unifykey_type {
 	u32 storage_type;
 	struct unifykey_storage_ops *ops;
+	struct mutex unifykey_mutex; /* */
+	struct raw_notifier_head unifykey_notifier_list;
+	u32 notifier_flag;
 };
 
+extern struct unifykey_type *storage_device[];
+
+#if IS_ENABLED(CONFIG_AMLOGIC_MMC_MESON_GX)
+extern struct unifykey_type uk_mmc;
+#endif
+
+#if IS_ENABLED(CONFIG_AMLOGIC_MTD_COMMON)
+extern struct unifykey_type uk_nand;
+#endif
+
 int register_unifykey_types(struct unifykey_type *uk_type);
-void auto_attach(void);
+int auto_attach(struct unifykey_type *uk_type);
 
 #endif /*__KEYMANAGE__*/

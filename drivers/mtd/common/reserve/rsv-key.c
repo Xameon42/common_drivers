@@ -13,6 +13,13 @@
 
 extern struct meson_rsv_handler_t *rsv_handler;
 static struct meson_rsv_info_t *meson_rsv_key;
+struct unifykey_type uk_nand = {
+	.storage_type = UNIFYKEY_STORAGE_TYPE_NAND,
+	.unifykey_mutex = __MUTEX_INITIALIZER(uk_nand.unifykey_mutex),
+	.unifykey_notifier_list = RAW_NOTIFIER_INIT(uk_nand.unifykey_notifier_list),
+	.notifier_flag  = false,
+};
+EXPORT_SYMBOL_GPL(uk_nand);
 
 /*
  * This function reads the u-boot keys.
@@ -56,6 +63,7 @@ s32 amlnf_key_read(u8 *buf, u32 len, u32 *actual_length)
 
 	return 0;
 }
+EXPORT_SYMBOL(amlnf_key_read);
 
 /*
  * This function write the keys.
@@ -101,6 +109,7 @@ s32 amlnf_key_write(u8 *buf, u32 len, u32 *actual_length)
 
 	return error;
 }
+EXPORT_SYMBOL(amlnf_key_write);
 
 int amlnf_key_erase(void)
 {
@@ -114,41 +123,29 @@ int amlnf_key_erase(void)
 	return ret;
 }
 
+struct unifykey_storage_ops nand_ops = {
+	.read = amlnf_key_read,
+	.write = amlnf_key_write
+};
+
 int meson_rsv_register_unifykey(struct meson_rsv_info_t *key)
 {
 	int ret = 0;
-	struct unifykey_type *uk_type;
-
-	uk_type = kzalloc(sizeof(*uk_type), GFP_KERNEL);
-	if (!uk_type)
-		return -ENOMEM;
-
-	uk_type->ops = kzalloc(sizeof(*uk_type->ops), GFP_KERNEL);
-	if (!uk_type->ops) {
-		ret = -ENOMEM;
-		goto exit;
-	}
 
 	/* avoid null */
 	meson_rsv_key = key;
 
-	/**need test**/
-	uk_type->storage_type = UNIFYKEY_STORAGE_TYPE_NAND;
-	/*
-	 * pr_info("%s key func read: 0x%px, write: 0x%px\n",
-	 *	__func__, amlnf_key_read, amlnf_key_write);
-	 */
-	uk_type->ops->read = amlnf_key_read;
-	uk_type->ops->write = amlnf_key_write;
+	mutex_lock(&uk_nand.unifykey_mutex);
+	uk_nand.ops = &nand_ops;
 	/*
 	 *pr_info("%s key func read: 0x%px, write: 0x%px\n",
 	 *__func__, uk_type->ops->read, uk_type->ops->write);
 	 */
-	ret = register_unifykey_types(uk_type);
+	if (uk_nand.unifykey_notifier_list.head)
+		raw_notifier_call_chain(&uk_nand.unifykey_notifier_list, 0, &uk_nand);
+	uk_nand.notifier_flag = true;
+	mutex_unlock(&uk_nand.unifykey_mutex);
 
-	kfree(uk_type->ops);
-exit:
-	kfree(uk_type);
 	return ret;
 }
 
