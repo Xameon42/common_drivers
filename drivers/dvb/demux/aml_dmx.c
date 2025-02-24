@@ -392,6 +392,11 @@ static int check_data_pack_align(char *mem, int len, struct aml_dmx *pdmx)
 	if (left < 0 || left > pack_len)
 		pr_err("%s last pack length=%d\n", __func__, left);
 
+	/*can't find any ts packet, don't handle*/
+	if (total == 0) {
+		pdmx->last_len = 0;
+		total = len;
+	}
 	return total;
 }
 
@@ -511,6 +516,12 @@ static int _dmx_write_from_user(struct dmx_demux *demux,
 	}
 //	if (signal_pending(current))
 //		return -EINTR;
+
+	/*after alignm the len is different,
+	 *so we return the size that customer transfer
+	 */
+	if (ret > 0)
+		ret = count;
 	return ret;
 }
 
