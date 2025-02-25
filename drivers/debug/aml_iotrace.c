@@ -1141,7 +1141,7 @@ static void proc_init(void)
 
 static void trace_auto_show_iter(struct prz_record_iter *iter)
 {
-	char buf[1024];
+	char buf[256];
 	static unsigned int autodump_rec_num;
 	struct iotrace_record *rec = (struct iotrace_record *)iter->ptr;
 

@@ -151,7 +151,7 @@ EXPORT_SYMBOL(meson_atrace);
 void __aml_trace_printk(unsigned long ip, const char *fmt, ...)
 {
 	int len = 0;
-	char buf[1024];
+	char buf[256];
 	va_list ap;
 
 	va_start(ap, fmt);
