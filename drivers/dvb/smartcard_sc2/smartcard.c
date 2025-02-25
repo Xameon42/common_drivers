@@ -3207,9 +3207,34 @@ static int smc_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static int smc_suspend(struct platform_device *dev, pm_message_t state)
+{
+	pr_dbg("enter smc_suspend_1\n");
+	return 0;
+}
+
+static int smc_resume(struct platform_device *pdev)
+{
+	struct smc_dev *smc = (struct smc_dev *)dev_get_drvdata(&pdev->dev);
+	int ret;
+
+	pr_dbg("enter smc_resume_1\n");
+	mutex_lock(&smc_lock);
+
+	ret = smc_hw_reset(smc);
+	if (ret >= 0)
+		pr_dbg("smc reset success\n");
+	else
+		pr_dbg("smc reset fail\n");
+	mutex_unlock(&smc_lock);
+	return 0;
+}
+
 static struct platform_driver smc_driver = {
 	.probe = smc_probe,
 	.remove = smc_remove,
+	.suspend = smc_suspend,
+	.resume = smc_resume,
 	.driver = {
 		   .name = "amlogic-smc_sc2",
 		   .owner = THIS_MODULE,
