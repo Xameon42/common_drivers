@@ -1494,6 +1494,8 @@ static void hdcp2x_process_intr(u8 int_reg[])
 		p_hdcp->csm_msg_sent = false;
 		p_hdcp->csm_updated = false;
 		p_hdcp->hdcp14_second_part_pass = false;
+		/* reset ksv fifo pointer when re-auth */
+		ksv_reset_fifo(p_hdcp);
 		hdcp2x_reauth_start(p_hdcp);
 		/* only needed on customer board for hdcp re-auth filter */
 		/* hdcp_reauth_req = 1; */
