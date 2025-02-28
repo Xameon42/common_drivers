@@ -1,7 +1,12 @@
-# aml-erofs.ko
-  register_sysctl
+# dwc_otg.ko
+  drain_workqueue
 
- # some customers may need
-  i2c_smbus_write_byte
-  devm_fwnode_pwm_get
-  thermal_zone_get_temp
+# amlogic-debug-iotrace.ko
+  of_find_all_nodes
+
+# dwmac-meson8b.ko
+  phy_resume
+
+# amlogic-snd-codec-tas5805.ko
+  devm_gpio_free
+

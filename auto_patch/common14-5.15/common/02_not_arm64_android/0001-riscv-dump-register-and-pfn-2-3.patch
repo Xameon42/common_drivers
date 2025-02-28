@@ -1,7 +1,7 @@
-From 6b3b49580d15808be1d4e0be3a691202a6cca906 Mon Sep 17 00:00:00 2001
+From 846612027552570f604ee206a001deb603adce78 Mon Sep 17 00:00:00 2001
 From: Lei Zhang <lei.zhang@amlogic.com>
 Date: Wed, 28 Sep 2022 11:29:44 +0800
-Subject: [PATCH 79/95] riscv: dump register and pfn [2/3]
+Subject: [PATCH] riscv: dump register and pfn [2/3]
 
 PD#SWPL-94239
 
@@ -24,10 +24,10 @@ Change-Id: I9acbabb63e4647b8619c29f822d54ade9abcb1ba
  4 files changed, 26 insertions(+)
 
 diff --git a/arch/riscv/Kconfig b/arch/riscv/Kconfig
-index 1b21f332f58c..ba750af85156 100644
+index 7d163b0d0b624..143f1b47c4ac7 100644
 --- a/arch/riscv/Kconfig
 +++ b/arch/riscv/Kconfig
-@@ -30,6 +30,7 @@ config RISCV
+@@ -31,6 +31,7 @@ config RISCV
  	select ARCH_HAS_STRICT_MODULE_RWX if MMU && !XIP_KERNEL
  	select ARCH_HAS_TICK_BROADCAST if GENERIC_CLOCKEVENTS_BROADCAST
  	select ARCH_HAS_UBSAN_SANITIZE_ALL
@@ -36,7 +36,7 @@ index 1b21f332f58c..ba750af85156 100644
  	select ARCH_OPTIONAL_KERNEL_RWX_DEFAULT
  	select ARCH_STACKWALK
 diff --git a/arch/riscv/kernel/process.c b/arch/riscv/kernel/process.c
-index bda3bc294718..b00bc11414cb 100644
+index 1dea5b26f77e8..ed7bcb7b333a5 100644
 --- a/arch/riscv/kernel/process.c
 +++ b/arch/riscv/kernel/process.c
 @@ -24,6 +24,10 @@
@@ -47,10 +47,10 @@ index bda3bc294718..b00bc11414cb 100644
 +#include <linux/amlogic/user_fault.h>
 +#endif
 +
- register unsigned long gp_in_global __asm__("gp");
- 
  #if defined(CONFIG_STACKPROTECTOR) && !defined(CONFIG_STACKPROTECTOR_PER_TASK)
-@@ -43,6 +47,9 @@ void arch_cpu_idle(void)
+ #include <linux/stackprotector.h>
+ unsigned long __stack_chk_guard __read_mostly;
+@@ -41,6 +45,9 @@ void arch_cpu_idle(void)
  
  void __show_regs(struct pt_regs *regs)
  {
@@ -60,7 +60,7 @@ index bda3bc294718..b00bc11414cb 100644
  	show_regs_print_info(KERN_DEFAULT);
  
  	if (!user_mode(regs)) {
-@@ -75,6 +82,10 @@ void __show_regs(struct pt_regs *regs)
+@@ -73,6 +80,10 @@ void __show_regs(struct pt_regs *regs)
  
  	pr_cont("status: " REG_FMT " badaddr: " REG_FMT " cause: " REG_FMT "\n",
  		regs->status, regs->badaddr, regs->cause);
@@ -72,7 +72,7 @@ index bda3bc294718..b00bc11414cb 100644
  void show_regs(struct pt_regs *regs)
  {
 diff --git a/arch/riscv/kernel/traps.c b/arch/riscv/kernel/traps.c
-index 6084bd93d2f5..eb4e2f637281 100644
+index 4f38b3c47e6d5..53511c16d0743 100644
 --- a/arch/riscv/kernel/traps.c
 +++ b/arch/riscv/kernel/traps.c
 @@ -25,6 +25,10 @@
@@ -86,7 +86,7 @@ index 6084bd93d2f5..eb4e2f637281 100644
  int show_unhandled_signals = 1;
  
  static DEFINE_SPINLOCK(die_lock);
-@@ -73,6 +77,9 @@ void do_trap(struct pt_regs *regs, int signo, int code, unsigned long addr)
+@@ -77,6 +81,9 @@ void do_trap(struct pt_regs *regs, int signo, int code, unsigned long addr)
  		print_vma_addr(KERN_CONT " in ", instruction_pointer(regs));
  		pr_cont("\n");
  		__show_regs(regs);
@@ -97,7 +97,7 @@ index 6084bd93d2f5..eb4e2f637281 100644
  
  	force_sig_fault(signo, code, (void __user *)addr);
 diff --git a/arch/riscv/mm/init.c b/arch/riscv/mm/init.c
-index 830f53b141a0..05f1aa4631a1 100644
+index c30cc3ac93a72..8f52ce535e490 100644
 --- a/arch/riscv/mm/init.c
 +++ b/arch/riscv/mm/init.c
 @@ -31,6 +31,10 @@
@@ -111,7 +111,7 @@ index 830f53b141a0..05f1aa4631a1 100644
  struct kernel_mapping kernel_map __ro_after_init;
  EXPORT_SYMBOL(kernel_map);
  #ifdef CONFIG_XIP_KERNEL
-@@ -131,6 +135,9 @@ void __init mem_init(void)
+@@ -129,6 +133,9 @@ void __init mem_init(void)
  	high_memory = (void *)(__va(PFN_PHYS(max_low_pfn)));
  	memblock_free_all();
  
@@ -122,5 +122,5 @@ index 830f53b141a0..05f1aa4631a1 100644
  }
  
 -- 
-2.25.1
+2.42.0
 

@@ -1,4 +1,4 @@
-From 378a3fe4828cc6de7594e14dbcab9e696b8b4b9b Mon Sep 17 00:00:00 2001
+From bbe07e9e7b1656ecc05947bdc273a6bf50f9ff47 Mon Sep 17 00:00:00 2001
 From: Jianxiong Pan <jianxiong.pan@amlogic.com>
 Date: Mon, 17 Apr 2023 16:01:34 +0800
 Subject: [PATCH] zapper: disable unnecessary configs of zapper. [1/2]
@@ -150,7 +150,7 @@ index d24d71b8dcbee..5a855588b6ba6 100644
  	help
  	  ARMv6 architecture deprecates use of the SWP/SWPB instructions.
 diff --git a/drivers/gpio/Kconfig b/drivers/gpio/Kconfig
-index 7b9def6b10047..960b01247fb03 100644
+index a36afb47a6334..4849c92f3cfdd 100644
 --- a/drivers/gpio/Kconfig
 +++ b/drivers/gpio/Kconfig
 @@ -468,6 +468,7 @@ config GPIO_PL061
@@ -288,7 +288,7 @@ index e115aab7243e1..27b25b4edc89d 100644
  
  static const struct flash_info *
 diff --git a/drivers/net/Makefile b/drivers/net/Makefile
-index 50e60852f1286..7eae01ce18a34 100644
+index e5ed9dff10a24..a317785b0ae57 100644
 --- a/drivers/net/Makefile
 +++ b/drivers/net/Makefile
 @@ -18,7 +18,9 @@ obj-$(CONFIG_MACVLAN) += macvlan.o
@@ -532,7 +532,7 @@ index ce622014516e9..f985b4b73c85a 100644
  	select VIDEOBUF2_DMA_SG
  	help
 diff --git a/kernel/trace/trace_events.c b/kernel/trace/trace_events.c
-index f8af4a15c3a88..8f64f6c5ab9e1 100644
+index b8ac6ccefaf31..5ce70bc42e910 100644
 --- a/kernel/trace/trace_events.c
 +++ b/kernel/trace/trace_events.c
 @@ -510,6 +510,7 @@ EXPORT_SYMBOL_GPL(trace_event_buffer_reserve);
@@ -564,7 +564,7 @@ index f8af4a15c3a88..8f64f6c5ab9e1 100644
  	} else {
  		unregister_trace_sched_process_fork(event_filter_pid_sched_process_fork,
  						    tr);
-@@ -1908,6 +1912,7 @@ static void register_pid_events(struct trace_array *tr)
+@@ -1910,6 +1914,7 @@ static void register_pid_events(struct trace_array *tr)
  	 * Register a probe this is called after all other probes
  	 * to only keep ignore_pid set if next pid matches.
  	 */
@@ -572,7 +572,7 @@ index f8af4a15c3a88..8f64f6c5ab9e1 100644
  	register_trace_prio_sched_switch(event_filter_pid_sched_switch_probe_pre,
  					 tr, INT_MAX);
  	register_trace_prio_sched_switch(event_filter_pid_sched_switch_probe_post,
-@@ -1927,6 +1932,7 @@ static void register_pid_events(struct trace_array *tr)
+@@ -1929,6 +1934,7 @@ static void register_pid_events(struct trace_array *tr)
  					 tr, INT_MAX);
  	register_trace_prio_sched_waking(event_filter_pid_sched_wakeup_probe_post,
  					 tr, 0);
@@ -785,10 +785,10 @@ index 4268846f2f475..aae590882a3dd 100644
 +endif
 \ No newline at end of file
 diff --git a/net/core/datagram.c b/net/core/datagram.c
-index 1ff8241217a9c..2dcf93df0fec7 100644
+index 13f4bf82b2ee8..9096a8392f96a 100644
 --- a/net/core/datagram.c
 +++ b/net/core/datagram.c
-@@ -529,7 +529,9 @@ static size_t simple_copy_to_iter(const void *addr, size_t bytes,
+@@ -537,7 +537,9 @@ static size_t simple_copy_to_iter(const void *addr, size_t bytes,
  int skb_copy_datagram_iter(const struct sk_buff *skb, int offset,
  			   struct iov_iter *to, int len)
  {
@@ -798,7 +798,7 @@ index 1ff8241217a9c..2dcf93df0fec7 100644
  	return __skb_datagram_iter(skb, offset, to, len, false,
  			simple_copy_to_iter, NULL);
  }
-@@ -708,6 +710,7 @@ int zerocopy_sg_from_iter(struct sk_buff *skb, struct iov_iter *from)
+@@ -716,6 +718,7 @@ int zerocopy_sg_from_iter(struct sk_buff *skb, struct iov_iter *from)
  }
  EXPORT_SYMBOL(zerocopy_sg_from_iter);
  
@@ -806,7 +806,7 @@ index 1ff8241217a9c..2dcf93df0fec7 100644
  /**
   *	skb_copy_and_csum_datagram - Copy datagram to an iovec iterator
   *          and update a checksum.
-@@ -779,6 +782,7 @@ int skb_copy_and_csum_datagram_msg(struct sk_buff *skb,
+@@ -787,6 +790,7 @@ int skb_copy_and_csum_datagram_msg(struct sk_buff *skb,
  	return -EFAULT;
  }
  EXPORT_SYMBOL(skb_copy_and_csum_datagram_msg);
@@ -815,7 +815,7 @@ index 1ff8241217a9c..2dcf93df0fec7 100644
  /**
   * 	datagram_poll - generic datagram poll
 diff --git a/net/core/dev.c b/net/core/dev.c
-index 5d876b9c5275f..e3257d8aaf469 100644
+index a515a4d6d1208..6ef5e0447b93f 100644
 --- a/net/core/dev.c
 +++ b/net/core/dev.c
 @@ -159,12 +159,15 @@
@@ -1103,7 +1103,7 @@ index 5d876b9c5275f..e3257d8aaf469 100644
  
  	return rc;
  }
-@@ -3817,8 +3847,10 @@ static int dev_qdisc_enqueue(struct sk_buff *skb, struct Qdisc *q,
+@@ -3821,8 +3851,10 @@ static int dev_qdisc_enqueue(struct sk_buff *skb, struct Qdisc *q,
  	int rc;
  
  	rc = q->enqueue(skb, q, to_free) & NET_XMIT_MASK;
@@ -1114,7 +1114,7 @@ index 5d876b9c5275f..e3257d8aaf469 100644
  	return rc;
  }
  
-@@ -4102,10 +4134,10 @@ u16 netdev_pick_tx(struct net_device *dev, struct sk_buff *skb,
+@@ -4106,10 +4138,10 @@ u16 netdev_pick_tx(struct net_device *dev, struct sk_buff *skb,
  	if (queue_index < 0 || skb->ooo_okay ||
  	    queue_index >= dev->real_num_tx_queues) {
  		int new_index = get_xps_queue(dev, sb_dev, skb);
@@ -1127,7 +1127,7 @@ index 5d876b9c5275f..e3257d8aaf469 100644
  		if (queue_index != new_index && sk &&
  		    sk_fullsock(sk) &&
  		    rcu_access_pointer(sk->sk_dst_cache))
-@@ -4215,7 +4247,9 @@ static int __dev_queue_xmit(struct sk_buff *skb, struct net_device *sb_dev)
+@@ -4219,7 +4251,9 @@ static int __dev_queue_xmit(struct sk_buff *skb, struct net_device *sb_dev)
  	txq = netdev_core_pick_tx(dev, skb, sb_dev);
  	q = rcu_dereference_bh(txq->qdisc);
  
@@ -1137,7 +1137,7 @@ index 5d876b9c5275f..e3257d8aaf469 100644
  	if (q->enqueue) {
  		rc = __dev_xmit_skb(skb, q, dev, txq);
  		goto out;
-@@ -4332,6 +4366,7 @@ int __dev_direct_xmit(struct sk_buff *skb, u16 queue_id)
+@@ -4336,6 +4370,7 @@ int __dev_direct_xmit(struct sk_buff *skb, u16 queue_id)
  	return NET_XMIT_DROP;
  }
  EXPORT_SYMBOL(__dev_direct_xmit);
@@ -1145,7 +1145,7 @@ index 5d876b9c5275f..e3257d8aaf469 100644
  
  /*************************************************************************
   *			Receiver routines
-@@ -4441,6 +4476,7 @@ set_rps_cpu(struct net_device *dev, struct sk_buff *skb,
+@@ -4445,6 +4480,7 @@ set_rps_cpu(struct net_device *dev, struct sk_buff *skb,
  	return rflow;
  }
  
@@ -1153,7 +1153,7 @@ index 5d876b9c5275f..e3257d8aaf469 100644
  /*
   * get_rps_cpu is called from netif_receive_skb and returns the target
   * CPU from the RPS map of the receiving queue for a given skb.
-@@ -4542,7 +4578,7 @@ static int get_rps_cpu(struct net_device *dev, struct sk_buff *skb,
+@@ -4546,7 +4582,7 @@ static int get_rps_cpu(struct net_device *dev, struct sk_buff *skb,
  done:
  	return cpu;
  }
@@ -1162,7 +1162,7 @@ index 5d876b9c5275f..e3257d8aaf469 100644
  #ifdef CONFIG_RFS_ACCEL
  
  /**
-@@ -4594,6 +4630,7 @@ static void rps_trigger_softirq(void *data)
+@@ -4598,6 +4634,7 @@ static void rps_trigger_softirq(void *data)
  
  #endif /* CONFIG_RPS */
  
@@ -1170,7 +1170,7 @@ index 5d876b9c5275f..e3257d8aaf469 100644
  /*
   * Check if this softnet_data structure is another cpu one
   * If yes, queue it to our IPI list and return 1
-@@ -4614,11 +4651,13 @@ static int rps_ipi_queued(struct softnet_data *sd)
+@@ -4618,11 +4655,13 @@ static int rps_ipi_queued(struct softnet_data *sd)
  #endif /* CONFIG_RPS */
  	return 0;
  }
@@ -1184,7 +1184,7 @@ index 5d876b9c5275f..e3257d8aaf469 100644
  static bool skb_flow_limit(struct sk_buff *skb, unsigned int qlen)
  {
  #ifdef CONFIG_NET_FLOW_LIMIT
-@@ -4932,7 +4971,9 @@ static int netif_rx_internal(struct sk_buff *skb)
+@@ -4936,7 +4975,9 @@ static int netif_rx_internal(struct sk_buff *skb)
  
  	net_timestamp_check(READ_ONCE(netdev_tstamp_prequeue), skb);
  
@@ -1194,7 +1194,7 @@ index 5d876b9c5275f..e3257d8aaf469 100644
  
  #ifdef CONFIG_RPS
  	if (static_branch_unlikely(&rps_needed)) {
-@@ -4980,10 +5021,14 @@ int netif_rx(struct sk_buff *skb)
+@@ -4984,10 +5025,14 @@ int netif_rx(struct sk_buff *skb)
  {
  	int ret;
  
@@ -1209,7 +1209,7 @@ index 5d876b9c5275f..e3257d8aaf469 100644
  
  	return ret;
  }
-@@ -4993,14 +5038,18 @@ int netif_rx_ni(struct sk_buff *skb)
+@@ -4997,14 +5042,18 @@ int netif_rx_ni(struct sk_buff *skb)
  {
  	int err;
  
@@ -1228,7 +1228,7 @@ index 5d876b9c5275f..e3257d8aaf469 100644
  
  	return err;
  }
-@@ -5039,11 +5088,13 @@ static __latent_entropy void net_tx_action(struct softirq_action *h)
+@@ -5043,11 +5092,13 @@ static __latent_entropy void net_tx_action(struct softirq_action *h)
  			clist = clist->next;
  
  			WARN_ON(refcount_read(&skb->users));
@@ -1242,7 +1242,7 @@ index 5d876b9c5275f..e3257d8aaf469 100644
  
  			if (skb->fclone != SKB_FCLONE_UNAVAILABLE)
  				__kfree_skb(skb);
-@@ -5102,6 +5153,7 @@ static __latent_entropy void net_tx_action(struct softirq_action *h)
+@@ -5106,6 +5157,7 @@ static __latent_entropy void net_tx_action(struct softirq_action *h)
  
  	xfrm_dev_backlog(sd);
  }
@@ -1250,7 +1250,7 @@ index 5d876b9c5275f..e3257d8aaf469 100644
  
  #if IS_ENABLED(CONFIG_BRIDGE) && IS_ENABLED(CONFIG_ATM_LANE)
  /* This hook is defined here for ATM LANE */
-@@ -5172,6 +5224,7 @@ sch_handle_ingress(struct sk_buff *skb, struct packet_type **pt_prev, int *ret,
+@@ -5176,6 +5228,7 @@ sch_handle_ingress(struct sk_buff *skb, struct packet_type **pt_prev, int *ret,
  	return skb;
  }
  
@@ -1258,7 +1258,7 @@ index 5d876b9c5275f..e3257d8aaf469 100644
  /**
   *	netdev_is_rx_handler_busy - check if receive handler is registered
   *	@dev: device to check
-@@ -5292,7 +5345,9 @@ static int __netif_receive_skb_core(struct sk_buff **pskb, bool pfmemalloc,
+@@ -5296,7 +5349,9 @@ static int __netif_receive_skb_core(struct sk_buff **pskb, bool pfmemalloc,
  
  	net_timestamp_check(!READ_ONCE(netdev_tstamp_prequeue), skb);
  
@@ -1268,7 +1268,7 @@ index 5d876b9c5275f..e3257d8aaf469 100644
  
  	orig_dev = skb->dev;
  
-@@ -5771,12 +5826,16 @@ void netif_receive_skb_list(struct list_head *head)
+@@ -5775,12 +5830,16 @@ void netif_receive_skb_list(struct list_head *head)
  
  	if (list_empty(head))
  		return;
@@ -1285,7 +1285,7 @@ index 5d876b9c5275f..e3257d8aaf469 100644
  }
  EXPORT_SYMBOL(netif_receive_skb_list);
  
-@@ -6253,12 +6312,16 @@ gro_result_t napi_gro_receive(struct napi_struct *napi, struct sk_buff *skb)
+@@ -6257,12 +6316,16 @@ gro_result_t napi_gro_receive(struct napi_struct *napi, struct sk_buff *skb)
  	gro_result_t ret;
  
  	skb_mark_napi_id(skb, napi);
@@ -1302,7 +1302,7 @@ index 5d876b9c5275f..e3257d8aaf469 100644
  
  	return ret;
  }
-@@ -6382,10 +6445,14 @@ gro_result_t napi_gro_frags(struct napi_struct *napi)
+@@ -6386,10 +6449,14 @@ gro_result_t napi_gro_frags(struct napi_struct *napi)
  	gro_result_t ret;
  	struct sk_buff *skb = napi_frags_skb(napi);
  
@@ -1317,7 +1317,7 @@ index 5d876b9c5275f..e3257d8aaf469 100644
  
  	return ret;
  }
-@@ -6511,6 +6578,7 @@ static int process_backlog(struct napi_struct *napi, int quota)
+@@ -6515,6 +6582,7 @@ static int process_backlog(struct napi_struct *napi, int quota)
  
  	return work;
  }
@@ -1325,7 +1325,7 @@ index 5d876b9c5275f..e3257d8aaf469 100644
  
  /**
   * __napi_schedule - schedule for receive
-@@ -6581,6 +6649,7 @@ void __napi_schedule_irqoff(struct napi_struct *n)
+@@ -6585,6 +6653,7 @@ void __napi_schedule_irqoff(struct napi_struct *n)
  }
  EXPORT_SYMBOL(__napi_schedule_irqoff);
  
@@ -1333,7 +1333,7 @@ index 5d876b9c5275f..e3257d8aaf469 100644
  bool napi_complete_done(struct napi_struct *n, int work_done)
  {
  	unsigned long flags, val, new, timeout = 0;
-@@ -6665,6 +6734,7 @@ static struct napi_struct *napi_by_id(unsigned int napi_id)
+@@ -6669,6 +6738,7 @@ static struct napi_struct *napi_by_id(unsigned int napi_id)
  
  	return NULL;
  }
@@ -1341,7 +1341,7 @@ index 5d876b9c5275f..e3257d8aaf469 100644
  
  #if defined(CONFIG_NET_RX_BUSY_POLL)
  
-@@ -6725,7 +6795,9 @@ static void busy_poll_stop(struct napi_struct *napi, void *have_poll_lock, bool
+@@ -6729,7 +6799,9 @@ static void busy_poll_stop(struct napi_struct *napi, void *have_poll_lock, bool
  	 * rearmed the napi (napi_complete_done()) in which case it could
  	 * already be running on another CPU.
  	 */
@@ -1351,7 +1351,7 @@ index 5d876b9c5275f..e3257d8aaf469 100644
  	netpoll_poll_unlock(have_poll_lock);
  	if (rc == budget)
  		__busy_poll_stop(napi, skip_schedule);
-@@ -6778,7 +6850,9 @@ void napi_busy_loop(unsigned int napi_id,
+@@ -6782,7 +6854,9 @@ void napi_busy_loop(unsigned int napi_id,
  			napi_poll = napi->poll;
  		}
  		work = napi_poll(napi, budget);
@@ -1361,7 +1361,7 @@ index 5d876b9c5275f..e3257d8aaf469 100644
  		gro_normal_list(napi);
  count:
  		if (work > 0)
-@@ -6811,6 +6885,7 @@ EXPORT_SYMBOL(napi_busy_loop);
+@@ -6815,6 +6889,7 @@ EXPORT_SYMBOL(napi_busy_loop);
  
  #endif /* CONFIG_NET_RX_BUSY_POLL */
  
@@ -1369,7 +1369,7 @@ index 5d876b9c5275f..e3257d8aaf469 100644
  static void napi_hash_add(struct napi_struct *napi)
  {
  	if (test_bit(NAPI_STATE_NO_BUSY_POLL, &napi->state))
-@@ -7040,7 +7115,9 @@ static int __napi_poll(struct napi_struct *n, bool *repoll)
+@@ -7044,7 +7119,9 @@ static int __napi_poll(struct napi_struct *n, bool *repoll)
  	work = 0;
  	if (test_bit(NAPI_STATE_SCHED, &n->state)) {
  		work = n->poll(n, weight);
@@ -1379,7 +1379,7 @@ index 5d876b9c5275f..e3257d8aaf469 100644
  	}
  
  	if (unlikely(work > weight))
-@@ -7219,6 +7296,7 @@ static __latent_entropy void net_rx_action(struct softirq_action *h)
+@@ -7223,6 +7300,7 @@ static __latent_entropy void net_rx_action(struct softirq_action *h)
  
  	net_rps_action_and_irq_enable(sd);
  }
@@ -1387,7 +1387,7 @@ index 5d876b9c5275f..e3257d8aaf469 100644
  
  struct netdev_adjacent {
  	struct net_device *dev;
-@@ -7239,6 +7317,7 @@ struct netdev_adjacent {
+@@ -7243,6 +7321,7 @@ struct netdev_adjacent {
  	struct rcu_head rcu;
  };
  
@@ -1395,7 +1395,7 @@ index 5d876b9c5275f..e3257d8aaf469 100644
  static struct netdev_adjacent *__netdev_find_adj(struct net_device *adj_dev,
  						 struct list_head *adj_list)
  {
-@@ -10162,6 +10241,7 @@ static int netif_alloc_rx_queues(struct net_device *dev)
+@@ -10166,6 +10245,7 @@ static int netif_alloc_rx_queues(struct net_device *dev)
  		err = xdp_rxq_info_reg(&rx[i].xdp_rxq, dev, i, 0);
  		if (err < 0)
  			goto err_rxq_info;
@@ -1403,7 +1403,7 @@ index 5d876b9c5275f..e3257d8aaf469 100644
  	}
  	return 0;
  
-@@ -10169,6 +10249,7 @@ static int netif_alloc_rx_queues(struct net_device *dev)
+@@ -10173,6 +10253,7 @@ static int netif_alloc_rx_queues(struct net_device *dev)
  	/* Rollback successful reg's and free other resources */
  	while (i--)
  		xdp_rxq_info_unreg(&rx[i].xdp_rxq);
@@ -1411,7 +1411,7 @@ index 5d876b9c5275f..e3257d8aaf469 100644
  	kvfree(dev->_rx);
  	dev->_rx = NULL;
  	return err;
-@@ -11125,6 +11206,7 @@ void unregister_netdevice_many(struct list_head *head)
+@@ -11130,6 +11211,7 @@ void unregister_netdevice_many(struct list_head *head)
  
  		/* Remove entries from kobject tree */
  		netdev_unregister_kobject(dev);
@@ -1419,7 +1419,7 @@ index 5d876b9c5275f..e3257d8aaf469 100644
  #ifdef CONFIG_XPS
  		/* Remove XPS queueing entries */
  		netif_reset_xps_queues_gt(dev, 0);
-@@ -11286,8 +11368,10 @@ int __dev_change_net_namespace(struct net_device *dev, struct net *net,
+@@ -11291,8 +11373,10 @@ int __dev_change_net_namespace(struct net_device *dev, struct net *net,
  	/* Adapt owner in case owning user namespace of target network
  	 * namespace is different from the original one.
  	 */
@@ -1430,7 +1430,7 @@ index 5d876b9c5275f..e3257d8aaf469 100644
  
  	/* Add the device back in the hashes */
  	list_netdevice(dev);
-@@ -11727,3 +11811,4 @@ static int __init net_dev_init(void)
+@@ -11732,3 +11816,4 @@ static int __init net_dev_init(void)
  }
  
  subsys_initcall(net_dev_init);
@@ -1543,18 +1543,18 @@ index a64acdb69f56b..75e44c120bcf1 100644
  void dst_release(struct dst_entry *dst)
  {
 diff --git a/net/core/filter.c b/net/core/filter.c
-index 457d1a164ad5d..348acb894e1d6 100644
+index b5e1e087a2b92..9646999d9974c 100644
 --- a/net/core/filter.c
 +++ b/net/core/filter.c
-@@ -79,6 +79,7 @@
- #include <net/tls.h>
- #include <net/xdp.h>
+@@ -82,6 +82,7 @@
+ /* Keep the struct bpf_fib_lookup small so that it fits into a cacheline */
+ static_assert(sizeof(struct bpf_fib_lookup) == 64, "struct bpf_fib_lookup size check");
  
 +#ifndef CONFIG_AMLOGIC_ZAPPER_NET_CUT
  static const struct bpf_func_proto *
  bpf_sk_base_func_proto(enum bpf_func_id func_id);
  
-@@ -104,6 +105,7 @@ int copy_bpf_fprog_from_user(struct sock_fprog *dst, sockptr_t src, int len)
+@@ -107,6 +108,7 @@ int copy_bpf_fprog_from_user(struct sock_fprog *dst, sockptr_t src, int len)
  	return 0;
  }
  EXPORT_SYMBOL_GPL(copy_bpf_fprog_from_user);
@@ -1562,7 +1562,7 @@ index 457d1a164ad5d..348acb894e1d6 100644
  
  /**
   *	sk_filter_trim_cap - run a packet through a socket filter
-@@ -157,6 +159,7 @@ int sk_filter_trim_cap(struct sock *sk, struct sk_buff *skb, unsigned int cap)
+@@ -160,6 +162,7 @@ int sk_filter_trim_cap(struct sock *sk, struct sk_buff *skb, unsigned int cap)
  }
  EXPORT_SYMBOL(sk_filter_trim_cap);
  
@@ -1570,7 +1570,7 @@ index 457d1a164ad5d..348acb894e1d6 100644
  BPF_CALL_1(bpf_skb_get_pay_offset, struct sk_buff *, skb)
  {
  	return skb_get_poff(skb);
-@@ -7306,10 +7309,12 @@ bool bpf_helper_changes_pkt_data(void *func)
+@@ -7393,10 +7396,12 @@ bool bpf_helper_changes_pkt_data(void *func)
  
  	return false;
  }
@@ -1583,7 +1583,7 @@ index 457d1a164ad5d..348acb894e1d6 100644
  static const struct bpf_func_proto *
  sock_filter_func_proto(enum bpf_func_id func_id, const struct bpf_prog *prog)
  {
-@@ -7462,10 +7467,12 @@ sk_filter_func_proto(enum bpf_func_id func_id, const struct bpf_prog *prog)
+@@ -7549,10 +7554,12 @@ sk_filter_func_proto(enum bpf_func_id func_id, const struct bpf_prog *prog)
  		return bpf_sk_base_func_proto(func_id);
  	}
  }
@@ -1596,7 +1596,7 @@ index 457d1a164ad5d..348acb894e1d6 100644
  static const struct bpf_func_proto *
  cg_skb_func_proto(enum bpf_func_id func_id, const struct bpf_prog *prog)
  {
-@@ -7567,8 +7574,10 @@ tc_cls_act_func_proto(enum bpf_func_id func_id, const struct bpf_prog *prog)
+@@ -7654,8 +7661,10 @@ tc_cls_act_func_proto(enum bpf_func_id func_id, const struct bpf_prog *prog)
  		return &bpf_redirect_peer_proto;
  	case BPF_FUNC_get_route_realm:
  		return &bpf_get_route_realm_proto;
@@ -1607,7 +1607,7 @@ index 457d1a164ad5d..348acb894e1d6 100644
  	case BPF_FUNC_set_hash_invalid:
  		return &bpf_set_hash_invalid_proto;
  	case BPF_FUNC_set_hash:
-@@ -7676,16 +7685,19 @@ xdp_func_proto(enum bpf_func_id func_id, const struct bpf_prog *prog)
+@@ -7763,16 +7772,19 @@ xdp_func_proto(enum bpf_func_id func_id, const struct bpf_prog *prog)
  		return bpf_sk_base_func_proto(func_id);
  	}
  }
@@ -1628,7 +1628,7 @@ index 457d1a164ad5d..348acb894e1d6 100644
  	case BPF_FUNC_getsockopt:
  		return &bpf_sock_ops_getsockopt_proto;
  	case BPF_FUNC_sock_ops_cb_flags_set:
-@@ -7720,10 +7732,11 @@ sock_ops_func_proto(enum bpf_func_id func_id, const struct bpf_prog *prog)
+@@ -7807,10 +7819,11 @@ sock_ops_func_proto(enum bpf_func_id func_id, const struct bpf_prog *prog)
  		return bpf_sk_base_func_proto(func_id);
  	}
  }
@@ -1641,7 +1641,7 @@ index 457d1a164ad5d..348acb894e1d6 100644
  static const struct bpf_func_proto *
  sk_msg_func_proto(enum bpf_func_id func_id, const struct bpf_prog *prog)
  {
-@@ -7768,16 +7781,19 @@ sk_msg_func_proto(enum bpf_func_id func_id, const struct bpf_prog *prog)
+@@ -7855,16 +7868,19 @@ sk_msg_func_proto(enum bpf_func_id func_id, const struct bpf_prog *prog)
  		return bpf_sk_base_func_proto(func_id);
  	}
  }
@@ -1662,7 +1662,7 @@ index 457d1a164ad5d..348acb894e1d6 100644
  	case BPF_FUNC_skb_load_bytes:
  		return &bpf_skb_load_bytes_proto;
  	case BPF_FUNC_skb_pull_data:
-@@ -7830,16 +7846,20 @@ lwt_out_func_proto(enum bpf_func_id func_id, const struct bpf_prog *prog)
+@@ -7917,16 +7933,20 @@ lwt_out_func_proto(enum bpf_func_id func_id, const struct bpf_prog *prog)
  	switch (func_id) {
  	case BPF_FUNC_skb_load_bytes:
  		return &bpf_skb_load_bytes_proto;
@@ -1683,7 +1683,7 @@ index 457d1a164ad5d..348acb894e1d6 100644
  	case BPF_FUNC_perf_event_output:
  		return &bpf_skb_event_output_proto;
  	case BPF_FUNC_get_smp_processor_id:
-@@ -10358,6 +10378,7 @@ int sk_get_filter(struct sock *sk, sockptr_t optval, unsigned int len)
+@@ -10445,6 +10465,7 @@ int sk_get_filter(struct sock *sk, sockptr_t optval, unsigned int len)
  	release_sock(sk);
  	return ret;
  }
@@ -1691,7 +1691,7 @@ index 457d1a164ad5d..348acb894e1d6 100644
  
  #ifdef CONFIG_INET
  static void bpf_init_reuseport_kern(struct sk_reuseport_kern *reuse_kern,
-@@ -10815,6 +10836,7 @@ const struct bpf_verifier_ops sk_lookup_verifier_ops = {
+@@ -10902,6 +10923,7 @@ const struct bpf_verifier_ops sk_lookup_verifier_ops = {
  
  #endif /* CONFIG_INET */
  
@@ -1699,13 +1699,13 @@ index 457d1a164ad5d..348acb894e1d6 100644
  DEFINE_BPF_DISPATCHER(xdp)
  
  void bpf_prog_change_xdp(struct bpf_prog *prev_prog, struct bpf_prog *prog)
-@@ -10991,3 +11013,4 @@ bpf_sk_base_func_proto(enum bpf_func_id func_id)
+@@ -11078,3 +11100,4 @@ bpf_sk_base_func_proto(enum bpf_func_id func_id)
  
  	return func;
  }
 +#endif
 diff --git a/net/core/net-sysfs.c b/net/core/net-sysfs.c
-index e9ea0695efb42..ac8b570081b7b 100644
+index 173ea92124f8c..e49c4f5964591 100644
 --- a/net/core/net-sysfs.c
 +++ b/net/core/net-sysfs.c
 @@ -242,7 +242,6 @@ static ssize_t duplex_show(struct device *dev,
@@ -1717,10 +1717,10 @@ index e9ea0695efb42..ac8b570081b7b 100644
  			const char *duplex;
  
 diff --git a/net/core/net_namespace.c b/net/core/net_namespace.c
-index dcddc54d08409..8d6e238e578e5 100644
+index 3addbce20f8ed..40bcd39ca26de 100644
 --- a/net/core/net_namespace.c
 +++ b/net/core/net_namespace.c
-@@ -184,6 +184,7 @@ static void ops_free_list(const struct pernet_operations *ops,
+@@ -187,6 +187,7 @@ static void ops_free_list(const struct pernet_operations *ops,
  	}
  }
  
@@ -1728,7 +1728,7 @@ index dcddc54d08409..8d6e238e578e5 100644
  /* should be called with nsid_lock held */
  static int alloc_netid(struct net *net, struct net *peer, int reqid)
  {
-@@ -302,6 +303,7 @@ struct net *get_net_ns_by_id(const struct net *net, int id)
+@@ -305,6 +306,7 @@ struct net *get_net_ns_by_id(const struct net *net, int id)
  
  	return peer;
  }
@@ -1736,7 +1736,7 @@ index dcddc54d08409..8d6e238e578e5 100644
  
  /*
   * setup_net runs the initializers for the network namespace object.
-@@ -718,6 +720,7 @@ static struct pernet_operations __net_initdata net_ns_ops = {
+@@ -726,6 +728,7 @@ static struct pernet_operations __net_initdata net_ns_ops = {
  	.exit = net_ns_net_exit,
  };
  
@@ -1744,7 +1744,7 @@ index dcddc54d08409..8d6e238e578e5 100644
  static const struct nla_policy rtnl_net_policy[NETNSA_MAX + 1] = {
  	[NETNSA_NONE]		= { .type = NLA_UNSPEC },
  	[NETNSA_NSID]		= { .type = NLA_S32 },
-@@ -1081,7 +1084,7 @@ static void rtnl_net_notifyid(struct net *net, int cmd, int id, u32 portid,
+@@ -1089,7 +1092,7 @@ static void rtnl_net_notifyid(struct net *net, int cmd, int id, u32 portid,
  out:
  	rtnl_set_sk_err(net, RTNLGRP_NSID, err);
  }
@@ -1753,7 +1753,7 @@ index dcddc54d08409..8d6e238e578e5 100644
  void __init net_ns_init(void)
  {
  	struct net_generic *ng;
-@@ -1116,10 +1119,12 @@ void __init net_ns_init(void)
+@@ -1124,10 +1127,12 @@ void __init net_ns_init(void)
  	if (register_pernet_subsys(&net_ns_ops))
  		panic("Could not register network namespace subsystems");
  
@@ -1767,7 +1767,7 @@ index dcddc54d08409..8d6e238e578e5 100644
  
  static void free_exit_list(struct pernet_operations *ops, struct list_head *net_exit_list)
 diff --git a/net/core/rtnetlink.c b/net/core/rtnetlink.c
-index ef218e290dfba..525ec07c6cbd8 100644
+index 24795110b2ff3..9ca63f80b4f92 100644
 --- a/net/core/rtnetlink.c
 +++ b/net/core/rtnetlink.c
 @@ -108,8 +108,12 @@ void __rtnl_unlock(void)
@@ -1783,7 +1783,7 @@ index ef218e290dfba..525ec07c6cbd8 100644
  }
  EXPORT_SYMBOL(rtnl_unlock);
  
-@@ -2700,12 +2704,14 @@ static int do_setlink(const struct sk_buff *skb,
+@@ -2735,12 +2739,14 @@ static int do_setlink(const struct sk_buff *skb,
  		status |= DO_SETLINK_MODIFIED;
  	}
  
@@ -1798,7 +1798,7 @@ index ef218e290dfba..525ec07c6cbd8 100644
  
  	if (tb[IFLA_GROUP]) {
  		dev_set_group(dev, nla_get_u32(tb[IFLA_GROUP]));
-@@ -3145,6 +3151,7 @@ static int rtnl_dellink(struct sk_buff *skb, struct nlmsghdr *nlh,
+@@ -3168,6 +3174,7 @@ static int rtnl_dellink(struct sk_buff *skb, struct nlmsghdr *nlh,
  
  int rtnl_configure_link(struct net_device *dev, const struct ifinfomsg *ifm)
  {
@@ -1806,7 +1806,7 @@ index ef218e290dfba..525ec07c6cbd8 100644
  	unsigned int old_flags;
  	int err;
  
-@@ -3162,6 +3169,7 @@ int rtnl_configure_link(struct net_device *dev, const struct ifinfomsg *ifm)
+@@ -3185,6 +3192,7 @@ int rtnl_configure_link(struct net_device *dev, const struct ifinfomsg *ifm)
  		dev->rtnl_link_state = RTNL_LINK_INITIALIZED;
  		__dev_notify_flags(dev, old_flags, ~0U);
  	}
@@ -1814,7 +1814,7 @@ index ef218e290dfba..525ec07c6cbd8 100644
  	return 0;
  }
  EXPORT_SYMBOL(rtnl_configure_link);
-@@ -3499,8 +3507,10 @@ static int __rtnl_newlink(struct sk_buff *skb, struct nlmsghdr *nlh,
+@@ -3519,8 +3527,10 @@ static int __rtnl_newlink(struct sk_buff *skb, struct nlmsghdr *nlh,
  
  	if (ops->newlink)
  		err = ops->newlink(link_net ? : net, dev, tb, data, extack);
@@ -1825,7 +1825,7 @@ index ef218e290dfba..525ec07c6cbd8 100644
  	if (err < 0) {
  		free_netdev(dev);
  		goto out;
-@@ -3916,6 +3926,7 @@ void rtmsg_ifinfo_newnet(int type, struct net_device *dev, unsigned int change,
+@@ -3934,6 +3944,7 @@ void rtmsg_ifinfo_newnet(int type, struct net_device *dev, unsigned int change,
  			   new_nsid, new_ifindex);
  }
  
@@ -1833,7 +1833,7 @@ index ef218e290dfba..525ec07c6cbd8 100644
  static int nlmsg_populate_fdb_fill(struct sk_buff *skb,
  				   struct net_device *dev,
  				   u8 *addr, u16 vid, u32 pid, u32 seq,
-@@ -3951,6 +3962,7 @@ static int nlmsg_populate_fdb_fill(struct sk_buff *skb,
+@@ -3969,6 +3980,7 @@ static int nlmsg_populate_fdb_fill(struct sk_buff *skb,
  	nlmsg_cancel(skb, nlh);
  	return -EMSGSIZE;
  }
@@ -1841,7 +1841,7 @@ index ef218e290dfba..525ec07c6cbd8 100644
  
  static inline size_t rtnl_fdb_nlmsg_size(const struct net_device *dev)
  {
-@@ -3960,6 +3972,7 @@ static inline size_t rtnl_fdb_nlmsg_size(const struct net_device *dev)
+@@ -3978,6 +3990,7 @@ static inline size_t rtnl_fdb_nlmsg_size(const struct net_device *dev)
  	       0;
  }
  
@@ -1849,7 +1849,7 @@ index ef218e290dfba..525ec07c6cbd8 100644
  static void rtnl_fdb_notify(struct net_device *dev, u8 *addr, u16 vid, int type,
  			    u16 ndm_state)
  {
-@@ -3983,7 +3996,7 @@ static void rtnl_fdb_notify(struct net_device *dev, u8 *addr, u16 vid, int type,
+@@ -4001,7 +4014,7 @@ static void rtnl_fdb_notify(struct net_device *dev, u8 *addr, u16 vid, int type,
  errout:
  	rtnl_set_sk_err(net, RTNLGRP_NEIGH, err);
  }
@@ -1858,7 +1858,7 @@ index ef218e290dfba..525ec07c6cbd8 100644
  /*
   * ndo_dflt_fdb_add - default netdevice operation to add an FDB entry
   */
-@@ -4021,6 +4034,7 @@ int ndo_dflt_fdb_add(struct ndmsg *ndm,
+@@ -4039,6 +4052,7 @@ int ndo_dflt_fdb_add(struct ndmsg *ndm,
  }
  EXPORT_SYMBOL(ndo_dflt_fdb_add);
  
@@ -1866,7 +1866,7 @@ index ef218e290dfba..525ec07c6cbd8 100644
  static int fdb_vid_parse(struct nlattr *vlan_attr, u16 *p_vid,
  			 struct netlink_ext_ack *extack)
  {
-@@ -4642,7 +4656,7 @@ static int rtnl_fdb_get(struct sk_buff *in_skb, struct nlmsghdr *nlh,
+@@ -4660,7 +4674,7 @@ static int rtnl_fdb_get(struct sk_buff *in_skb, struct nlmsghdr *nlh,
  	kfree_skb(skb);
  	return err;
  }
@@ -1875,7 +1875,7 @@ index ef218e290dfba..525ec07c6cbd8 100644
  static int brport_nla_put_flag(struct sk_buff *skb, u32 flags, u32 mask,
  			       unsigned int attrnum, unsigned int flag)
  {
-@@ -5740,10 +5754,11 @@ void __init rtnetlink_init(void)
+@@ -5758,10 +5772,11 @@ void __init rtnetlink_init(void)
  	rtnl_register(PF_UNSPEC, RTM_NEWLINKPROP, rtnl_newlinkprop, NULL, 0);
  	rtnl_register(PF_UNSPEC, RTM_DELLINKPROP, rtnl_dellinkprop, NULL, 0);
  
@@ -1889,7 +1889,7 @@ index ef218e290dfba..525ec07c6cbd8 100644
  	rtnl_register(PF_BRIDGE, RTM_DELLINK, rtnl_bridge_dellink, NULL, 0);
  	rtnl_register(PF_BRIDGE, RTM_SETLINK, rtnl_bridge_setlink, NULL, 0);
 diff --git a/net/core/skbuff.c b/net/core/skbuff.c
-index 9a8d324e5c387..2af997e67444f 100644
+index 10a2c8d2e841a..47fb040bd716a 100644
 --- a/net/core/skbuff.c
 +++ b/net/core/skbuff.c
 @@ -774,7 +774,9 @@ void kfree_skb_reason(struct sk_buff *skb, enum skb_drop_reason reason)
@@ -1932,7 +1932,7 @@ index 9a8d324e5c387..2af997e67444f 100644
  
  	/* if SKB is a clone, don't handle this case */
  	if (skb->fclone != SKB_FCLONE_UNAVAILABLE) {
-@@ -3017,6 +3025,7 @@ __wsum skb_copy_and_csum_bits(const struct sk_buff *skb, int offset,
+@@ -3052,6 +3060,7 @@ __wsum skb_copy_and_csum_bits(const struct sk_buff *skb, int offset,
  }
  EXPORT_SYMBOL(skb_copy_and_csum_bits);
  
@@ -1940,7 +1940,7 @@ index 9a8d324e5c387..2af997e67444f 100644
  __sum16 __skb_checksum_complete_head(struct sk_buff *skb, int len)
  {
  	__sum16 sum;
-@@ -3075,6 +3084,7 @@ __sum16 __skb_checksum_complete(struct sk_buff *skb)
+@@ -3110,6 +3119,7 @@ __sum16 __skb_checksum_complete(struct sk_buff *skb)
  	return sum;
  }
  EXPORT_SYMBOL(__skb_checksum_complete);
@@ -1949,7 +1949,7 @@ index 9a8d324e5c387..2af997e67444f 100644
  static __wsum warn_crc32c_csum_update(const void *buff, int len, __wsum sum)
  {
 diff --git a/net/core/sock.c b/net/core/sock.c
-index ef6bbfbe6407e..819a87370d53f 100644
+index be0df4535fa79..72cdfb15ab9bf 100644
 --- a/net/core/sock.c
 +++ b/net/core/sock.c
 @@ -343,9 +343,11 @@ void sk_error_report(struct sock *sk)
@@ -1966,7 +1966,7 @@ index ef6bbfbe6407e..819a87370d53f 100644
  	}
 @@ -463,7 +465,9 @@ int __sock_queue_rcv_skb(struct sock *sk, struct sk_buff *skb)
  
- 	if (atomic_read(&sk->sk_rmem_alloc) >= sk->sk_rcvbuf) {
+ 	if (atomic_read(&sk->sk_rmem_alloc) >= READ_ONCE(sk->sk_rcvbuf)) {
  		atomic_inc(&sk->sk_drops);
 +#ifndef CONFIG_AMLOGIC_ZAPPER_NET_CUT
  		trace_sock_rcvqueue_full(sk, skb);
@@ -2273,7 +2273,7 @@ index 1f31a39236d52..bdb6f62a6fd36 100644
  		pr_err("unexpected address family %d\n", af);
  	}
 diff --git a/net/ethernet/eth.c b/net/ethernet/eth.c
-index 73fce9467467e..b9b645e33bedf 100644
+index ab2ef6250142d..2fe0a5145610c 100644
 --- a/net/ethernet/eth.c
 +++ b/net/ethernet/eth.c
 @@ -112,6 +112,7 @@ int eth_header(struct sk_buff *skb, struct net_device *dev,
@@ -2293,7 +2293,7 @@ index 73fce9467467e..b9b645e33bedf 100644
  /**
   * eth_type_trans - determine the packet's protocol ID.
   * @skb: received socket data
-@@ -503,6 +504,7 @@ unsigned char * __weak arch_get_platform_mac_address(void)
+@@ -488,6 +489,7 @@ unsigned char * __weak arch_get_platform_mac_address(void)
  	return NULL;
  }
  
@@ -2301,7 +2301,7 @@ index 73fce9467467e..b9b645e33bedf 100644
  int eth_platform_get_mac_address(struct device *dev, u8 *mac_addr)
  {
  	unsigned char *addr;
-@@ -521,7 +523,7 @@ int eth_platform_get_mac_address(struct device *dev, u8 *mac_addr)
+@@ -506,7 +508,7 @@ int eth_platform_get_mac_address(struct device *dev, u8 *mac_addr)
  	return 0;
  }
  EXPORT_SYMBOL(eth_platform_get_mac_address);
@@ -2311,7 +2311,7 @@ index 73fce9467467e..b9b645e33bedf 100644
   * nvmem_get_mac_address - Obtain the MAC address from an nvmem cell named
   * 'mac-address' associated with given device.
 diff --git a/net/netlink/af_netlink.c b/net/netlink/af_netlink.c
-index 3a7a007b24cbf..f34430307cf08 100644
+index a9beadf958382..fa05bf06e4c08 100644
 --- a/net/netlink/af_netlink.c
 +++ b/net/netlink/af_netlink.c
 @@ -205,6 +205,7 @@ int netlink_add_tap(struct netlink_tap *nt)
@@ -2365,7 +2365,7 @@ index 3a7a007b24cbf..f34430307cf08 100644
  	val = netlink_broadcast_deliver(sk, p->skb2);
  	if (val < 0) {
  		netlink_overrun(sk);
-@@ -2905,8 +2913,10 @@ static int __init netlink_proto_init(void)
+@@ -2906,8 +2914,10 @@ static int __init netlink_proto_init(void)
  	sock_register(&netlink_family_ops);
  	register_pernet_subsys(&netlink_net_ops);
  	register_pernet_subsys(&netlink_tap_net_ops);
@@ -2559,7 +2559,7 @@ index 02299785209c1..ea4b344d2dbf1 100644
  /**
   * psched_ratecfg_precompute__() - Pre-compute values for reciprocal division
 diff --git a/net/socket.c b/net/socket.c
-index b15e63dd55c5d..38e382ecc16ff 100644
+index d659c2f823150..9c5c0027b267c 100644
 --- a/net/socket.c
 +++ b/net/socket.c
 @@ -817,18 +817,22 @@ static bool skb_is_swtx_tstamp(const struct sk_buff *skb, int false_tstamp)
@@ -2597,10 +2597,10 @@ index b15e63dd55c5d..38e382ecc16ff 100644
  		default:
  			err = sock_do_ioctl(net, sock, cmd, arg);
 diff --git a/security/Kconfig b/security/Kconfig
-index 5d412b3ddc496..1084e8c9fe822 100644
+index 6c9b5869e675a..63b28a4e83056 100644
 --- a/security/Kconfig
 +++ b/security/Kconfig
-@@ -264,7 +264,7 @@ choice
+@@ -296,7 +296,7 @@ choice
  		bool "AppArmor" if SECURITY_APPARMOR=y
  
  	config DEFAULT_SECURITY_DAC

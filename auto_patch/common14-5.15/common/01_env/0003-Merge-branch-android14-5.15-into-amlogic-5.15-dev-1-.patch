@@ -1,4 +1,4 @@
-From 2810791813955becb6cec18df110a9509ba3bc3b Mon Sep 17 00:00:00 2001
+From 719cadd11e3a6120fa6b3c869ccb79ec03780a2c Mon Sep 17 00:00:00 2001
 From: Wanwei Jiang <wanwei.jiang@amlogic.com>
 Date: Tue, 7 Feb 2023 17:19:36 +0800
 Subject: [PATCH] Merge branch 'android14-5.15' into amlogic-5.15-dev [1/1]
@@ -9,10 +9,10 @@ Problem:
 record merge upstream information
 
 Solution:
-AML_KERNEL_VERSION      12
-UPSTREAM_VERSION        "2447b4c0a5ca8"
-AML_PATCH_VERSION       "2447b4c0a5ca8"
-MERGE_DATE              "2024-08-02"
+AML_KERNEL_VERSION      13
+UPSTREAM_VERSION        "c0bad795ed1a0"
+AML_PATCH_VERSION       "c0bad795ed1a0"
+MERGE_DATE              "2025-03-12"
 
 Verify:
 sc2
@@ -26,7 +26,7 @@ Signed-off-by: Wanwei Jiang <wanwei.jiang@amlogic.com>
 
 diff --git a/include/linux/upstream_version.h b/include/linux/upstream_version.h
 new file mode 100644
-index 0000000000000..6f54eab0f2adc
+index 000000000000..7f016e7cbf9f
 --- /dev/null
 +++ b/include/linux/upstream_version.h
 @@ -0,0 +1,14 @@
@@ -38,10 +38,10 @@ index 0000000000000..6f54eab0f2adc
 +#ifndef _LINUX_UPSTREAM_VERSION_H
 +#define _LINUX_UPSTREAM_VERSION_H
 +
-+#define AML_KERNEL_VERSION	12
-+#define UPSTREAM_VERSION	"2447b4c0a5ca8"
-+#define AML_PATCH_VERSION	"2447b4c0a5ca8"
-+#define MERGE_DATE		"2024-08-02"
++#define AML_KERNEL_VERSION	13
++#define UPSTREAM_VERSION	"c0bad795ed1a0"
++#define AML_PATCH_VERSION	"c0bad795ed1a0"
++#define MERGE_DATE		"2025-03-12"
 +
 +#endif
 -- 

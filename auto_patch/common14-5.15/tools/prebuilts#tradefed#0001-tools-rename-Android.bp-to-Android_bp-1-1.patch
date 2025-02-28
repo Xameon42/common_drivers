@@ -1,0 +1,42 @@
+From be691955a498bfeb98db0672fe600821984cad25 Mon Sep 17 00:00:00 2001
+From: "qinglin.li" <qinglin.li@amlogic.com>
+Date: Tue, 4 Mar 2025 17:30:50 +0800
+Subject: [PATCH] tools: rename Android.bp to Android_bp [1/1]
+
+PD#SWPL-204237
+
+Problem:
+rename Android.bp to Android_bp
+
+Solution:
+rename Android.bp to Android_bp
+
+Verify:
+local
+
+Change-Id: Ifa899edfe8b9ea7f88a4a39a4c381a0f0a683c34
+Signed-off-by: qinglin.li <qinglin.li@amlogic.com>
+---
+ filegroups/suite/{Android.bp => Android_bp}    | 0
+ filegroups/tradefed/{Android.bp => Android_bp} | 0
+ test_harness/{Android.bp => Android_bp}        | 0
+ 3 files changed, 0 insertions(+), 0 deletions(-)
+ rename filegroups/suite/{Android.bp => Android_bp} (100%)
+ rename filegroups/tradefed/{Android.bp => Android_bp} (100%)
+ rename test_harness/{Android.bp => Android_bp} (100%)
+
+diff --git a/filegroups/suite/Android.bp b/filegroups/suite/Android_bp
+similarity index 100%
+rename from filegroups/suite/Android.bp
+rename to filegroups/suite/Android_bp
+diff --git a/filegroups/tradefed/Android.bp b/filegroups/tradefed/Android_bp
+similarity index 100%
+rename from filegroups/tradefed/Android.bp
+rename to filegroups/tradefed/Android_bp
+diff --git a/test_harness/Android.bp b/test_harness/Android_bp
+similarity index 100%
+rename from test_harness/Android.bp
+rename to test_harness/Android_bp
+-- 
+2.42.0
+

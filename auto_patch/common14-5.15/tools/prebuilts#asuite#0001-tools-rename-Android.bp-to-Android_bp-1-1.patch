@@ -1,0 +1,30 @@
+From b624d46ec7e083c2685f61cac6af8dc5a7aef05a Mon Sep 17 00:00:00 2001
+From: "qinglin.li" <qinglin.li@amlogic.com>
+Date: Tue, 4 Mar 2025 17:28:02 +0800
+Subject: [PATCH] tools: rename Android.bp to Android_bp [1/1]
+
+PD#SWPL-204237
+
+Problem:
+rename Android.bp to Android_bp
+
+Solution:
+rename Android.bp to Android_bp
+
+Verify:
+local
+
+Change-Id: I4f143e1fed1ea04382bfbe3afb2010bea6566eb1
+Signed-off-by: qinglin.li <qinglin.li@amlogic.com>
+---
+ acloud/linux-x86/{Android.bp => Android_bp} | 0
+ 1 file changed, 0 insertions(+), 0 deletions(-)
+ rename acloud/linux-x86/{Android.bp => Android_bp} (100%)
+
+diff --git a/acloud/linux-x86/Android.bp b/acloud/linux-x86/Android_bp
+similarity index 100%
+rename from acloud/linux-x86/Android.bp
+rename to acloud/linux-x86/Android_bp
+-- 
+2.42.0
+
