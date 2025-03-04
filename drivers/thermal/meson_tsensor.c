@@ -1171,7 +1171,7 @@ static int __init meson_platdrv_init(void)
 static __exit void meson_platdrv_exit(void)
 {
 	platform_driver_unregister(&meson_cooldev_platdrv);
-	platform_driver_register(&ddr_control_platdrv);
+	platform_driver_unregister(&ddr_control_platdrv);
 	platform_driver_unregister(&meson_tsensor_driver);
 }
 
