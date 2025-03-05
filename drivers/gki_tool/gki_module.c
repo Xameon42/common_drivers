@@ -22,6 +22,7 @@
 #include <linux/kconfig.h>
 #include <linux/security.h>
 #include <linux/kprobes.h>
+#include <linux/kasan.h>
 #include "gki_tool.h"
 
 #if defined(CONFIG_CMDLINE_FORCE)
@@ -73,6 +74,7 @@ void __module_init_hook(struct module *m)
 	struct gki_module_setup_struct *s;
 	int i, j;
 	static int initialized;
+	int match;
 
 	if (!initialized) {
 		gki_module_init();
@@ -83,19 +85,22 @@ void __module_init_hook(struct module *m)
 		sym = &m->syms[i];
 		s = (struct gki_module_setup_struct *)gki_symbol_value(sym);
 
-		if (s->magic1 == GKI_MODULE_SETUP_MAGIC1 &&
-		    s->magic2 == GKI_MODULE_SETUP_MAGIC2) {
-			pr_debug("setup: %s, %ps (early=%d)\n",
-				s->str, s->fn, s->early);
-			for (j = 0; j < cpv_count; j++) {
-				int n = strlen(cpv[j].param);
-				int (*fn)(char *str) = s->fn;
+		kasan_disable_current();
+		match = s->magic1 == GKI_MODULE_SETUP_MAGIC1 && s->magic2 == GKI_MODULE_SETUP_MAGIC2;
+		kasan_enable_current();
+		if (!match)
+			continue;
 
-				if (gki_tool_parameqn(cpv[j].param, s->str, n) &&
-				   (s->str[n] == '=' || !s->str[n])) {
-					fn(cpv[j].val);
-					continue;
-				}
+		pr_debug("setup: %s, %ps (early=%d)\n",
+			s->str, s->fn, s->early);
+		for (j = 0; j < cpv_count; j++) {
+			int n = strlen(cpv[j].param);
+			int (*fn)(char *str) = s->fn;
+
+			if (gki_tool_parameqn(cpv[j].param, s->str, n) &&
+			   (s->str[n] == '=' || !s->str[n])) {
+				fn(cpv[j].val);
+				continue;
 			}
 		}
 	}
