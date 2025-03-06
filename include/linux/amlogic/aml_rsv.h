@@ -107,7 +107,7 @@ struct meson_rsv_handler_t {
 	struct meson_rsv_info_t *key;
 	struct meson_rsv_info_t *dtb;
 	struct meson_rsv_ops rsv_ops;
-	void *priv;
+	s8 *bbt_buf;
 };
 
 int meson_rsv_key_read(u_char *dest, size_t size);

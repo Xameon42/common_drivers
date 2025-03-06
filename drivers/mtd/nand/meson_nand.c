@@ -1735,15 +1735,6 @@ meson_nfc_nand_chip_init(struct device *dev,
 	mtd->_block_isbad =  meson_nand_block_isbad;
 	mtd->_block_markbad = meson_nand_block_markbad;
 	if (aml_mtd_devnum != 0) {
-		nfc->rsv->mtd = mtd;
-		nfc->rsv->rsv_ops._erase = meson_nand_rsv_erase;
-		nfc->rsv->rsv_ops._write_oob = meson_nand_rsv_write_oob;
-		nfc->rsv->rsv_ops._read_oob = meson_nand_rsv_read_oob;
-		nfc->rsv->rsv_ops._block_markbad = NULL;
-		nfc->rsv->rsv_ops._block_isbad = meson_nand_rsv_isbad;
-		nfc->rsv->rsv_ops._get_device = meson_nand_rsv_get_device;
-		nfc->rsv->rsv_ops._release_device = meson_nand_rsv_release_device;
-		meson_rsv_init(mtd, nfc->rsv);
 		nfc->block_status = kzalloc((mtd->size >> mtd->erasesize_shift),
 					    GFP_KERNEL);
 		if (!nfc->block_status) {
@@ -1752,18 +1743,25 @@ meson_nfc_nand_chip_init(struct device *dev,
 			goto exit_err2;
 		}
 
-		ret = meson_nand_bbt_check(nand);
-		if (ret) {
-			pr_info("invalid nand bbt\n");
-			goto exit_err2;
+		if (nand->options & NAND_SKIP_BBTSCAN) {
+			nand->bbt = nfc->block_status;
+			mtd_to_nand(aml_mtd_info[0])->bbt = nfc->block_status;
 		}
 
-		if (meson_rsv_get_block_cnt(NAND_ENV_INDEX))
-			meson_rsv_check(nfc->rsv->env);
-		if (meson_rsv_get_block_cnt(NAND_KEY_INDEX))
-			meson_rsv_check(nfc->rsv->key);
-		if (meson_rsv_get_block_cnt(NAND_DTB_INDEX))
-			meson_rsv_check(nfc->rsv->dtb);
+		nfc->rsv->mtd = mtd;
+		nfc->rsv->bbt_buf = nfc->block_status;
+		nfc->rsv->rsv_ops._erase = meson_nand_rsv_erase;
+		nfc->rsv->rsv_ops._write_oob = meson_nand_rsv_write_oob;
+		nfc->rsv->rsv_ops._read_oob = meson_nand_rsv_read_oob;
+		nfc->rsv->rsv_ops._block_markbad = NULL;
+		nfc->rsv->rsv_ops._block_isbad = meson_nand_rsv_isbad;
+		nfc->rsv->rsv_ops._get_device = meson_nand_rsv_get_device;
+		nfc->rsv->rsv_ops._release_device = meson_nand_rsv_release_device;
+		meson_rsv_init(mtd, nfc->rsv);
+		if (ret) {
+			pr_info("meson_rsv_init failed\n");
+			goto exit_err2;
+		}
 	}
 	ret = mtd_device_parse_register(mtd, meson_types, NULL, NULL, 0);
 	if (ret) {

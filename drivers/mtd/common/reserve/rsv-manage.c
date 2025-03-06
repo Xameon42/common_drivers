@@ -1003,6 +1003,7 @@ int meson_rsv_init(struct mtd_info *mtd,
 {
 	int i, ret = 0;
 	unsigned int env_size = 0;
+	s8 *block_status = handler->bbt_buf;
 
 	meson_rsv_prase_parameter_init(mtd);
 
@@ -1147,29 +1148,38 @@ int meson_rsv_init(struct mtd_info *mtd,
 		}
 	}
 
+	rsv_handler = handler;
+
 	pr_info("bbt_start=%d end=%d size=0x%x\n", handler->bbt->start_block,
 			handler->bbt->end_block,
 			handler->bbt->size);
+	meson_rsv_check(handler->bbt);
+	if (handler->bbt->valid == 0 || !block_status)
+		goto error;
+	meson_rsv_read(handler->bbt, block_status);
+
 	if (rsv_parts[NAND_ENV_INDEX].block_cnt) {
 		pr_info("env_start=%d end=%d size=0x%x\n", handler->env->start_block,
 				handler->env->end_block,
 				handler->env->size);
+		meson_rsv_check(handler->env);
 		meson_rsv_register_cdev(handler->env, ENV_CDEV_NAME);
 	}
 	if (rsv_parts[NAND_KEY_INDEX].block_cnt) {
 		pr_info("key_start=%d end=%d size=0x%x\n", handler->key->start_block,
 				handler->key->end_block,
 				handler->key->size);
+		meson_rsv_check(handler->key);
 		meson_rsv_register_unifykey(handler->key);
 	}
 	if (rsv_parts[NAND_DTB_INDEX].block_cnt) {
 		pr_info("dtb_start=%d end=%d size=0x%x\n", handler->dtb->start_block,
 				handler->dtb->end_block,
 				handler->dtb->size);
+		meson_rsv_check(handler->dtb);
 		meson_rsv_register_cdev(handler->dtb, DTB_CDEV_NAME);
 	}
 
-	rsv_handler = handler;
 	return ret;
 error:
 	for (i = 0; i < rsv_parts[NAND_RSV_INDEX].block_cnt; i++) {
