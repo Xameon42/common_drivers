@@ -546,6 +546,7 @@ static void amlogic_pcie_host_compatible_special_dev(struct amlogic_pcie *amlogi
 	struct pci_dev *dev = NULL;
 
 	for_each_pci_dev(dev) {
+		dev->d3hot_delay = 0;
 		if (dev->vendor == 0X1F35) {
 			amlogic->do_reset_gpio = false;
 			dev_dbg(amlogic->dev, "dev->vendor =0x%x\n", dev->vendor);
