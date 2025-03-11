@@ -1253,10 +1253,6 @@ static void hdmitx_set_hdr10plus_pkt(unsigned int flag,
 	struct hdmitx_hw_common *tx_hw_base = &hdev->tx_hw.base;
 	struct rx_cap *prxcap = &hdev->tx_comm.rxcap;
 
-	/* HDR10plus is only supported by OTT when is_hdr10plus_enable is true */
-	if (!is_hdr10plus_enable())
-		return;
-
 	HDMITX_DEBUG_PACKET("%s[%d]\n", __func__, __LINE__);
 	if (data)
 		memcpy(&hdr10p_config_data, data,
@@ -3697,6 +3693,12 @@ static int amhdmitx_get_dt_info(struct platform_device *pdev, struct hdmitx_dev 
 					   &hdev->tx_comm.hdcp_ctl_lvl);
 		if (ret)
 			hdev->tx_comm.hdcp_ctl_lvl = 0;
+
+		ret = of_property_read_u32(pdev->dev.of_node, "enable_hdr10plus", &val);
+		if (ret)
+			HDMITX_INFO("not find enable_hdr10plus\n");
+		else
+			hdev->tx_comm.enable_hdr10plus = val;
 
 		/* Get reg information */
 		ret = hdmitx_init_reg_map(pdev);

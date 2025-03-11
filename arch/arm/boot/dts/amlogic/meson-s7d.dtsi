@@ -19,6 +19,7 @@
 #include <dt-bindings/mailbox/amlogic,mbox.h>
 #include <dt-bindings/mailbox/s7d-mbox.h>
 #include <dt-bindings/iio/adc/amlogic-saradc.h>
+#include <dt-bindings/display/hdr10plus.h>
 #include "meson-ir-map.dtsi"
 #include "meson-valhall.dtsi"
 
@@ -1161,6 +1162,7 @@
 		interrupt-names = "hdmitx_hpd", "vrr_vsync";
 		enc_idx = <0>;
 		max_refreshrate = <120>; /* the max freshrate of S7D is upto 120hz */
+		enable_hdr10plus = <HDR10PLUS_STATE>;
 		reg =	<0xff000000 0x40000>,
 			<0xfe310000 0x10000>,
 			<0xfe300000 0x10000>,

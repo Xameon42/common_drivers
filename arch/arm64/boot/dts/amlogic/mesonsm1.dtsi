@@ -22,6 +22,7 @@
 #include <dt-bindings/power/amlogic-sm1-power.h>
 #include <dt-bindings/mailbox/sm1-mbox.h>
 #include <dt-bindings/firmware/amlogic,firmware.h>
+#include <dt-bindings/display/hdr10plus.h>
 #include "meson-ir-map.dtsi"
 
 / {
@@ -1384,6 +1385,7 @@
 		 * 10:G12A 11:G12B 12:SM1
 		 */
 		ic_type = <12>;
+		enable_hdr10plus = <HDR10PLUS_STATE>;
 		reg =	<0x0 0xffd00000 0x0 0x100000>,
 			<0x0 0xff900000 0x0 0x40000>,
 			<0x0 0xff63c000 0x0 0x2000>,

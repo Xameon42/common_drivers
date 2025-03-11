@@ -28,6 +28,7 @@
 #include <dt-bindings/input/meson_ir.h>
 #include "mesong12a-bifrost.dtsi"
 #include <dt-bindings/thermal/thermal.h>
+#include <dt-bindings/display/hdr10plus.h>
 #include "meson-ir-map.dtsi"
 
 / {
@@ -1057,6 +1058,7 @@
 		 * 10:G12A 11:G12B
 		 */
 		ic_type = <10>;
+		enable_hdr10plus = <HDR10PLUS_STATE>;
 		reg =	<0x0 0xffd00000 0x0 0x100000>,
 			<0x0 0xff900000 0x0 0x40000>,
 			<0x0 0xff63c000 0x0 0x2000>,

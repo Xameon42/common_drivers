@@ -17,6 +17,7 @@
 #include <dt-bindings/input/meson_ir.h>
 #include <dt-bindings/mailbox/s5-mbox.h>
 #include <dt-bindings/iio/adc/amlogic-saradc.h>
+#include <dt-bindings/display/hdr10plus.h>
 #include "meson-ir-map.dtsi"
 #include "meson-valhall.dtsi"
 //#include <dt-bindings/memory/meson-p1-sid-map.h>
@@ -2040,6 +2041,7 @@
 		enc_idx = <0>;
 		tx_max_frl_rate = <5>; /* max FRL_10G4L */
 		max_refreshrate = <120>; /* the max freshrate of S5 is upto 120hz */
+		enable_hdr10plus = <HDR10PLUS_STATE>;
 		reg =	<0x0 0xff800000 0x0 0x40000>,
 			<0x0 0xfe3a0000 0x0 0x10000>,
 			<0x0 0xfe390000 0x0 0x10000>,

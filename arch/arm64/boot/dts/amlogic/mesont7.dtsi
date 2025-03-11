@@ -16,6 +16,7 @@
 #include <dt-bindings/input/input.h>
 #include <dt-bindings/input/meson_ir.h>
 #include <dt-bindings/firmware/amlogic,firmware.h>
+#include <dt-bindings/display/hdr10plus.h>
 #include "meson-ir-map.dtsi"
 #include "mesong12a-bifrost.dtsi"
 #include <dt-bindings/mailbox/t7-mbox.h>
@@ -2558,6 +2559,7 @@
 			0 197 1>;
 		interrupt-names = "hdmitx_hpd", "vrr_vsync";
 		enc_idx = <0>;
+		enable_hdr10plus = <HDR10PLUS_STATE>;
 		reg =	<0x0 0xff000000 0x0 0x40000>,
 			<0x0 0xfe380000 0x0 0x10000>,
 			<0x0 0xfe300000 0x0 0x10000>,
