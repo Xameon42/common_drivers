@@ -17,6 +17,8 @@
 #define WORD_MASK (~(WORD_SIZE - 1))
 #define AXI_WORD_ALIGN(size) (((size) + WORD_SIZE - 1) & WORD_MASK)
 
+#define UVSWAP_ENABLE 0x100
+
 enum {
 	ARM_GDC,
 	AML_GDC,

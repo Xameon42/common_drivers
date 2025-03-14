@@ -988,6 +988,11 @@ static int gdc_process_ex_info(struct gdc_context_s *context,
 	dev = GDC_DEVICE(context->cmd.dev_type);
 
 	mutex_lock(&context->d_mutext);
+	if (gs_ex->gdc_config.format & UVSWAP_ENABLE) {
+		gdc_cmd->uvswap_enable = 1;
+		gs_ex->gdc_config.format &= ~UVSWAP_ENABLE;
+		gdc_log(LOG_DEBUG, "%s, uvswap_enable:%d\n", __func__, gdc_cmd->uvswap_enable);
+	}
 	memcpy(&gdc_cmd->gdc_config, &gs_ex->gdc_config,
 	       sizeof(struct gdc_config_s));
 	for (i = 0; i < GDC_MAX_PLANE; i++) {
