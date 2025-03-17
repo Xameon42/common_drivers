@@ -25,7 +25,12 @@ struct audio_uevent {
 	const char *env;
 };
 
-void host_dsp_vad_report(struct host_module *host);
-void host_dsp_vad_input_device_init(struct host_module *host);
+#define DSP_FFV_REPORT_DELAY_MS 5
+
+void host_dsp_vad_report(struct host_dsp *host_dsp);
+void host_dsp_vad_input_device_init(struct host_dsp *host_dsp);
+void host_dsp_ffv_wq_init(struct host_dsp *host_dsp);
+void host_dsp_ffv_wq_start(struct host_dsp *host_dsp);
+void host_dsp_ffv_wq_stop(struct host_dsp *host_dsp);
 
 #endif /*_HOST_REPORT_H*/

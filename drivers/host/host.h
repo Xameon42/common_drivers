@@ -144,6 +144,9 @@ struct host_dsp {
 	u8 pm_support_ffv;
 	struct input_dev *input_device;
 	struct clk *clk_hifi;
+	struct host_module *host;
+	struct delayed_work host_ffv_work;
+	struct workqueue_struct *host_ffv_wq;
 };
 
 /** struct host_module, the struct of host module

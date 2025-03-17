@@ -420,6 +420,9 @@ static int __maybe_unused host_runtime_suspend(struct device *dev)
 	clk_disable_unprepare(host->clk);
 	host_health_monitor_stop(host);
 	host_logbuff_stop(host);
+	if (strstr(host->misc->name, "hifi4dsp") && host->host_dsp->pm_support_ffv)
+		host_dsp_ffv_wq_stop(host->host_dsp);
+
 	pr_info("[%s %d]host stop success!\n", __func__, __LINE__);
 	return 0;
 }
@@ -457,7 +460,7 @@ static void host_mbox_callback_from_dev(struct mbox_client *cl, void *msg)
 	if (mbox_cmd == MBX_CMD_VAD_AWE_WAKEUP &&
 	    mbox_data == DSP_VAD_WAKUP_ARM) {
 		pr_info("input event: vad wakeup in early suspend\n");
-		host_dsp_vad_report(host);
+		host_dsp_vad_report(host->host_dsp);
 	}
 }
 
@@ -571,7 +574,7 @@ static int host_resume(struct device *dev)
 		if (host->host_dsp->pm_support_ffv) {
 			if (get_resume_method() == VAD_WAKEUP) {
 				pr_info("input event: vad wakeup in deep sleep\n");
-				host_dsp_vad_report(host);
+				host_dsp_vad_report(host->host_dsp);
 			}
 
 			return 0;
@@ -1141,6 +1144,7 @@ static int host_platform_probe(struct platform_device *pdev)
 			return -ENOMEM;
 
 		host->host_dsp = host_dsp;
+		host->host_dsp->host = host;
 		if (of_property_read_u32(dev->of_node, "dsp-support-bit",
 					 &host->device_support_bit))
 			dev_err(dev, "Not find dsp-support-bit\n");
@@ -1177,11 +1181,13 @@ static int host_platform_probe(struct platform_device *pdev)
 		if (!host->host_dsp->input_device)
 			return -ENOMEM;
 
-		host_dsp_vad_input_device_init(host);
+		host_dsp_vad_input_device_init(host->host_dsp);
 		if (input_register_device(host->host_dsp->input_device)) {
 			input_free_device(host->host_dsp->input_device);
 			return -EINVAL;
 		}
+
+		host_dsp_ffv_wq_init(host->host_dsp);
 	}
 
 	host_p[host->hostid] = host;
