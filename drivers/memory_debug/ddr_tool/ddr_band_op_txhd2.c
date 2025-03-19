@@ -117,7 +117,7 @@ static void txhd2_dmc_range_config(struct ddr_bandwidth *db, int channel,
 
 static unsigned long txhd2_get_dmc_freq_quick(struct ddr_bandwidth *db)
 {
-	db->ddr_freq = readl(db->pll_reg) * 1000000;
+	db->ddr_freq = (readl(db->pll_reg) & 0xffff) * 1000000;
 	db->dmc_freq = db->ddr_freq >> 1;
 
 	return db->dmc_freq;
