@@ -13,6 +13,7 @@
 #include <crypto/hash.h>
 #include <crypto/sha256_base.h>
 #include "normal_key.h"
+#include "unifykey.h"
 
 #define DBG 0
 
@@ -525,10 +526,17 @@ int normalkey_readfromblock(void *block, unsigned long size)
 	u8 hash[32];
 	u32 idx;
 	u32 ret;
+	struct aml_uk_dev *ukdev =  get_ukdev();
+
+	if (!ukdev) {
+		pr_err("not found unifykey device\n");
+		return -1;
+	}
 
 	if (blockinited != 1)
 		return -1;
 
+	ukdev->size = 0;
 	prawhead = (struct storage_block_raw_head *)block;
 	penchead = (u8 *)block + STORAGE_BLOCK_RAW_HEAD_SIZE;
 	pdata = penchead + STORAGE_BLOCK_ENC_HEAD_SIZE;
@@ -595,6 +603,8 @@ int normalkey_readfromblock(void *block, unsigned long size)
 		return 0;
 	}
 
+	ukdev->size = enchead.blocksize + STORAGE_BLOCK_ENC_HEAD_SIZE +
+	    STORAGE_BLOCK_RAW_HEAD_SIZE;
 	idx = 0;
 	while (idx < enchead.blocksize) {
 		struct storage_object *obj = NULL;
@@ -614,7 +624,6 @@ int normalkey_readfromblock(void *block, unsigned long size)
 			break;
 		}
 		idx += ret;
-
 		normalkey_hash(obj->dataptr, obj->datasize, hash);
 		if (memcmp(hash, obj->hashptr, 32)) {
 			kfree(obj->dataptr);
@@ -640,6 +649,12 @@ int normalkey_writetoblock(void *block, unsigned long size)
 	struct storage_node *node = NULL;
 	u32 idx;
 	u32 ret;
+	struct aml_uk_dev *ukdev =  get_ukdev();
+
+	if (!ukdev) {
+		pr_err("not found unifykey device\n");
+		return -1;
+	}
 
 	if (blockinited != 2)
 		return -1;
@@ -665,6 +680,8 @@ int normalkey_writetoblock(void *block, unsigned long size)
 		rawhead.keycnt++;
 	}
 	enchead.blocksize = idx;
+	ukdev->size = enchead.blocksize + STORAGE_BLOCK_ENC_HEAD_SIZE +
+	    STORAGE_BLOCK_RAW_HEAD_SIZE;
 
 	ret = Tlv_WriteHead(&enchead, penchead, STORAGE_BLOCK_ENC_HEAD_SIZE);
 	if (!ret)

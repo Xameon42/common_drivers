@@ -61,15 +61,17 @@ struct aml_uk_dev {
 	struct class           cls;
 	struct cdev            cdev;
 	dev_t                  uk_devno;
-	int		       init_flag;
+	int                    init_flag;
 	int                    lock_flag;
 	struct key_item_t      *curkey;
 	struct list_head       uk_hdr;
 	struct key_info_t      uk_info;
+	unsigned int           size;
 };
 
 int uk_dt_create(struct platform_device *pdev);
 int uk_dt_release(struct platform_device *pdev);
+void  *get_ukdev(void);
 
 #ifdef CONFIG_AMLOGIC_UNIFYKEY
 int __init aml_unifykeys_init(void);
