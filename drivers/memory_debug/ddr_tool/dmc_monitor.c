@@ -47,7 +47,7 @@
 #include "dmc_trace.h"
 
 // #define DEBUG
-#define DMC_VERSION		"1.9.1"
+#define DMC_VERSION		"1.10"
 
 #define IRQ_CHECK		0
 #define IRQ_CLEAR		1
@@ -901,38 +901,31 @@ size_t dump_dmc_reg(char *buf)
 	return sz;
 }
 
-static size_t str_end_char(const char *s, size_t count, int c)
+static void dmc_sec_reg_check(char *info)
 {
-	size_t len = count, offset = count;
-
-	while (count--) {
-		if (*s == (char)c)
-			offset = len - count;
-		if (*s++ == '\0') {
-			offset = len - count;
-			break;
-		}
-	}
-	return offset;
-}
-
-static void serror_dump_dmc_reg(void)
-{
-	int len = 0, i = 0, offset = 0;
+	int len = 0;
 	static char buf[2048] = {0};
 
-	if (dmc_mon->ops && dmc_mon->ops->reg_control) {
-		len = dmc_mon->ops->reg_control(NULL, 'd', buf);
-		while (i < len) {
-			offset = str_end_char(buf + i, 512, '\n');
-			if (offset > 1)
-				pr_emerg("%.*s", offset, buf + i);
-			i += offset;
-		}
-	}
+	if (info)
+		len += snprintf(buf, sizeof(buf), info);
+
+	if (dmc_mon->ops && dmc_mon->ops->reg_control)
+		len += dmc_mon->ops->reg_control(NULL, 'd', buf + len);
+
+	pr_emerg("%s", buf);
+
+	if (dmc_mon->ops && dmc_mon->ops->reg_control)
+		dmc_mon->ops->reg_control(NULL, 'c', NULL);
 }
 
-static irqreturn_t __nocfi dmc_monitor_irq_handler(int irq, void *dev_instance)
+static irqreturn_t __nocfi dmc_sec_irq_handler(int irq, void *dev_instance)
+{
+	dmc_sec_reg_check("FROM IRQ -- ");
+
+	return IRQ_HANDLED;
+}
+
+static irqreturn_t __nocfi dmc_prot_irq_handler(int irq, void *dev_instance)
 {
 	if (dmc_mon->ops && dmc_mon->ops->handle_irq)
 		dmc_mon->ops->handle_irq(dmc_mon, dev_instance, IRQ_CHECK);
@@ -986,54 +979,69 @@ void dmc_irq_sleep(void *data)
 	}
 }
 
-static int dmc_irq_set(struct device_node *node, int save_irq, int request)
+static int dmc_irq_set_affinity(void)
 {
-	static int save_irq_num, request_num;
-	int irq, r = 0, i, affinity_cpu = 1;
+	int i = 0, affinity_cpu = 1, irq_prot, irq_sec;
 	struct irq_desc *desc;
 
-	pr_info("%s: save_irq=%d, request=%d\n", __func__, save_irq, request);
-	if (!save_irq && !save_irq_num)
-		return -EINVAL;
-	if (!save_irq && ((request && request_num) || (!request && !request_num)))
+	if (!dmc_mon)
 		return -EINVAL;
 
 	for (i = 0; i < dmc_mon->mon_number; i++) {
-		if (save_irq) {
-			dmc_mon->mon_comm[i].irq = of_irq_get(node, i);
-			save_irq_num++;
-			if (!request)
-				continue;
-		}
+		irq_prot = dmc_mon->mon_comm[i].irq;
+		irq_sec = dmc_mon->mon_comm[i].irq_sec;
 
-		irq = dmc_mon->mon_comm[i].irq;
-		if (request) {
-			r = request_threaded_irq(irq,
-						 dmc_monitor_irq_handler,
-						 dmc_irq_thread,
-						 IRQF_SHARED | IRQF_ONESHOT,
-						 "dmc_monitor", &dmc_mon->mon_comm[i]);
+		if (affinity_cpu > num_online_cpus())
+			affinity_cpu = 1;
+
+		if (irq_prot)
+			irq_set_affinity_hint(irq_prot, get_cpu_mask(affinity_cpu));
+		if (irq_sec)
+			irq_set_affinity_hint(irq_sec, get_cpu_mask(affinity_cpu));
+
+		affinity_cpu++;
+
+		desc = irq_to_desc(irq_prot);
+		dmc_mon->mon_comm[i].irq_thread_task = desc->action->thread;
+	}
+
+	return 0;
+}
+
+static int dmc_irq_request(struct device_node *node)
+{
+	int irq, r = 0, i = 0, index;
+
+	do {
+		irq = of_irq_get(node, i);
+		if (irq > 0) {
+			if (i < dmc_mon->mon_number) {	/* prot vio irq*/
+				index = i;
+				dmc_mon->mon_comm[index].irq = irq;
+				r = request_threaded_irq(irq, dmc_prot_irq_handler,
+							dmc_irq_thread,
+							IRQF_SHARED | IRQF_ONESHOT,
+							"dmc_monitor",
+							&dmc_mon->mon_comm[index]);
+			} else {			/* sec vio irq */
+				index = i - dmc_mon->mon_number;
+				dmc_mon->mon_comm[index].irq_sec = irq;
+				r = request_irq(irq, dmc_sec_irq_handler,
+							IRQF_SHARED,
+							"dmc_monitor_sec",
+							&dmc_mon->mon_comm[index]);
+			}
 			if (r < 0) {
 				pr_err("request irq fail:%d, r:%d\n", irq, r);
-				request_num = 0;
 				dmc_mon = NULL;
 				return -EINVAL;
 			}
-
-			if (affinity_cpu <= num_online_cpus()) {
-				irq_set_affinity_hint(irq, get_cpu_mask(affinity_cpu));
-				affinity_cpu++;
-			} else {
-				irq_set_affinity_hint(irq, get_cpu_mask(num_online_cpus()));
-			}
-			desc = irq_to_desc(irq);
-			dmc_mon->mon_comm[i].irq_thread_task = desc->action->thread;
-			request_num++;
-		} else {
-			free_irq(irq, &dmc_mon->mon_comm[i]);
-			request_num--;
 		}
-	}
+		i++;
+	} while (irq > 0);
+
+	dmc_irq_set_affinity();
+
 	return 0;
 }
 
@@ -1301,25 +1309,8 @@ static ssize_t debug_store(struct class *cla,
 			dmc_mon->debug |= DMC_DEBUG_TRACE;
 		else
 			dmc_mon->debug &= ~DMC_DEBUG_TRACE;
-	} else if (strstr(string, "suspend") == string) {
-		if (val) {
-			dmc_mon->debug |= DMC_DEBUG_SUSPEND;
-			if (dmc_irq_set(NULL, 0, 0) < 0)
-				pr_emerg("free dmc irq error\n");
-		} else {
-			dmc_mon->debug &= ~DMC_DEBUG_SUSPEND;
-			if (dmc_irq_set(NULL, 0, 1) < 0)
-				pr_emerg("request dmc irq error\n");
-		}
 	} else if (strstr(string, "serror") == string) {
-		if (val) {
-			dmc_mon->debug |= DMC_DEBUG_SERROR;
-			if (dmc_mon->ops && dmc_mon->ops->reg_control)
-				dmc_mon->ops->reg_control(NULL, 'c', NULL);
-			serror_dump_dmc_reg();
-		} else {
-			dmc_mon->debug &= ~DMC_DEBUG_SERROR;
-		}
+		dmc_sec_reg_check("FROM USER -- ");
 	} else if (strstr(string, "irq") == string) {
 		if (val)
 			dmc_mon->debug |= DMC_DEBUG_IRQ_THREAD;
@@ -1359,10 +1350,7 @@ static ssize_t debug_show(struct class *cla,
 			dmc_mon->debug & DMC_DEBUG_INCLUDE ? 1 : 0);
 	s += sprintf(buf + s, "trace:   trace print :%d\n",
 			dmc_mon->debug & DMC_DEBUG_TRACE ? 1 : 0);
-	s += sprintf(buf + s, "suspend: suspend debug :%d\n",
-			dmc_mon->debug & DMC_DEBUG_SUSPEND ? 1 : 0);
-	s += sprintf(buf + s, "serror:  serror debug :%d\n",
-			dmc_mon->debug & DMC_DEBUG_SERROR ? 1 : 0);
+	s += sprintf(buf + s, "serror:  show sec vio reg and clear\n");
 	s += sprintf(buf + s, "irq:     irq_thread :%d, time:%ld, ratio:%d, irq_usleep:%ld, recheck:%ld\n",
 				dmc_mon->debug & DMC_DEBUG_IRQ_THREAD ? 1 : 0,
 				init_dmc_irq_check_ns, init_dmc_irq_ratio,
@@ -1650,14 +1638,14 @@ static void arm64_serror_panic(void *data, struct pt_regs *regs, unsigned int es
 	if (in_nmi())
 		__preempt_count_sub(NMI_OFFSET + HARDIRQ_OFFSET);
 
-	serror_dump_dmc_reg();
+	dmc_sec_reg_check("FROM ASYNC SERROR -- ");
 	oops_in_progress++;
 }
 
 /* Synchronous Serror*/
 static void do_sea(void *data, unsigned long addr, unsigned int esr, struct pt_regs *regs)
 {
-	serror_dump_dmc_reg();
+	dmc_sec_reg_check("FROM SYNC SERROR -- ");
 }
 #else
 static void do_serror(void *data, struct pt_regs *regs, unsigned int esr, int *ret)
@@ -1670,7 +1658,7 @@ static void do_serror(void *data, struct pt_regs *regs, unsigned int esr, int *r
 	if (in_nmi())
 		__preempt_count_sub(NMI_OFFSET + HARDIRQ_OFFSET);
 
-	serror_dump_dmc_reg();
+	dmc_sec_reg_check("FROM SYNC SERROR -- ");
 	oops_in_progress++;
 }
 #endif
@@ -1787,17 +1775,10 @@ static int __init dmc_monitor_probe(struct platform_device *pdev)
 	}
 
 	/* check dmc sec reg*/
-	if (dmc_mon->ops && dmc_mon->ops->reg_control)
-		dmc_mon->ops->reg_control(NULL, 'c', NULL);
-	serror_dump_dmc_reg();
+	dmc_sec_reg_check("FROM PROBE -- ");
 
-	if (dmc_mon->debug & DMC_DEBUG_SUSPEND) {
-		if (dmc_irq_set(node, 1, 0) < 0)
-			pr_emerg("get dmc irq failed\n");
-	} else {
-		if (dmc_irq_set(node, 1, 1) < 0)
-			pr_emerg("request dmc irq failed\n");
-	}
+	if (dmc_irq_request(node) < 0)
+		pr_emerg("request dmc irq failed\n");
 
 	return 0;
 }

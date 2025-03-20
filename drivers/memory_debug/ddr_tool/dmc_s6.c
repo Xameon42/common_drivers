@@ -133,10 +133,7 @@ static int s6_dmc_mon_irq(struct dmc_monitor *mon, void *data, char clear)
 	if (clear) {
 		/* clear irq */
 		irqreg = dmc_prot_rw(mon_comm->io_mem, DMC_PROT_IRQ_CTRL_STS, 0, DMC_READ);
-		if (dmc_mon->debug & DMC_DEBUG_SUSPEND)
-			irqreg &= ~0x04;
-		else
-			irqreg |= 0x04;		/* en */
+		irqreg |= 0x04;		/* en */
 		dmc_prot_rw(mon_comm->io_mem, DMC_PROT_IRQ_CTRL_STS, irqreg, DMC_WRITE);
 	} else {
 		return check_violation(mon, data);
@@ -190,10 +187,7 @@ static int s6_dmc_mon_set(struct dmc_monitor *mon)
 
 	dmc_prot_rw(io, DMC_PROT0_CTRL1, 0xffff, DMC_WRITE);
 
-	if (dmc_mon->debug & DMC_DEBUG_SUSPEND)
-		value = 0X3;
-	else
-		value = 0X7;
+	value = 0x7;
 	dmc_prot_rw(io, DMC_PROT_IRQ_CTRL_STS, value, DMC_WRITE);
 
 	pr_emerg("range:%08lx - %08lx, device:%llx\n",

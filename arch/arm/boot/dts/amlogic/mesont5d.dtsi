@@ -1683,7 +1683,8 @@
 		status = "okay";
 		reg = <0xff638280 0x100>;
 		reg_base = <0xff639000>;
-		interrupts = <GIC_SPI 52 IRQ_TYPE_EDGE_RISING>;
+		interrupts = <GIC_SPI 52 IRQ_TYPE_LEVEL_HIGH
+			      GIC_SPI 51 IRQ_TYPE_EDGE_RISING>;
 	};
 
 	efusecheck: efusecheck{

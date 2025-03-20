@@ -34,10 +34,8 @@
 #define DMC_DEBUG_SAME		BIT(3)
 #define DMC_DEBUG_INCLUDE	BIT(4)
 #define DMC_DEBUG_TRACE		BIT(5)
-#define DMC_DEBUG_SUSPEND	BIT(6)
-#define DMC_DEBUG_SERROR	BIT(7)
-#define DMC_DEBUG_IRQ_THREAD	BIT(8)
-#define DMC_DEBUG_VALUE		BIT(9)
+#define DMC_DEBUG_IRQ_THREAD	BIT(6)
+#define DMC_DEBUG_VALUE		BIT(7)
 
 enum init_dmc_mode_type {
 	DMC_MODE_RESERVED = 0x0,
@@ -71,6 +69,7 @@ struct dmc_mon_comm {
 	void __iomem  *io_mem;
 	/* irq handle save info*/
 	int irq;
+	int irq_sec;
 	char rw;
 	union port_type port;
 	union port_type sub;

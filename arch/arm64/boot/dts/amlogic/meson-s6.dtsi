@@ -1256,7 +1256,8 @@
 		memory-region = <&dmc_reserved>;
 		reg = <0x0 0xfe036000 0x0 0x400>;
 		reg_base = <0xfe036000>;
-		interrupts = <0 62 IRQ_TYPE_LEVEL_HIGH>;
+		interrupts = <0 62 IRQ_TYPE_LEVEL_HIGH
+			      0 61 IRQ_TYPE_EDGE_RISING>;
 	};
 
 	amhdmitx: amhdmitx{

@@ -1394,7 +1394,8 @@
 		memory-region = <&dmc_reserved>;
 		reg_base = <0xfe025000>;
 		reg = <0xFE024000 0x300>;
-		interrupts = <GIC_SPI 153 IRQ_TYPE_LEVEL_HIGH>;
+		interrupts = <GIC_SPI 153 IRQ_TYPE_LEVEL_HIGH
+			      GIC_SPI 152 IRQ_TYPE_EDGE_RISING>;
 	};
 	galcore {
 		compatible = "amlogic, galcore";
