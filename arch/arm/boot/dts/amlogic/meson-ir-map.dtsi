@@ -159,7 +159,7 @@
 			vendor = <0x0002>;
 			product = <0x0002>;
 			version = <0x0200>;
-			size  = <50>;   /*keymap size*/
+			size  = <51>;   /*keymap size*/
 			keymap = <REMOTE_KEY(0x01, KEY_1)
 				REMOTE_KEY(0x02, KEY_2)
 				REMOTE_KEY(0x03, KEY_3)
@@ -209,12 +209,13 @@
 				REMOTE_KEY(0x4B, KEY_RED)
 				REMOTE_KEY(0x4A, KEY_GREEN)
 				REMOTE_KEY(0x49, KEY_YELLOW)
+				REMOTE_KEY(0x70, KEY_FN_1)
 				REMOTE_KEY(0x4C, KEY_BLUE)>;
 		};
 	};
 
 	ir_wakeup_key: ir_wakeup_key {
-		key_num = <9>;
+		key_num = <11>;
 			/*framecode  wakeup_reason  report_event*/
 		wakeup_key = <0xba45bd02 IR_NORMAL KEY_POWER
 			      0xef10fe01 IR_NORMAL KEY_POWER
@@ -224,6 +225,8 @@
 			      0xde217788 IR_NORMAL KEY_POWER
 			      0x3ac5bd02 IR_CUSTOM KEY_COPY
 			      0xb8477788 IR_NORMAL KEY_HOME
+			      0x9b647788 IR_NORMAL KEY_F18
+			      0x8f707788 IR_NORMAL KEY_FN_1
 			      0x9c637788 IR_NORMAL KEY_F17>;
 	};
 };
