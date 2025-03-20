@@ -2209,6 +2209,7 @@ crg_udc_ep_dequeue(struct usb_ep *_ep, struct usb_request *_req)
 	u64 dq_pt_addr;
 	u8 DCI;
 	unsigned long flags = 0;
+	u32 times = 4000;
 
 	if (!_ep || !_req)
 		return -EINVAL;
@@ -2231,6 +2232,14 @@ crg_udc_ep_dequeue(struct usb_ep *_ep, struct usb_request *_req)
 		crg_issue_command(crg_udc, CRG_CMD_STOP_EP, param0, 0);
 		do {
 			tmp = reg_read(&uccr->ep_running);
+			if ((tmp & param0) != 0) {
+				udelay(5);
+				if (!--times) {
+					CRG_ERROR("%s time out, read ep_running: 0x%x\n",
+								__func__, tmp);
+					return -EIO;
+				}
+			}
 		} while ((tmp & param0) != 0);
 		udc_ep_ptr->ep_state = EP_STATE_STOPPED;
 	}
@@ -2314,8 +2323,17 @@ crg_udc_ep_dequeue(struct usb_ep *_ep, struct usb_request *_req)
 #if CRG_MTP_WR
 	if (usb_endpoint_xfer_bulk(udc_ep_ptr->desc)) {
 		crg_issue_command(crg_udc, CRG_CMD_STOP_EP, 1 << DCI, 0);
+		times = 4000;
 		do {
 			tmp = reg_read(&uccr->ep_running);
+			if ((tmp & (1 << DCI)) != 0) {
+				udelay(5);
+				if (!--times) {
+					CRG_ERROR("%s time out,line=%u, read ep_running: 0x%x\n",
+								__func__, __LINE__, tmp);
+					return -EIO;
+				}
+			}
 		} while ((tmp & (1 << DCI)) != 0);
 
 		mdelay(10);
@@ -2323,8 +2341,17 @@ crg_udc_ep_dequeue(struct usb_ep *_ep, struct usb_request *_req)
 
 		mdelay(10);
 		crg_issue_command(crg_udc, CRG_CMD_STOP_EP, 1 << DCI, 0);
+		times = 4000;
 		do {
 			tmp = reg_read(&uccr->ep_running);
+			if ((tmp & (1 << DCI)) != 0) {
+				udelay(5);
+				if (!--times) {
+					CRG_ERROR("%s time out,line=%u, read ep_running: 0x%x\n",
+								__func__, __LINE__, tmp);
+					return -EIO;
+				}
+			}
 		} while ((tmp & (1 << DCI)) != 0);
 	}
 #endif
