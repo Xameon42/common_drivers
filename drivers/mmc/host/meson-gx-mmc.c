@@ -686,7 +686,7 @@ static int no_pxp_clk_set(struct meson_host *host, struct mmc_ios *ios,
  */
 static int meson_mmc_clk_init(struct meson_host *host)
 {
-	struct clk_init_data init;
+	struct clk_init_data init = {0};
 	struct clk_divider *div;
 	char clk_name[32], name[16];
 	int i, ret = 0;
@@ -752,7 +752,6 @@ static int meson_mmc_clk_init(struct meson_host *host)
 	clk_parent[0] = __clk_get_name(host->mux[1]);
 	init.parent_names = clk_parent;
 	init.num_parents = 1;
-	init.flags = CLK_SET_RATE_PARENT;
 
 	div->reg = host->regs + SD_EMMC_CLOCK;
 	div->shift = __ffs(CLK_DIV_MASK);
@@ -1293,7 +1292,7 @@ void sdio_get_card(struct mmc_host *host, struct mmc_card *card)
 
 int sdio_get_device(void)
 {
-	unsigned int i, device = 0;
+	unsigned int i, device = 0xfff0;
 
 	if (sdio_host && sdio_host->card)
 		device = sdio_host->card->cis.device;
