@@ -3433,6 +3433,7 @@ static long amvecm_ioctl(struct file *file,
 			ret = -EFAULT;
 		} else {
 			ve_new_dnlp_param_update();
+			aipq_base_dnlp_param(dnlp_curve_param_load.param[ve_dnlp_final_gain]);
 			pr_amvecm_dbg("dnlp load success\n");
 		}
 		break;
