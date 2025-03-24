@@ -654,7 +654,10 @@ static long host_miscdev_unlocked_ioctl(struct file *fp, unsigned int cmd,
 			goto err;
 		}
 		host->host_dsp->usrinfo->fw_name[31] = '\0';
-		strcpy(host->fname0, host->host_dsp->usrinfo->fw_name);
+		if (host->start_pos == PURE_SRAM)
+			strcpy(host->fname1, host->host_dsp->usrinfo->fw_name);
+		else
+			strcpy(host->fname0, host->host_dsp->usrinfo->fw_name);
 		host_firmware_load(host);
 		host->firmware_load = 1;
 	break;
