@@ -19,6 +19,7 @@
 #include <linux/platform_device.h>
 
 #define PR_ERR(fmt, args ...)		pr_err("dim:err:" fmt, ##args)
+#define UNUSED_FUNC 0
 
 struct di_mmu_box {//decoder_mmu_box
 	int max_sc_num;
@@ -319,14 +320,21 @@ void *di_mmu_box_get_mem_handle(void *box_handle, int idx)
 //EXPORT_SYMBOL(decoder_mmu_box_get_mem_handle);
 
 //decoder_mmu_box_dump
+#if UNUSED_FUNC
 static int di_mmu_box_dump(struct di_mmu_box *box,
 				void *buf, int size)
 {
 	char *pbuf = buf;
-	char sbuf[512];
+	char *sbuf = NULL;
 	int tsize = 0;
 	int s;
 	int i;
+
+	sbuf = kzalloc(512, GFP_KERNEL);
+		if (!sbuf) {
+			PR_ERR("%s fail to alloc sbuf.\n", __func__);
+			return -ENOMEM;
+		}
 
 	if (!buf) {
 		pbuf = sbuf;
@@ -348,6 +356,8 @@ static int di_mmu_box_dump(struct di_mmu_box *box,
 				sc->page_cnt << PAGE_SHIFT);
 		}
 	}
+	kfree(sbuf);
+	sbuf = NULL;
 #undef BUFPRINT
 	if (!buf)
 		pr_info("%s", sbuf);
@@ -360,12 +370,17 @@ int di_mmu_box_dump_all(void *buf, int size)
 {
 	struct di_mmu_box_mgr *mgr = get_decoder_mmu_box_mgr();
 	char *pbuf = buf;
-	char sbuf[512];
+	char *sbuf = NULL;
 	int tsize = 0;
 	int s;
 	int i;
 	struct list_head *head, *list;
 
+	sbuf = kzalloc(512, GFP_KERNEL);
+	if (!sbuf) {
+		PR_ERR("%s fail to alloc sbuf.\n", __func__);
+		return -ENOMEM;
+	}
 	if (!pbuf) {
 		pbuf = sbuf;
 		size = 512;
@@ -408,12 +423,14 @@ int di_mmu_box_dump_all(void *buf, int size)
 		i++;
 	}
 	mutex_unlock(&mgr->mutex);
-
+	kfree(sbuf);
+	sbuf = NULL;
 #undef BUFPRINT
 	if (!buf)
 		pr_info("%s", sbuf);
 	return tsize;
 }
+#endif
 
 #ifdef TMP_NO_USED //ary
 
