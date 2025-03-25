@@ -414,7 +414,7 @@
 		reg = <0x00 0xfe026000 0x00 0x84>;
 
 		saradc: saradc {
-			compatible = "amlogic,saradc";
+			compatible = "amlogic,saradc", "amlogic,s7d-saradc";
 			interrupts = <GIC_SPI 181 IRQ_TYPE_EDGE_RISING>;
 			clock-names = "src", "core", "gate", "mux";
 			clocks = <&xtal>,
@@ -435,6 +435,8 @@
 			amlogic,reg9-init = <0x0000e4e4>;
 			amlogic,reg10-init = <0x74543414>;
 			amlogic,reg11-init = <0xf4d4b494>;
+			reset-names = "analog";
+			resets = <&reset RESET_SAR_ANA>;
 			status = "disabled";
 		};
 

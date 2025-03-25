@@ -18,6 +18,7 @@
 #include <linux/platform_device.h>
 #include <linux/regmap.h>
 #include <linux/mutex.h>
+#include <linux/reset.h>
 
 #define SARADC_REG0				0x00
 #define SARADC_REG0_SAMPLING_STOP		BIT(14)
@@ -119,6 +120,8 @@ struct amlogic_saradc_priv {
 	 * the controller at the same time.
 	 */
 	struct mutex lock;
+	bool apply_workaround;
+	struct reset_control *resets;
 };
 
 static const char * const test_voltage[] = {
@@ -208,9 +211,17 @@ static void amlogic_saradc_start_sample(struct amlogic_saradc_priv *priv)
 {
 	reinit_completion(&priv->sample_done);
 
+	if (priv->apply_workaround)
+		usleep_range(50, 60);
+
 	regmap_update_bits(priv->regmap, SARADC_REG0,
 			   SARADC_REG0_ADC_EN,
 			   SARADC_REG0_ADC_EN);
+
+	if (priv->apply_workaround) {
+		usleep_range(200, 210);
+		reset_control_reset(priv->resets);
+	}
 
 	usleep_range(20, 30);
 
@@ -686,6 +697,14 @@ static int amlogic_saradc_probe(struct platform_device *pdev)
 			priv->clk_mux = NULL;
 		else
 			return dev_err_probe(dev, ret, "failed to get mux clk\n");
+	}
+
+	priv->apply_workaround = !!of_device_is_compatible(np, "amlogic,s7d-saradc");
+	if (priv->apply_workaround) {
+		priv->resets = devm_reset_control_get(dev, "analog");
+		if (IS_ERR(priv->resets))
+			return dev_err_probe(dev, PTR_ERR(priv->resets), "failed to get resets\n");
+		dev_info(dev, "Apply workaround\n");
 	}
 
 	ret = amlogic_saradc_init(indio_dev);

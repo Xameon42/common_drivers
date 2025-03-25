@@ -64,8 +64,9 @@
 /*					74-79	*/
 #define RESET_MSR_CLK			80
 /*					81	*/
-#define RESET_SARADC			82
-/*					83-85	*/
+#define	RESET_SAR_DIG			82
+#define	RESET_SAR_ANA			83
+/*					84-85	*/
 #define RESET_AMFC			86
 /*					87	*/
 #define RESET_ACODEC			88
