@@ -2,6 +2,13 @@
 /*
  * Copyright (c) 2019 Amlogic, Inc. All rights reserved.
  */
+
+#include <dt-bindings/display/hdr10plus.h>
+
+/* Attention: Please turn on or off the hdr10+ function in the */
+/* dt-bindings/display/hdr10plus.h file and */
+/* do not modify it in this dtsi file!!! */
+
 &amlvecm {
-	enable_hdr10plus = <0>;/*1:enable ;0:disable*/
+	enable_hdr10plus = <HDR10PLUS_STATE>;/* Don't modify value of node enable_hdr10plus here. */
 };
