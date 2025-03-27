@@ -10603,6 +10603,19 @@ static void is_framepacking_support(struct vframe_s *vf)
 	}
 }
 
+static bool is_layer_cropped(struct video_layer_s *layer)
+{
+	if (layer->next_frame_par->VPP_hd_start_lines_ != 0 ||
+		(layer->next_frame_par->VPP_hd_end_lines_ !=
+		(video_lcevc.vd1_src_width - 1)) ||
+		layer->next_frame_par->VPP_vd_start_lines_ != 0 ||
+		(layer->next_frame_par->VPP_vd_end_lines_ !=
+		(video_lcevc.vd1_src_height - 1)))
+		return true;
+	else
+		return false;
+}
+
 s32 layer_swap_frame(struct vframe_s *vf, struct video_layer_s *layer,
 		     bool force_toggle,
 		     const struct vinfo_s *vinfo, u32 swap_op_flag)
@@ -10792,6 +10805,21 @@ s32 layer_swap_frame(struct vframe_s *vf, struct video_layer_s *layer,
 			is_amdv_stb_mode() &&
 			for_amdv_certification()),
 			op_flag);
+		if (layer_id == 0 &&
+			video_lcevc.vd2_vd1_shared_vf &&
+			(layer->next_frame_par->vscale_skip_count >= 1 ||
+			is_layer_cropped(layer))) {
+			/* switch vf to vd2 vf, disable vd2, disable lcevc */
+			layer->switch_vd2_vf = true;
+			vf  = video_lcevc.enhance_vf;
+			switch_from_lcevc_to_nonlcevc(false);
+			/* disable vd2 */
+			vd_layer[1].global_output = 0;
+			if (layer->global_debug & DEBUG_FLAG_BASIC_INFO)
+				pr_info("%s switch vf to vd2\n", __func__);
+		} else {
+			layer->switch_vd2_vf = false;
+		}
 #ifdef ENABLE_PRE_LINK
 		if (layer->layer_id == 0 &&
 		    update_pre_link_state(layer, vf, vinfo))
@@ -10801,6 +10829,20 @@ s32 layer_swap_frame(struct vframe_s *vf, struct video_layer_s *layer,
 		    (IS_DI_PRELINK(vf->di_flag) || IS_DI_POST(vf->type)))
 			ret = vppfilter_success_and_switched;
 
+		if (layer->switch_vd2_vf  && layer->layer_id == 0) {
+			ret = vpp_set_filters
+				(&glayer_info[layer_id], vf,
+				layer->next_frame_par, vinfo,
+				(is_amdv_on() &&
+				is_amdv_stb_mode() &&
+				for_amdv_certification()),
+				op_flag);
+			if (ret && (layer->global_debug & DEBUG_FLAG_BASIC_INFO))
+				pr_info
+				("layer%d: for lcevc switch_vd2_vf setting ret:%d\n",
+				 layer->layer_id, ret);
+			layer->new_vpp_setting = true;
+		}
 		memcpy(&gpic_info[layer_id], &vf->pic_mode,
 		       sizeof(struct vframe_pic_mode_s));
 
@@ -10895,7 +10937,7 @@ s32 layer_swap_frame(struct vframe_s *vf, struct video_layer_s *layer,
 			layer->switch_vf = true;
 		} else {
 			/* first switch, need re-config orig vf canvas */
-			if (layer->switch_vf) {
+			if (layer->switch_vf || layer->switch_vd2_vf) {
 				set_layer_display_canvas
 					(layer,
 					vf,

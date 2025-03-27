@@ -587,8 +587,84 @@ static int lowlatency_vsync(u8 instance_id)
 				new_frame = gvideo_recv[0]->cur_buf;
 			}
 		}
-		if (new_frame || gvideo_recv[0]->cur_buf)
+		if (new_frame || gvideo_recv[0]->cur_buf) {
 			vd_layer[0].dispbuf_mapping = &gvideo_recv[0]->cur_buf;
+			if ((gvideo_recv[0]->cur_buf->type_ext & VIDTYPE_EXT_LCEVC) &&
+				gvideo_recv[0]->cur_buf->enhance_vf) {
+				u32 src_width = 3840, src_height = 2160;
+				struct vframe_s *vf = NULL;
+				int coef0[4], coef1[4];
+
+				video_lcevc.vd2_vd1_shared_vf = true;
+				video_lcevc.preblend_en = true;
+				video_lcevc.enhance_vf =
+				gvideo_recv[0]->cur_buf->enhance_vf;
+				vf = gvideo_recv[0]->cur_buf;
+				if (vf->type & VIDTYPE_COMPRESS) {
+					src_width = vf->compWidth;
+					src_height = vf->compHeight;
+				} else {
+					src_width = vf->width;
+					src_height = vf->height;
+				}
+				coef0[0] = (vf->scaler_coeff.k[0][0] - 127) / 128;
+				coef0[1] = (vf->scaler_coeff.k[0][1] + 127) / 128;
+				coef0[2] = (vf->scaler_coeff.k[0][2] + 127) / 128;
+				coef0[3] = (vf->scaler_coeff.k[0][3] + 127) / 128;
+
+				coef1[0] = (vf->scaler_coeff.k[1][0] + 127) / 128;
+				coef1[1] = (vf->scaler_coeff.k[1][1] + 127) / 128;
+				coef1[2] = (vf->scaler_coeff.k[1][2] + 127) / 128;
+				coef1[3] = (vf->scaler_coeff.k[1][3] - 127) / 128;
+
+				video_lcevc.vf_lcevc_coeff0 =
+					(unsigned int)(coef0[0] & 0xff) << 24 |
+					(unsigned int)(coef0[1] & 0xff) << 16 |
+					(unsigned int)(coef0[2] & 0xff) << 8 |
+					(unsigned int)(coef0[3] & 0xff);
+				video_lcevc.vf_lcevc_coeff1 =
+					(unsigned int)(coef1[0] & 0xff) << 24 |
+					(unsigned int)(coef1[1] & 0xff) << 16 |
+					(unsigned int)(coef1[2] & 0xff) << 8 |
+					(unsigned int)(coef1[3] & 0xff);
+				if (vf && (debug_common_flag & DEBUG_FLAG_COMMON_LCEVC))
+					pr_info("%s,coef:[0]%d,%d,%d,%d, [1]%d,%d,%d,%d,coef0:%d,%d,%d,%d, coef1:%d,%d,%d,%d, trans:0x%x, 0x%x\n",
+						__func__,
+						vf->scaler_coeff.k[0][0],
+						vf->scaler_coeff.k[0][1],
+						vf->scaler_coeff.k[0][2],
+						vf->scaler_coeff.k[0][3],
+						vf->scaler_coeff.k[1][0],
+						vf->scaler_coeff.k[1][1],
+						vf->scaler_coeff.k[1][2],
+						vf->scaler_coeff.k[1][3],
+						coef0[0], coef0[1], coef0[2], coef0[3],
+						coef1[0], coef1[1], coef1[2], coef1[3],
+						video_lcevc.vf_lcevc_coeff0,
+						video_lcevc.vf_lcevc_coeff1);
+				if (debug_common_flag & DEBUG_FLAG_COMMON_LCEVC)
+					pr_info("%s, vd2_vd1_shared_vf=%d,enhance_vf=0x%p, gvideo_recv[0]->cur_buf=0x%p, vd1 src_width=%d, src_height=%d\n",
+						__func__,
+						video_lcevc.vd2_vd1_shared_vf,
+						gvideo_recv[0]->cur_buf->enhance_vf,
+						gvideo_recv[0]->cur_buf,
+						src_width, src_height);
+				video_lcevc.vd1_src_width = src_width;
+				video_lcevc.vd1_src_height = src_height;
+				video_lcevc.vd1_type = vf->type;
+				glayer_info[1].display_path_id =
+					glayer_info[0].display_path_id;
+				vd2_path_id = glayer_info[0].display_path_id;
+				vd_layer[1].layer_alpha = video_lcevc.alpha;
+#ifdef CONFIG_AMLOGIC_MEDIA_ENHANCEMENT_VECM
+				amve_lc_elc_ctrl(lcevc_en);
+#endif
+				hscaler_8tap_enable[0] = false;
+				hscaler_8tap_enable[1] = false;
+			} else {
+				switch_from_lcevc_to_nonlcevc(false);
+			}
+		}
 		cur_blackout = 1;
 	} else if (gvideo_recv[1] &&
 	    (gvideo_recv[1]->path_id == vd1_path_id)) {
@@ -839,30 +915,8 @@ static int lowlatency_vsync(u8 instance_id)
 		dvel_swap_frame(cur_dispbuf2);
 #endif
 	}
-
-	/* setting video display property in underflow mode */
-	if (!new_frame &&
-		vd_layer[0].dispbuf &&
-		(vd_layer[0].property_changed ||
-		 is_picmode_changed(0, vd_layer[0].dispbuf))) {
-		primary_swap_frame(&vd_layer[0], vd_layer[0].dispbuf, __LINE__);
-#ifdef CONFIG_AMLOGIC_MEDIA_ENHANCEMENT_DOLBYVISION
-		dvel_swap_frame(cur_dispbuf2);
-#endif
-	} else if (new_frame) {
-		vframe_walk_delay = (int)div_u64(((jiffies_64 -
-			new_frame->ready_jiffies64) * 1000), HZ);
-		vframe_walk_delay += 1000 *
-			vsync_pts_inc_scale / vsync_pts_inc_scale_base;
-		vframe_walk_delay -= new_frame->duration / 96;
-#ifdef CONFIG_AMLOGIC_MEDIA_FRC
-		vframe_walk_delay += frc_get_video_latency();
-#endif
-		primary_swap_frame(&vd_layer[0], new_frame, __LINE__);
-#ifdef CONFIG_AMLOGIC_MEDIA_ENHANCEMENT_DOLBYVISION
-		dvel_swap_frame(cur_dispbuf2);
-#endif
-	}
+	if (vd_layer[0].switch_vd2_vf)
+		new_frame = video_lcevc.enhance_vf;
 #if defined(CONFIG_AMLOGIC_MEDIA_FRC)
 	frc_input_handle(vd_layer[0].dispbuf, cur_frame_par[0]);
 #endif
@@ -1034,24 +1088,36 @@ static int lowlatency_vsync(u8 instance_id)
 	    gvideo_recv[0]->path_id == vd2_path_id) {
 		/* video_render.0 display on VD2 */
 		new_frame2 = path3_new_frame;
-		if (!new_frame2) {
-			if (!gvideo_recv[0]->cur_buf) {
-				/* video_render.0 no frame in display */
-				if (cur_vd2_path_id != vd2_path_id)
-					safe_switch_videolayer(1, false, true);
-				vd_layer[1].dispbuf = NULL;
-			} else if (gvideo_recv[0]->cur_buf ==
-				&gvideo_recv[0]->local_buf) {
-				/* video_render.0 keep frame */
-				vd_layer[1].dispbuf = gvideo_recv[0]->cur_buf;
-			} else if (vd_layer[1].dispbuf
-				!= gvideo_recv[0]->cur_buf) {
-				/* video_render.0 has frame in display */
-				new_frame2 = gvideo_recv[0]->cur_buf;
+		//for vd2
+		if (video_lcevc.vd2_vd1_shared_vf) {
+			new_frame2 = video_lcevc.enhance_vf;
+			if (new_frame2 && (debug_common_flag & DEBUG_FLAG_COMMON_LCEVC))
+				pr_info("%s,new_frame=0x%p, type=0x%x, flag=0x%x, bitdepth=0x%x\n",
+					__func__,
+					new_frame2,
+					new_frame2->type,
+					new_frame2->flag,
+					new_frame2->bitdepth);
+		} else {
+			if (!new_frame2) {
+				if (!gvideo_recv[0]->cur_buf) {
+					/* video_render.0 no frame in display */
+					if (cur_vd2_path_id != vd2_path_id)
+						safe_switch_videolayer(1, false, true);
+					vd_layer[1].dispbuf = NULL;
+				} else if (gvideo_recv[0]->cur_buf ==
+					&gvideo_recv[0]->local_buf) {
+					/* video_render.0 keep frame */
+					vd_layer[1].dispbuf = gvideo_recv[0]->cur_buf;
+				} else if (vd_layer[1].dispbuf
+					!= gvideo_recv[0]->cur_buf) {
+					/* video_render.0 has frame in display */
+					new_frame2 = gvideo_recv[0]->cur_buf;
+				}
 			}
+			if (new_frame2 || gvideo_recv[0]->cur_buf)
+				vd_layer[1].dispbuf_mapping = &gvideo_recv[0]->cur_buf;
 		}
-		if (new_frame2 || gvideo_recv[0]->cur_buf)
-			vd_layer[1].dispbuf_mapping = &gvideo_recv[0]->cur_buf;
 		cur_blackout = 1;
 	} else if (gvideo_recv[1] &&
 	    (gvideo_recv[1]->path_id == vd2_path_id)) {
@@ -1192,6 +1258,14 @@ static int lowlatency_vsync(u8 instance_id)
 		crop[1] = vd_layer[1].dispbuf->crop[1];
 		crop[2] = vd_layer[1].dispbuf->crop[2];
 		crop[3] = vd_layer[1].dispbuf->crop[3];
+		if (video_lcevc.vd2_vd1_shared_vf) {
+			/* vd2 is base frame, scaler up to vd1 source size */
+			axis[0] = 0;
+			axis[1] = 0;
+			axis[2] = video_lcevc.vd1_src_width - 1;
+			axis[3] = video_lcevc.vd1_src_height - 1;
+			/* crop todo */
+		}
 		_set_video_window(&glayer_info[1], axis);
 		source_type = vd_layer[1].dispbuf->source_type;
 		if (source_type != VFRAME_SOURCE_TYPE_HDMI &&

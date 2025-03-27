@@ -1270,7 +1270,8 @@ static int vpp_process_speed_check
 				    VFRAME_SOURCE_TYPE_CVBS)
 					return SPEED_CHECK_VSKIP;
 			}
-			if (vf->type & VIDTYPE_VIU_422) {
+			if ((vf->type & VIDTYPE_VIU_422) &&
+				!video_lcevc.vd2_vd1_shared_vf) {
 				u64 cur_vpp_speed_factor;
 				u32 cur_bypass_ratio;
 
@@ -1341,8 +1342,8 @@ static int vpp_process_speed_check
 					MESON_CPU_MAJOR_ID_GXTVBB) &&
 					(get_cpu_type() !=
 					MESON_CPU_MAJOR_ID_GXM) &&
-					(get_cpu_type() !=
-					MESON_CPU_MAJOR_ID_S5))
+					(get_cpu_type() <
+					MESON_CPU_MAJOR_ID_G12A))
 					return SPEED_CHECK_VSKIP;
 				else
 					return SPEED_CHECK_DONE;

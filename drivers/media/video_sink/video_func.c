@@ -135,6 +135,11 @@ static u32 always_new_vf_cnt;
 bool rdma_enable_pre;
 struct video_lcevc_s video_lcevc;
 
+static void do_vdx_swap_frame(u8 layer_id,
+				s32 vd_path_id,
+				s32 cur_vd_path_id,
+				struct vframe_s **path_new_frame);
+
 bool get_video_reverse(void)
 {
 	return reverse;
@@ -1390,17 +1395,11 @@ void pipx_swap_frame(struct video_layer_s *layer, struct vframe_s *vf,
 		crop[2] = vf->crop[2];
 		crop[3] = vf->crop[3];
 		if (layer_id == 1 && video_lcevc.vd2_vd1_shared_vf) {
-			u32 vskip_cnt = 0, hskip_cnt = 0;
-
-			if (vd_layer[0].next_frame_par) {
-				vskip_cnt = vd_layer[0].next_frame_par->vscale_skip_count;
-				hskip_cnt = vd_layer[0].next_frame_par->hscale_skip_count;
-			}
 			/* vd2 is base frame, scaler up to vd1 source size */
 			axis[0] = 0;
 			axis[1] = 0;
-			axis[2] = (video_lcevc.vd1_src_width >> hskip_cnt) - 1;
-			axis[3] = (video_lcevc.vd1_src_height >> vskip_cnt) - 1;
+			axis[2] = video_lcevc.vd1_src_width - 1;
+			axis[3] = video_lcevc.vd1_src_height - 1;
 			/* crop todo */
 		}
 		_set_video_window(layer_info, axis);
@@ -1556,6 +1555,8 @@ void primary_swap_frame(struct video_layer_s *layer,
 	ret = layer_swap_frame
 		(vf, layer, force_toggle, vinfo,
 		cur_dispbuf2 ? OP_HAS_DV_EL : 0);
+	if (layer->switch_vd2_vf)
+		vf = video_lcevc.enhance_vf;
 	if (ret >= vppfilter_success) {
 		amlog_mask
 			(LOG_MASK_FRAMEINFO,
@@ -3490,7 +3491,8 @@ static struct vframe_s *vdx_swap_frame(u8 layer_id,
 				vd_layer[layer_id].dispbuf_mapping =
 					&gvideo_recv[0]->cur_buf;
 				if ((gvideo_recv[0]->cur_buf->type_ext & VIDTYPE_EXT_LCEVC) &&
-					gvideo_recv[0]->cur_buf->enhance_vf) {
+					gvideo_recv[0]->cur_buf->enhance_vf &&
+					layer_id == 0) {
 					u32 src_width = 3840, src_height = 2160;
 					struct vframe_s *vf = NULL;
 					int coef0[4], coef1[4];
@@ -3555,11 +3557,15 @@ static struct vframe_s *vdx_swap_frame(u8 layer_id,
 					glayer_info[1].display_path_id =
 						glayer_info[0].display_path_id;
 					vd_layer[1].layer_alpha = video_lcevc.alpha;
+					hscaler_8tap_enable[0] = false;
+					hscaler_8tap_enable[1] = false;
+					if (vd_layer[0].switch_vd2_vf)
+						vd_layer[1].global_output = 1;
+					vd_layer[1].vd_func.vd_swap_frame = do_vdx_swap_frame;
+					vd_layer[1].vd_func.vd_render_frame = vdx_render_frame;
 #ifdef CONFIG_AMLOGIC_MEDIA_ENHANCEMENT_VECM
 					amve_lc_elc_ctrl(lcevc_en);
 #endif
-					hscaler_8tap_enable[0] = false;
-					hscaler_8tap_enable[1] = false;
 				} else {
 					switch_from_lcevc_to_nonlcevc(false);
 				}
@@ -3843,17 +3849,11 @@ static struct vframe_s *vdx_swap_frame(u8 layer_id,
 		crop[2] = vd_layer[layer_id].dispbuf->crop[2];
 		crop[3] = vd_layer[layer_id].dispbuf->crop[3];
 		if (layer_id == 1 && video_lcevc.vd2_vd1_shared_vf) {
-			u32 vskip_cnt = 0, hskip_cnt = 0;
-
-			if (vd_layer[0].next_frame_par) {
-				vskip_cnt = vd_layer[0].next_frame_par->vscale_skip_count;
-				hskip_cnt = vd_layer[0].next_frame_par->hscale_skip_count;
-			}
 			/* vd2 is base frame, scaler up to vd1 source size */
 			axis[0] = 0;
 			axis[1] = 0;
-			axis[2] = (video_lcevc.vd1_src_width >> hskip_cnt) - 1;
-			axis[3] = (video_lcevc.vd1_src_height >> vskip_cnt) - 1;
+			axis[2] = video_lcevc.vd1_src_width - 1;
+			axis[3] = video_lcevc.vd1_src_height - 1;
 			/* crop todo */
 		}
 		_set_video_window(&glayer_info[layer_id], axis);
@@ -3895,6 +3895,7 @@ static void do_vd1_swap_frame(u8 layer_id,
 			return;
 	}
 #endif
+
 	new_frame = vdx_swap_frame(0, vd1_path_id,
 				  cur_vd1_path_id,
 				  path_new_frame);
@@ -3922,6 +3923,8 @@ static void do_vd1_swap_frame(u8 layer_id,
 		dvel_swap_frame(cur_dispbuf2);
 #endif
 	}
+	if (vd_layer[0].switch_vd2_vf)
+		new_frame = video_lcevc.enhance_vf;
 
 	/* TODO: need check more vd layer, now only vd1 */
 	if (vd_layer[0].dispbuf &&
@@ -5320,11 +5323,17 @@ void post_vsync_process(void)
 	}
 
 	/* do vd swap */
-	for (i = 0; i < cur_dev->max_vd_layers; i++)
-		if (vd_layer[i].vd_func.vd_swap_frame)
+	for (i = 0; i < cur_dev->max_vd_layers; i++) {
+		if (vd_layer[i].vd_func.vd_swap_frame) {
+			if (video_lcevc.vd2_vd1_shared_vf && i == 1) {
+				cur_vd_path_id[i] = glayer_info[0].display_path_id;
+				vd_path_id[i] = glayer_info[0].display_path_id;
+			}
 			vd_layer[i].vd_func.vd_swap_frame(i, vd_path_id[i],
 							cur_vd_path_id[i],
 							&path_new_frame[0]);
+		}
+	}
 	if (debug_flag & DEBUG_FLAG_PRINT_DISBUF_PER_VSYNC)
 		pr_info("(%s)VID: layer enable status: VD1:e:%d,e_save:%d,g:%d,d:%d,f:%s; VD2:e:%d,e_save:%d,g:%d,d:%d,f:%s; VD3:e:%d,e_save:%d,g:%d,d:%d,f:%s",
 			__func__,

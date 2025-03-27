@@ -693,6 +693,7 @@ struct video_layer_s {
 	u32 mosaic_mode;
 	struct sub_slice_s sub_slice[SLICE_NUM - 1];
 	struct vframe_s *vf_top1;
+	bool switch_vd2_vf;
 };
 
 struct video_lcevc_s {
