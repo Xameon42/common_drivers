@@ -3653,7 +3653,7 @@ void video_post_process(struct vframe_s *vf,
 				} else if (vpp_index == VPP_TOP2) {
 					mtx_setting(VPP2_POST2_MTX, MATRIX_NULL, MTX_OFF);
 				} else {
-					if (!get_ep_ipt_flag())
+					if (!get_ep_ipt_flag() || !flag_lc_evc)
 						mtx_setting(POST2_MTX, MATRIX_NULL, MTX_OFF);
 				}
 			}

@@ -50,6 +50,7 @@
 #include "amcm.h"
 #include "reg_helper.h"
 #include "amcsc.h"
+#include "arch/vpp_hdr_regs.h"
 
 #define pr_amve_dbg(fmt, args...)\
 	do {\
@@ -104,6 +105,8 @@ module_param(dnlp_sel, int, 0664);
 MODULE_PARM_DESC(dnlp_sel, "dnlp_sel");
 /* #endif */
 #endif
+
+int flag_lc_evc;
 
 static int amve_debug;
 module_param(amve_debug, int, 0664);
@@ -205,6 +208,13 @@ MODULE_PARM_DESC(video_rgb_ogo_xvy_mtx,
 		 "enable/disable video_rgb_ogo_xvy_mtx");
 
 int video_rgb_ogo_xvy_mtx_latch;
+
+static int num_lc_evc = LC_EVC_SIZE;
+int lc_evc[LC_EVC_SIZE] = {
+	0x08000000, 0x08000000, 0x00000800, 0x1f001f00, 0x00001f00
+};
+module_param_array(lc_evc, int, &num_lc_evc, 0664);
+MODULE_PARM_DESC(lc_evc, "\n lc_evc\n");
 
 static unsigned int assist_cnt;/* ASSIST_SPARE8_REG1; */
 
@@ -5958,5 +5968,47 @@ void osd_sharpness_demo_ctrl(void)
 	WRITE_VPP_REG_BITS(OSD_PK_FINAL_GAIN, reg_pk_cir_final_gain, 16, 8);
 	WRITE_VPP_REG_BITS(OSD_PK_FINAL_GAIN, reg_pk_final_pgain, 8, 8);
 	WRITE_VPP_REG_BITS(OSD_PK_FINAL_GAIN, reg_pk_final_ngain, 0, 8);
+}
+
+void amve_lc_elc_ctrl(unsigned int enable)
+{
+	if (flag_lc_evc == enable)
+		return;
+
+	if (enable) {
+		VSYNC_WRITE_VPP_REG_VPP_SEL(VPP_POST2_MATRIX_EN_CTRL, 1, 0);
+		VSYNC_WRITE_VPP_REG_VPP_SEL(VPP_POST2_MATRIX_COEF00_01, lc_evc[0], 0);
+		VSYNC_WRITE_VPP_REG_VPP_SEL(VPP_POST2_MATRIX_COEF11_12, lc_evc[1], 0);
+		VSYNC_WRITE_VPP_REG_VPP_SEL(VPP_POST2_MATRIX_COEF22, lc_evc[2], 0);
+		VSYNC_WRITE_VPP_REG_VPP_SEL(VPP_POST2_MATRIX_PRE_OFFSET0_1, lc_evc[3], 0);
+		VSYNC_WRITE_VPP_REG_VPP_SEL(VPP_POST2_MATRIX_PRE_OFFSET2, lc_evc[4], 0);
+		flag_lc_evc = 1;
+
+		/*osd*/
+		VSYNC_WRITE_VPP_REG_VPP_SEL(VPP_WRAP_OSD1_MATRIX_COEF00_01, 0x005e013a, 0);
+		VSYNC_WRITE_VPP_REG_VPP_SEL(VPP_WRAP_OSD1_MATRIX_COEF02_10, 0x00201fcc, 0);
+		VSYNC_WRITE_VPP_REG_VPP_SEL(VPP_WRAP_OSD1_MATRIX_COEF11_12, 0x1f5300e1, 0);
+		VSYNC_WRITE_VPP_REG_VPP_SEL(VPP_WRAP_OSD1_MATRIX_COEF20_21, 0x00e11f35, 0);
+		VSYNC_WRITE_VPP_REG_VPP_SEL(VPP_WRAP_OSD1_MATRIX_COEF22, 0x00001feb, 0);
+		VSYNC_WRITE_VPP_REG_VPP_SEL(VPP_WRAP_OSD1_MATRIX_OFFSET0_1, 0x01200200, 0);
+		VSYNC_WRITE_VPP_REG_VPP_SEL(VPP_WRAP_OSD1_MATRIX_OFFSET2, 0x00000200, 0);
+		VSYNC_WRITE_VPP_REG_VPP_SEL(VPP_WRAP_OSD1_MATRIX_PRE_OFFSET0_1, 0, 0);
+		VSYNC_WRITE_VPP_REG_VPP_SEL(VPP_WRAP_OSD1_MATRIX_PRE_OFFSET2, 0, 0);
+	} else {
+		VSYNC_WRITE_VPP_REG_VPP_SEL(VPP_POST2_MATRIX_EN_CTRL, 0, 0);
+		flag_lc_evc = 0;
+
+		/*osd*/
+		VSYNC_WRITE_VPP_REG_VPP_SEL(VPP_WRAP_OSD1_MATRIX_COEF00_01, 0x00bb0275, 0);
+		VSYNC_WRITE_VPP_REG_VPP_SEL(VPP_WRAP_OSD1_MATRIX_COEF02_10, 0x003f1f99, 0);
+		VSYNC_WRITE_VPP_REG_VPP_SEL(VPP_WRAP_OSD1_MATRIX_COEF11_12, 0x1ea601c2, 0);
+		VSYNC_WRITE_VPP_REG_VPP_SEL(VPP_WRAP_OSD1_MATRIX_COEF20_21, 0x01c21e67, 0);
+		VSYNC_WRITE_VPP_REG_VPP_SEL(VPP_WRAP_OSD1_MATRIX_COEF22, 0x00001fd7, 0);
+		VSYNC_WRITE_VPP_REG_VPP_SEL(VPP_WRAP_OSD1_MATRIX_OFFSET0_1, 0x00400200, 0);
+		VSYNC_WRITE_VPP_REG_VPP_SEL(VPP_WRAP_OSD1_MATRIX_OFFSET2, 0x00000200, 0);
+		VSYNC_WRITE_VPP_REG_VPP_SEL(VPP_WRAP_OSD1_MATRIX_PRE_OFFSET0_1, 0, 0);
+		VSYNC_WRITE_VPP_REG_VPP_SEL(VPP_WRAP_OSD1_MATRIX_PRE_OFFSET2, 0, 0);
+	}
+	force_toggle();
 }
 
