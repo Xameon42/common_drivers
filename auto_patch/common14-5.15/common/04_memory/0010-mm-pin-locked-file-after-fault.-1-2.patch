@@ -1,4 +1,4 @@
-From 76b63e159c334fa4401373a56a22ef6b4ab2bbf4 Mon Sep 17 00:00:00 2001
+From 9e00e1322d8158fe4aa3c45a99427f7cb36c7fd7 Mon Sep 17 00:00:00 2001
 From: Jianxiong Pan <jianxiong.pan@amlogic.com>
 Date: Thu, 22 Sep 2022 17:25:35 +0800
 Subject: [PATCH] mm: pin locked file after fault. [1/2]
@@ -25,10 +25,10 @@ Signed-off-by: Jianxiong Pan <jianxiong.pan@amlogic.com>
  mm/gup.c     | 19 +++++++++++++
  mm/memory.c  | 78 +++++++++++++++++++++++++++++++++++++++++++++++++++-
  mm/migrate.c |  7 +++++
- mm/mlock.c   | 10 +++++++
+ mm/mlock.c   | 20 ++++++++++++++
  mm/rmap.c    | 17 +++++++++++-
  mm/vmscan.c  | 10 +++++++
- 6 files changed, 139 insertions(+), 2 deletions(-)
+ 6 files changed, 149 insertions(+), 2 deletions(-)
 
 diff --git a/mm/gup.c b/mm/gup.c
 index f8263f9458384..4ba357c8a0f48 100644
@@ -75,7 +75,7 @@ index f8263f9458384..4ba357c8a0f48 100644
  	}
  out:
 diff --git a/mm/memory.c b/mm/memory.c
-index 0b14e86ee68c0..e42b3473f6d73 100644
+index 43e72334d7a51..e1711b3870438 100644
 --- a/mm/memory.c
 +++ b/mm/memory.c
 @@ -85,6 +85,12 @@
@@ -91,7 +91,7 @@ index 0b14e86ee68c0..e42b3473f6d73 100644
  
  #include "pgalloc-track.h"
  #include "internal.h"
-@@ -4929,6 +4935,48 @@ static vm_fault_t handle_pte_fault(struct vm_fault *vmf)
+@@ -4945,6 +4951,48 @@ static vm_fault_t handle_pte_fault(struct vm_fault *vmf)
  	return 0;
  }
  
@@ -140,7 +140,7 @@ index 0b14e86ee68c0..e42b3473f6d73 100644
  /*
   * By the time we get here, we already hold the mm semaphore
   *
-@@ -4944,6 +4992,9 @@ static vm_fault_t __handle_mm_fault(struct vm_area_struct *vma,
+@@ -4960,6 +5008,9 @@ static vm_fault_t __handle_mm_fault(struct vm_area_struct *vma,
  		.flags = flags,
  		.pgoff = linear_page_index(vma, address),
  		.gfp_mask = __get_fault_gfp_mask(vma),
@@ -150,7 +150,7 @@ index 0b14e86ee68c0..e42b3473f6d73 100644
  	};
  	unsigned int dirty = flags & FAULT_FLAG_WRITE;
  	struct mm_struct *mm = vma->vm_mm;
-@@ -5055,7 +5106,14 @@ static vm_fault_t __handle_mm_fault(struct vm_area_struct *vma,
+@@ -5071,7 +5122,14 @@ static vm_fault_t __handle_mm_fault(struct vm_area_struct *vma,
  		if (!vmf.pte && uffd_missing_sigbus)
  			return VM_FAULT_SIGBUS;
  
@@ -166,7 +166,7 @@ index 0b14e86ee68c0..e42b3473f6d73 100644
  
  	spf_fail:
  		speculative_page_walk_end();
-@@ -5185,7 +5243,25 @@ static vm_fault_t __handle_mm_fault(struct vm_area_struct *vma,
+@@ -5201,7 +5259,25 @@ static vm_fault_t __handle_mm_fault(struct vm_area_struct *vma,
  		}
  	}
  
@@ -193,7 +193,7 @@ index 0b14e86ee68c0..e42b3473f6d73 100644
  
  /**
 diff --git a/mm/migrate.c b/mm/migrate.c
-index c89a3271fa9a6..9b14fe8603bb6 100644
+index 5827280c17211..6601173e76184 100644
 --- a/mm/migrate.c
 +++ b/mm/migrate.c
 @@ -54,6 +54,9 @@
@@ -206,7 +206,7 @@ index c89a3271fa9a6..9b14fe8603bb6 100644
  
  #include <asm/tlbflush.h>
  
-@@ -1295,6 +1298,10 @@ static int unmap_and_move(new_page_t get_new_page,
+@@ -1299,6 +1302,10 @@ static int unmap_and_move(new_page_t get_new_page,
  		else
  			put_page(newpage);
  	}
@@ -218,10 +218,10 @@ index c89a3271fa9a6..9b14fe8603bb6 100644
  	return rc;
  }
 diff --git a/mm/mlock.c b/mm/mlock.c
-index eec2418f33366..96309eeed8606 100644
+index eec2418f33366..584ec0efa182c 100644
 --- a/mm/mlock.c
 +++ b/mm/mlock.c
-@@ -25,6 +25,9 @@
+@@ -25,9 +25,16 @@
  #include <linux/memcontrol.h>
  #include <linux/mm_inline.h>
  #include <linux/secretmem.h>
@@ -231,7 +231,14 @@ index eec2418f33366..96309eeed8606 100644
  
  #include "internal.h"
  
-@@ -193,6 +196,7 @@ unsigned int munlock_vma_page(struct page *page)
++#ifdef CONFIG_AMLOGIC_PIN_LOCKED_FILE
++extern const struct sched_class rt_sched_class;
++#endif
++
+ bool can_do_mlock(void)
+ {
+ 	if (rlimit(RLIMIT_MEMLOCK) != 0)
+@@ -193,6 +200,7 @@ unsigned int munlock_vma_page(struct page *page)
  /*
   * convert get_user_pages() return value to posix mlock() error
   */
@@ -239,7 +246,7 @@ index eec2418f33366..96309eeed8606 100644
  static int __mlock_posix_error_return(long retval)
  {
  	if (retval == -EFAULT)
-@@ -201,6 +205,7 @@ static int __mlock_posix_error_return(long retval)
+@@ -201,6 +209,7 @@ static int __mlock_posix_error_return(long retval)
  		retval = -EAGAIN;
  	return retval;
  }
@@ -247,17 +254,23 @@ index eec2418f33366..96309eeed8606 100644
  
  /*
   * Prepare page for fast batched LRU putback via putback_lru_evictable_pagevec()
-@@ -588,6 +593,9 @@ static int apply_vma_lock_flags(unsigned long start, size_t len,
+@@ -588,6 +597,15 @@ static int apply_vma_lock_flags(unsigned long start, size_t len,
  		tmp = vma->vm_end;
  		if (tmp > end)
  			tmp = end;
 +	#ifdef CONFIG_AMLOGIC_PIN_LOCKED_FILE
-+		reset_page_vma_flags(vma, flags);
++		if (current->sched_class != &rt_sched_class) {
++			char name[sizeof(current->comm)];
++
++			get_task_comm(name, current);
++			pr_debug("rt mlock name: %s\n", name);
++			reset_page_vma_flags(vma, flags);
++		}
 +	#endif
  		error = mlock_fixup(vma, &prev, nstart, tmp, newflags);
  		if (error)
  			break;
-@@ -686,9 +694,11 @@ static __must_check int do_mlock(unsigned long start, size_t len, vm_flags_t fla
+@@ -686,9 +704,11 @@ static __must_check int do_mlock(unsigned long start, size_t len, vm_flags_t fla
  	if (error)
  		return error;
  
@@ -314,7 +327,7 @@ index 761b7f26adc91..e2e606453f06b 100644
  			 * No need to scan further once the page is marked
  			 * as mlocked.
 diff --git a/mm/vmscan.c b/mm/vmscan.c
-index 520a47240dae3..19962b9f5fb5f 100644
+index afb90bc23ea14..afc35bc15c865 100644
 --- a/mm/vmscan.c
 +++ b/mm/vmscan.c
 @@ -77,6 +77,9 @@
