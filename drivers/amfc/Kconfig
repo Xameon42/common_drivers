@@ -20,12 +20,16 @@ config AMFC_S7D
 config AMFC_T6D
 	bool "AMFC on T6D"
 
+config AMFC_T6W
+	bool "AMFC on T6W"
+
 endchoice
 
 config AMFC_BASE
 	hex "io base for decompress kernel"
 	default 0xfe024000 if AMFC_S7D
 	default 0xfe092000 if AMFC_T6D
+	default 0xfe092000 if AMFC_T6W
 	default 0xfe024000
 	help
 		Register base of AMFC for decompress uImage code.

@@ -94,6 +94,11 @@
 
 #define AMFC_STREAM_MARGIN			64
 
+#define AMFC_VER_1_0				0x0100
+#define AMFC_VER_1_1				0x0101
+
+#define PAGE_OFF(a)				(((unsigned long)a) & ~PAGE_MASK)
+
 enum amfc_page_table {
 	TABLE_SRC_COMPRESS = 0,
 	TABLE_DST_COMPRESS,
@@ -110,15 +115,17 @@ struct amfc_cmd_list {
 	union {
 		unsigned int control;
 		struct {
-			unsigned irq_mask    : 8;
+			unsigned src_hash_l  : 8;
 			unsigned algorithm   : 4;
-			unsigned rsved       : 12;
+			unsigned rsved       : 4;
+			unsigned dst_addr_h  : 4;
+			unsigned src_addr_h  : 4;
 			unsigned end         : 1;
 			unsigned dst_scatter : 1;
 			unsigned src_scatter : 1;
 			unsigned link_mode   : 1;
-			unsigned interrupt   : 1;
-			unsigned ratio_check : 1;
+			unsigned stream      : 1;
+			unsigned hash        : 1;
 			unsigned compress    : 1;
 			unsigned owner       : 1;
 		};
@@ -141,6 +148,7 @@ struct amfc {
 
 	spinlock_t com_lock;		/* lock for compress     */
 	spinlock_t dec_lock;		/* lock for decompress   */
+	unsigned int hw_version;	/* RTL version of amfc   */
 
 	/*
 	 * direct pages for fast quick page mode
@@ -174,5 +182,17 @@ int amfc_compress(void *src, void *dst, ssize_t src_size, ssize_t dst_size);
 #ifdef __UNCOMPRESS_IMAGE__
 void cache_clean_flush(unsigned long start, unsigned long end);
 #endif
+
+static inline int amfc_supported(void)
+{
+	int cpu = get_cpu_type();
+
+	switch (cpu) {
+	case MESON_CPU_MAJOR_ID_S7D:
+	case MESON_CPU_MAJOR_ID_S6:
+		return 1;
+	}
+	return 0;
+}
 
 #endif
