@@ -1,0 +1,16 @@
+#
+# external drivers configuration
+#
+menu "external Device Drivers"
+
+config AMLOGIC_EXTERNAL_DRIVER
+       tristate "amlogic external device support"
+       default n
+       help
+         Say Y here if you want to use external device.
+
+if AMLOGIC_EXTERNAL_DRIVER
+source "$(COMMON_DRIVERS_DIR)/drivers/external/st7789v3_tft/Kconfig"
+endif
+
+endmenu

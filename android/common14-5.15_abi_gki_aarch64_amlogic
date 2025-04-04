@@ -15,3 +15,6 @@
 
 # dwc_otg.ko
   drain_workqueue
+
+# st7789v3_tft_170x320.ko
+  spi_bus_type

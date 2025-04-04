@@ -36,6 +36,7 @@ obj-$(CONFIG_AMLOGIC_DRM)		+= drm/
 obj-$(CONFIG_AMLOGIC_CRYPTO_DMA)	+= crypto/
 obj-$(CONFIG_RTC_LIB)			+= rtc/
 obj-y					+= pci/
+obj-$(CONFIG_AMLOGIC_EXTERNAL_DRIVER)	+= external/
 obj-$(CONFIG_AMLOGIC_SOC_INFO)		+= soc_info/
 obj-$(CONFIG_AMLOGIC_HOST_DRIVER)	+= host/
 obj-$(CONFIG_AMLOGIC_WIRELESS)		+= wireless/

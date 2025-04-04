@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+
+config ST7789V3_TFT_170X320
+	tristate "st7789v3 tft 170x320 panel device support"
+	default n
+	help
+	  Say Y here if you want to use the st7789v3 tft 170x320 panel device.

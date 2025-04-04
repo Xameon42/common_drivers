@@ -244,6 +244,15 @@ config AMLOGIC_SND_SOC_AD82584F
 	  Enable Support for ESMT AD82584f CODEC.
 	  Select this if your AD82584F is connected via an I2C bus.
 
+config AMLOGIC_SND_SOC_NTP8918
+	tristate "NTP8918"
+	depends on AMLOGIC_SND_SOC_CODECS
+	depends on I2C
+	default n
+	help
+	Enable Support for NTP8918 CODEC.
+	Select this if your NTP8918 is connected via an I2C bus.
+
 config AMLOGIC_SND_SOC_CS42528
 	tristate "Cirrus Logic CS42528"
 	depends on AMLOGIC_SND_SOC_CODECS
