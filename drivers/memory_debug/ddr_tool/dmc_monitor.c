@@ -47,11 +47,12 @@
 #include "dmc_trace.h"
 
 // #define DEBUG
-#define DMC_VERSION		"1.10"
+#define DMC_VERSION		"1.10.1"
 
 #define IRQ_CHECK		0
 #define IRQ_CLEAR		1
 
+#define DMC_SEC_RATELIMIT_BURST	15
 #define DMC_RATELIMIT_BURST	30
 #define dmc_pr_crit(fmt, addr, val, status, port, subport, page_flags, buddy, slab, lru, trace, time, rw, title, rs)	\
 ({															\
@@ -375,14 +376,11 @@ EXPORT_SYMBOL(dmc_get_page_trace);
 
 void dmc_vio_check_page(void *data)
 {
-	unsigned long vio_bit = 0;
 	struct page *page;
 	struct page_trace *trace;
 	struct dmc_mon_comm *mon_comm = (struct dmc_mon_comm *)data;
 
 	page = phys_to_page(mon_comm->addr);
-	mon_comm->mapping = (unsigned long)page->mapping;
-	mon_comm->migratetype = get_pageblock_migratetype(page);
 
 #if defined(CONFIG_ARM64) || IS_ENABLED(CONFIG_AMLOGIC_DMC_MONITOR_BREAK_GKI)
 	if (!pfn_is_map_memory(__phys_to_pfn(mon_comm->addr))) {
@@ -391,20 +389,8 @@ void dmc_vio_check_page(void *data)
 #endif
 		mon_comm->trace.ip_data = IP_INVALID;
 		mon_comm->page_flags = 0;
-
-		if (dmc_mon->ops && dmc_mon->ops->vio_to_port)
-			dmc_mon->ops->vio_to_port(data, &vio_bit);
-
-		if (PHYS_PFN(mon_comm->addr) > get_num_physpages()) {
-			pr_crit("DMC WARNING: access out of DDR, addr:%lx, port:%s, sub:%s, rw:%c, s=%08lx\n",
-					mon_comm->addr,
-					virt_addr_valid(mon_comm->port.name) ? mon_comm->port.name : mon_comm->port.id,
-					virt_addr_valid(mon_comm->sub.name) ? mon_comm->sub.name : mon_comm->sub.id,
-					mon_comm->rw,
-					mon_comm->status);
-			if (mon_comm->rw == 'w')
-				panic("DMC Trigger, write overflow ddr");
-		}
+		mon_comm->mapping = 0xffff;
+		mon_comm->migratetype = 0xffff;
 	} else {
 		trace = dmc_find_page_base(page);
 		if (trace)
@@ -412,6 +398,8 @@ void dmc_vio_check_page(void *data)
 		else
 			mon_comm->trace.ip_data = IP_INVALID;
 		mon_comm->page_flags = page->flags & PAGEFLAGS_MASK;
+		mon_comm->mapping = (unsigned long)page->mapping;
+		mon_comm->migratetype = get_pageblock_migratetype(page);
 	}
 }
 
@@ -901,26 +889,43 @@ size_t dump_dmc_reg(char *buf)
 	return sz;
 }
 
-static void dmc_sec_reg_check(char *info)
+static void dmc_sec_reg_check(char *info, unsigned char index)
 {
-	int len = 0;
+	int len = 0, i;
+	bool flag = 0;
 	static char buf[2048] = {0};
+	static DEFINE_RATELIMIT_STATE(dmc_sec_rs, HZ, DMC_SEC_RATELIMIT_BURST);
 
-	if (info)
+	if (__ratelimit(&dmc_sec_rs))
+		flag = 1;
+
+	if (info && flag)
 		len += snprintf(buf, sizeof(buf), info);
 
-	if (dmc_mon->ops && dmc_mon->ops->reg_control)
-		len += dmc_mon->ops->reg_control(NULL, 'd', buf + len);
+	if (dmc_mon->ops && dmc_mon->ops->reg_control) {
+		if (index != 0xff) {
+			if (flag)
+				len += dmc_mon->ops->reg_control(&index, 'd', buf + len);
+			dmc_mon->ops->reg_control(&index, 'c', NULL);
+		} else {
+			for (i = 0; i < dmc_mon->mon_number; i++) {
+				index = i;
+				if (flag)
+					len += dmc_mon->ops->reg_control(&index, 'd', buf + len);
+				dmc_mon->ops->reg_control(&index, 'c', NULL);
+			}
+		}
+	}
 
-	pr_emerg("%s", buf);
-
-	if (dmc_mon->ops && dmc_mon->ops->reg_control)
-		dmc_mon->ops->reg_control(NULL, 'c', NULL);
+	if (flag)
+		pr_emerg("%s", buf);
 }
 
 static irqreturn_t __nocfi dmc_sec_irq_handler(int irq, void *dev_instance)
 {
-	dmc_sec_reg_check("FROM IRQ -- ");
+	unsigned char index = (struct dmc_mon_comm *)dev_instance - dmc_mon->mon_comm;
+
+	dmc_sec_reg_check("FROM IRQ -- ", index);
 
 	return IRQ_HANDLED;
 }
@@ -1310,7 +1315,7 @@ static ssize_t debug_store(struct class *cla,
 		else
 			dmc_mon->debug &= ~DMC_DEBUG_TRACE;
 	} else if (strstr(string, "serror") == string) {
-		dmc_sec_reg_check("FROM USER -- ");
+		dmc_sec_reg_check("FROM USER -- ", 0xff);
 	} else if (strstr(string, "irq") == string) {
 		if (val)
 			dmc_mon->debug |= DMC_DEBUG_IRQ_THREAD;
@@ -1638,14 +1643,14 @@ static void arm64_serror_panic(void *data, struct pt_regs *regs, unsigned int es
 	if (in_nmi())
 		__preempt_count_sub(NMI_OFFSET + HARDIRQ_OFFSET);
 
-	dmc_sec_reg_check("FROM ASYNC SERROR -- ");
+	dmc_sec_reg_check("FROM ASYNC SERROR -- ", 0xff);
 	oops_in_progress++;
 }
 
 /* Synchronous Serror*/
 static void do_sea(void *data, unsigned long addr, unsigned int esr, struct pt_regs *regs)
 {
-	dmc_sec_reg_check("FROM SYNC SERROR -- ");
+	dmc_sec_reg_check("FROM SYNC SERROR -- ", 0xff);
 }
 #else
 static void do_serror(void *data, struct pt_regs *regs, unsigned int esr, int *ret)
@@ -1658,7 +1663,7 @@ static void do_serror(void *data, struct pt_regs *regs, unsigned int esr, int *r
 	if (in_nmi())
 		__preempt_count_sub(NMI_OFFSET + HARDIRQ_OFFSET);
 
-	dmc_sec_reg_check("FROM SYNC SERROR -- ");
+	dmc_sec_reg_check("FROM SYNC SERROR -- ", 0xff);
 	oops_in_progress++;
 }
 #endif
@@ -1775,7 +1780,7 @@ static int __init dmc_monitor_probe(struct platform_device *pdev)
 	}
 
 	/* check dmc sec reg*/
-	dmc_sec_reg_check("FROM PROBE -- ");
+	dmc_sec_reg_check("FROM PROBE -- ", 0xff);
 
 	if (dmc_irq_request(node) < 0)
 		pr_emerg("request dmc irq failed\n");
