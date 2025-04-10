@@ -10,6 +10,7 @@
 #include <linux/input.h>
 #include <linux/kobject.h>
 #include <sound/soc.h>
+#include <linux/pm_wakeup.h>
 
 enum audio_event {
 	AUDIO_NONE_EVENT = 0,

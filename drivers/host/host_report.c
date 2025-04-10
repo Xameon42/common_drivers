@@ -43,7 +43,7 @@ static int host_send_event_to_audio(struct device *dev, enum audio_event type, i
 	return ret;
 }
 
-static void host_send_event_to_wakeup_screen(struct host_dsp *host_dsp)
+void host_send_event_to_wakeup_screen(struct host_dsp *host_dsp)
 {
 	input_event(host_dsp->input_device, EV_KEY, KEY_POWER, 1);
 	input_sync(host_dsp->input_device);
@@ -57,7 +57,6 @@ static void host_dsp_ffv_report(struct work_struct *work)
 						  struct host_dsp, host_ffv_work);
 
 	host_send_event_to_audio(host_dsp->host->dev, VAD_WAKEUP_MODE_EVENT, 1);
-	host_send_event_to_wakeup_screen(host_dsp);
 }
 
 void host_dsp_ffv_wq_init(struct host_dsp *host_dsp)
@@ -88,6 +87,8 @@ void host_dsp_ffv_wq_stop(struct host_dsp *host_dsp)
 void host_dsp_vad_report(struct host_dsp *host_dsp)
 {
 	host_dsp_ffv_wq_start(host_dsp);
+	/* wake lock for katniss response */
+	pm_wakeup_event(host_dsp->host->dev, 5000);
 }
 
 void host_dsp_vad_input_device_init(struct host_dsp *host_dsp)
