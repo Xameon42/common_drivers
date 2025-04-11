@@ -62,6 +62,8 @@
 
 #define ADDR_VALUE_8G    0x200000000
 
+#define INORM   50000
+
 static u32 use_low_latency;
 MODULE_PARM_DESC(use_low_latency, "\n use_low_latency\n");
 module_param(use_low_latency, uint, 0664);
@@ -3395,6 +3397,35 @@ static bool check_mosaic_22(struct composer_dev *dev, struct received_frames_t *
 	return true;
 }
 
+static const u32 bt2020_primaries[3][2] = {
+	{0.17 * INORM + 0.5, 0.797 * INORM + 0.5},      /* G */
+	{0.131 * INORM + 0.5, 0.046 * INORM + 0.5},     /* B */
+	{0.708 * INORM + 0.5, 0.292 * INORM + 0.5},     /* R */
+};
+
+static const u32 bt2020_white_point[2] = {
+	0.3127 * INORM + 0.5, 0.3290 * INORM + 0.5
+};
+
+static void set_vf_hdr_info(struct composer_dev *dev, struct vframe_s *vf)
+{
+	if (!vf) {
+		vc_print(dev->index, PRINT_ERROR, "%s:vf is NULL\n", __func__);
+		return;
+	}
+
+	vf->signal_type = 0x20091009;
+	vf->prop.master_display_colour.present_flag = 1;
+
+	memcpy(vf->prop.master_display_colour.primaries, bt2020_primaries, sizeof(u32) * 6);
+	memcpy(vf->prop.master_display_colour.white_point, bt2020_white_point, sizeof(u32) * 2);
+
+	vf->prop.master_display_colour.luminance[0] = 1000;
+	vf->prop.master_display_colour.luminance[1] = 50;
+	vf->prop.master_display_colour.content_light_level.max_content = 0;
+	vf->prop.master_display_colour.content_light_level.max_pic_average = 0;
+}
+
 static void video_composer_task(struct composer_dev *dev)
 {
 	struct vframe_s *vf = NULL;
@@ -3666,6 +3697,11 @@ static void video_composer_task(struct composer_dev *dev)
 					vf->canvas0_config[0].width = frame_info->buffer_w * 3;
 					vc_print(dev->index, PRINT_OTHER,
 						"frame_info->buffer_w * 3\n");
+				} else if (frame_info->buffer_format == YUV444_10BIT) {
+					vc_print(dev->index, PRINT_OTHER,
+						"buffer_format_t HDR10 YUV444_10bit\n");
+					vf->canvas0_config[0].width = frame_info->buffer_w * 4;
+					set_vf_hdr_info(dev, vf);
 				} else {
 					vf->canvas0_config[0].width = frame_info->buffer_w;
 				}
@@ -3678,6 +3714,11 @@ static void video_composer_task(struct composer_dev *dev)
 					vf->canvas0_config[0].width = frame_info->reserved[0] * 3;
 					vc_print(dev->index, PRINT_OTHER,
 						"frame_info->reserved[0] * 3\n");
+				} else if (frame_info->buffer_format == YUV444_10BIT) {
+					vc_print(dev->index, PRINT_OTHER,
+						"buffer_format_t HDR10 YUV444_10bit\n");
+					vf->canvas0_config[0].width = frame_info->reserved[0] * 4;
+					set_vf_hdr_info(dev, vf);
 				} else {
 					vf->canvas0_config[0].width = frame_info->reserved[0];
 				}
@@ -3722,21 +3763,29 @@ static void video_composer_task(struct composer_dev *dev)
 					| VIDTYPE_VIU_FIELD
 					| VIDTYPE_VIU_444;
 				vc_print(dev->index, PRINT_OTHER, "buffer_format_t YUV444\n");
+				vf->bitdepth = BITDEPTH_Y8 | BITDEPTH_U8 | BITDEPTH_V8;
+			} else if (frame_info->buffer_format == YUV444_10BIT) {
+				vf->plane_num = 1;
+				vf->type = VIDTYPE_VIU_SINGLE_PLANE
+					| VIDTYPE_VIU_FIELD
+					| VIDTYPE_VIU_444;
+				vf->bitdepth = BITDEPTH_Y10 | BITDEPTH_U10 | BITDEPTH_V10;
 			} else if (frame_info->buffer_format == NV12_VC) {
 				vf->plane_num = 2;
 				vf->type = VIDTYPE_PROGRESSIVE
 					| VIDTYPE_VIU_FIELD
 					| VIDTYPE_VIU_NV12;
+				vf->bitdepth = BITDEPTH_Y8 | BITDEPTH_U8 | BITDEPTH_V8;
 			} else {
 				vf->plane_num = 2;
 				vf->type = VIDTYPE_PROGRESSIVE
 					| VIDTYPE_VIU_FIELD
 					| VIDTYPE_VIU_NV21;
+				vf->bitdepth = BITDEPTH_Y8 | BITDEPTH_U8 | BITDEPTH_V8;
 			}
 			if (usage == UVM_USAGE_IMAGE_PLAY)
 				vf->type |= VIDTYPE_PIC;
-			vf->bitdepth =
-				BITDEPTH_Y8 | BITDEPTH_U8 | BITDEPTH_V8;
+
 		}
 		vc_print(dev->index, PRINT_AXIS,
 			 "axis: %d %d %d %d, crop: %d %d %d %d\n",
