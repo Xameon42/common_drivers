@@ -78,9 +78,9 @@ if [[ ! -f ${KERNEL_DIR}/init/main.c ]]; then
 	exit
 fi
 if [[ -z "${COMMON_DRIVERS_DIR}" ]]; then
-	if [[ -d ${KERNEL_DIR}/../common_drivers ]]; then
+	if [[ -f ${KERNEL_DIR}/../common_drivers/amlogic_utils.sh ]]; then
 		COMMON_DRIVERS_DIR=../common_drivers
-	elif [[ -d "${KERNEL_DIR}/common_drivers" ]]; then
+	elif [[ -f "${KERNEL_DIR}/common_drivers/amlogic_utils.sh" ]]; then
 		COMMON_DRIVERS_DIR=common_drivers
 	fi
 fi
@@ -193,6 +193,10 @@ if [[ "${FULL_KERNEL_VERSION}" != "common13-5.15" && "${ARCH}" = "arm64" && ${BA
 
 	sed -i "/UPGRADE_PROJECT/d" ${PROJECT_DIR}/project.bzl
 	echo "UPGRADE_PROJECT = \"${UPGRADE_PROJECT}\"" >> ${PROJECT_DIR}/project.bzl
+
+
+	echo "VENDOR_KERNEL_BUILD = \"${VENDOR_KERNEL_BUILD}\""	>> ${PROJECT_DIR}/project.bzl
+	echo						>> ${PROJECT_DIR}/project.bzl
 
 	[[ -f ${PROJECT_DIR}/dtb.bzl ]] || touch ${PROJECT_DIR}/dtb.bzl
 	echo "# SPDX-License-Identifier: GPL-2.0" 	>  ${PROJECT_DIR}/dtb.bzl
