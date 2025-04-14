@@ -219,6 +219,9 @@ int aipq_scs_bld_proc(int (*cfg)[SCENES_VALUE], int (*prob)[2],
 	static int pre_out[SCENES_VALUE];
 	int kp_flag = 0;
 
+	if (pq_debug[2] == 0x10)
+		pr_info("[aipq]aipq_set_policy: %d\n", aipq_set_policy);
+
 	memset(out, 0, sizeof(int) * SCENES_VALUE);
 #ifdef CONFIG_AMLOGIC_MEDIA_ENHANCEMENT_VECM
 	timer_filter_en = get_timer_filter_en();
@@ -363,14 +366,14 @@ void aipq_scs_proc(struct vframe_s *vf,
 		(cur_blue_pct - pre_blue_pct) :
 		(pre_blue_pct - cur_blue_pct);
 
-	if (pq_debug[2] > 0x10) {
-		pr_info("cur_skin_hist = %lld, cur_green_hist = %lld\n",
+	if (pq_debug[2] == 0x11) {
+		pr_info("[aipq]cur_skin_hist = %lld, cur_green_hist = %lld\n",
 			cur_skin_hist, cur_green_hist);
-		pr_info("cur_blue_hist = %lld, cur_total_hist = %d\n",
+		pr_info("[aipq]cur_blue_hist = %lld, cur_total_hist = %d\n",
 			cur_blue_hist, cur_total_hist);
-		pr_info("pre_skin/green/blue_pct = %d/%d/%d\n",
+		pr_info("[aipq]pre_skin/green/blue_pct = %d/%d/%d\n",
 			pre_skin_pct, pre_green_pct, pre_blue_pct);
-		pr_info("cur_skin/green/blue_pct = %d/%d/%d\n",
+		pr_info("[aipq]cur_skin/green/blue_pct = %d/%d/%d\n",
 			cur_skin_pct, cur_green_pct, cur_blue_pct);
 	}
 
@@ -382,8 +385,8 @@ void aipq_scs_proc(struct vframe_s *vf,
 		memcpy(out, cfg[pre_top_one], sizeof(int) * SCENES_VALUE);
 		scene_prob[0] = top_one;
 		scene_prob[1] = top_one_prob;
-		if (pq_debug[2] > 0x10)
-			pr_info("pre_top_one == top_one\n");
+		if (pq_debug[2] == 0x12)
+			pr_info("[aipq]pre_top_one == top_one\n");
 	} else if (((pre_top_one == top_two) && (top_two_prob > 1000)) ||
 			((pre_top_one == top_three) && (top_three_prob > 1000))) {
 		memcpy(out, cfg[pre_top_one], sizeof(int) * SCENES_VALUE);
@@ -396,25 +399,29 @@ void aipq_scs_proc(struct vframe_s *vf,
 			scene_prob[1] = top_three_prob;
 		}
 
-		if (pq_debug[2] > 0x10) {
-			pr_info("top_two = %d, top_two_prob = %d\n",
+		if (pq_debug[2] == 0x10) {
+			pr_info("[aipq]top_two = %d, top_two_prob = %d\n",
 				top_two, top_two_prob);
-			pr_info("top_three = %d, top_three_prob = %d\n",
+			pr_info("[aipq]top_three = %d, top_three_prob = %d\n",
 				top_two, top_two_prob);
 		}
-	} else if ((diff_skin_pct + diff_green_pct + diff_blue_pct < color_th) &&
-			    (pre_top_one >= 0)) {
-		memcpy(out, cfg[pre_top_one], sizeof(int) * SCENES_VALUE);
-		if (pq_debug[2] > 0x10)
-			pr_info("pre_top_one = %d, color_th = %d\n",
-				pre_top_one, color_th);
+	/*} else if ((diff_skin_pct + diff_green_pct + diff_blue_pct < color_th) &&*/
+	/*	(pre_top_one >= 0)) {*/
+	/*	memcpy(out, cfg[pre_top_one], sizeof(int) * SCENES_VALUE);*/
+	/*	if (pq_debug[2] > 0x10)*/
+	/*		pr_info("[aipq]pre_top_one = %d, color_th = %d\n",*/
+	/*			pre_top_one, color_th);*/
 	} else if ((top_one == 1) && (pre_top_one == 3) && (pre_blue_pct > 500) &&
 		(pre_blue_pct < cur_blue_pct)) {
 		memcpy(out, cfg[pre_top_one], sizeof(int) * SCENES_VALUE);
-		if (pq_debug[2] > 0x10)
-			pr_info("pre_blue_pct = %d, cur_blue_pct = %d\n",
+		if (pq_debug[2] == 0x10)
+			pr_info("[aipq]pre_blue_pct = %d, cur_blue_pct = %d\n",
 				pre_blue_pct, cur_blue_pct);
 	} else {
+		if (pq_debug[2] == 0x10)
+			pr_info("[aipq]pre_top_one = %d, top_one = %d, top_one_prob = %d\n",
+				pre_top_one, top_one, top_one_prob);
+
 		if (pq_debug[2] == 0x8) {
 			pr_info("pre_top_one = %d, top_one = %d, top_one_prob = %d, diff_skin_pct = %d, diff_green_pct = %d, diff_blue_pct = %d\n",
 				pre_top_one, top_one, top_one_prob,
@@ -450,8 +457,8 @@ void aipq_scs_proc(struct vframe_s *vf,
 	for (i = 0; i < 32; i++)
 		pre_hist[i] = vf->prop.hist.vpp_hue_gamma[i];
 
-	if (pq_debug[2] > 0x10)
-		pr_info("pre_top_one = %d, diff_skin_pct = %d, diff_green_pct = %d, diff_blue_pct = %d\n",
+	if (pq_debug[2] == 0x13)
+		pr_info("[aipq]pre_top_one = %d, diff_skin_pct = %d, diff_green_pct = %d, diff_blue_pct = %d\n",
 			pre_top_one, diff_skin_pct,
 			diff_green_pct, diff_blue_pct);
 
@@ -761,13 +768,16 @@ void vf_pq_process(struct vframe_s *vf,
 		aipq_scs_proc(vf, vpp_pq_data, prob, bld_ofst, pq_debug);
 #endif
 
-	if (pq_debug[2] == 0x1)
+	if (pq_debug[2] == 0x1) {
+		pr_info("aipq_set_policy: %d\n",
+			aipq_set_policy);
 		pr_info("top5:%d,%d; %d,%d; %d,%d; %d,%d; %d,%d;\n",
 			vf->nn_value[0].maxclass, vf->nn_value[0].maxprob,
 			vf->nn_value[1].maxclass, vf->nn_value[1].maxprob,
 			vf->nn_value[2].maxclass, vf->nn_value[2].maxprob,
 			vf->nn_value[3].maxclass, vf->nn_value[3].maxprob,
 			vf->nn_value[4].maxclass, vf->nn_value[4].maxprob);
+	}
 
 	i = 0;
 
