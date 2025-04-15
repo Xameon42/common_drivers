@@ -952,6 +952,13 @@
 		detect_mode = <0>;
 	};
 
+	radar_wakeup {
+		compatible = "radar-wakeup";
+		report-type = <EV_KEY>;
+		report-value = <KEY_POWER>;
+		status = "okay";
+	};
+
 	vin_12v_reg: fixed@vin_12v_reg {
 		compatible = "regulator-fixed";
 		regulator-name = "DC_IN";

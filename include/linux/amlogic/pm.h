@@ -23,6 +23,7 @@
 #define	ETH_PHY_GPIO	12
 #define	VAD_WAKEUP	13
 #define HDMI_RX_WAKEUP	14
+#define RADAR_GPIO_WAKEUP       16
 
 #if IS_ENABLED(CONFIG_AMLOGIC_GX_SUSPEND)
 unsigned int get_resume_method(void);

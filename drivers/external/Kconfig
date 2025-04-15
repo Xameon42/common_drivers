@@ -13,6 +13,7 @@ if AMLOGIC_EXTERNAL_DRIVER
 source "$(COMMON_DRIVERS_DIR)/drivers/external/leds/Kconfig"
 source "$(COMMON_DRIVERS_DIR)/drivers/external/nfc/nta533/Kconfig"
 source "$(COMMON_DRIVERS_DIR)/drivers/external/sensor/htu20d/Kconfig"
+source "$(COMMON_DRIVERS_DIR)/drivers/external/sensor/radar/Kconfig"
 source "$(COMMON_DRIVERS_DIR)/drivers/external/sensor/ucs11681/Kconfig"
 source "$(COMMON_DRIVERS_DIR)/drivers/external/video/st7789v3_tft/Kconfig"
 endif
