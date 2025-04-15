@@ -136,8 +136,12 @@
 		codec_mm_cma:linux,codec_mm_cma {
 			compatible = "shared-dma-pool";
 			reusable;
-			/* Two-channel 1080i HEVC secure playback requires at least 168MB */
-			size = <0xA800000>;
+			/*
+			 * S7 1G lowram platform, the maximum scenario is
+			 * Primary 1080p secure + Secondary 720p secure +
+			 * PIP 480p need 156M.
+			 */
+			size = <0x9C00000>;
 			alignment = <0x400000>;
 			linux,contiguous-region;
 			alloc-ranges = <0x30000000 0x10000000>;
@@ -154,7 +158,7 @@
 		secure_vdec_reserved:linux,secure_vdec_reserved {
 			compatible = "amlogic, secure-vdec-reserved";
 			no-map;
-			size = <0x400000>;
+			size = <0x800000>;
 			alignment = <0x100000>;
 			alloc-ranges = <0x30000000 0x10000000>;
 		};

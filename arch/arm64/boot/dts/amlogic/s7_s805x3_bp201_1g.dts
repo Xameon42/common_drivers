@@ -135,10 +135,11 @@
 			compatible = "shared-dma-pool";
 			reusable;
 			/*
-			 * Two-channel 1080i HEVC secure playback
-			 * requires at least 168MB without DTV enable
+			 * S7 1G lowram platform, the maximum scenario is
+			 * Primary 1080p secure + Secondary 720p secure +
+			 * PIP 480p need 156M.
 			 */
-			size = <0x0 0xA800000>;
+			size = <0x0 0x9C00000>;
 			alignment = <0x0 0x400000>;
 			linux,contiguous-region;
 		};
@@ -154,7 +155,7 @@
 		secure_vdec_reserved:linux,secure_vdec_reserved {
 			compatible = "amlogic, secure-vdec-reserved";
 			no-map;
-			size = <0x0 0x400000>;
+			size = <0x0 0x800000>;
 			alignment = <0x0 0x100000>;
 		};
 		/*  vdin0 CMA pool */
