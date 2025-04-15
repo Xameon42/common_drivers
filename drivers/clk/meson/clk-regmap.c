@@ -26,7 +26,7 @@ static int clk_regmap_check_is_satisfied(struct clk_hw *hw)
 			 * and the splinlock used during the enable period will be delayed
 			 * for at least 1ms.
 			 */
-			udelay(1000);
+			udelay(1200);
 			cnt--;
 			regmap_read(clk->map, gate->check_offset, &val);
 		} while (!(val & BIT(gate->check_bit)));
