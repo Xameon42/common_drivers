@@ -426,7 +426,6 @@ static void set_up_addr(struct amfc_cmd_list *acl, unsigned long addr, unsigned 
 {
 	unsigned int low, high = 0;
 
-	WARN_ON(isvmalloc && off && amfc->hw_version < AMFC_VER_1_1);
 	low  = addr & 0xffffffff;
 #ifdef CONFIG_64BIT
 	high = (addr >> 32) & 0xf;
