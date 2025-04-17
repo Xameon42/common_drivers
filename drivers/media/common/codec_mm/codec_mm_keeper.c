@@ -115,6 +115,7 @@ int codec_mm_keeper_mask_keep_mem(void *mem_handle, int type)
 		if (!have_samed)
 			keep_id = -1;
 	}
+	spin_unlock_irqrestore(&mgr->lock, flags);
 	if (codec_mm_get_keep_debug_mode() & 1) {
 		/*kept info */
 		pr_err("%s %p id=%d\n", __func__,
@@ -128,7 +129,6 @@ int codec_mm_keeper_mask_keep_mem(void *mem_handle, int type)
 		if (keep_id < 0)
 			pr_err("keep mem failed because keep buffer fulled!!!\n");
 	}
-	spin_unlock_irqrestore(&mgr->lock, flags);
 
 	return keep_id;
 }
