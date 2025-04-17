@@ -110,6 +110,7 @@ enum VIDEO_DEC_TYPE {
 #define DECODER_FATAL_ERROR_NO_MEM              (0x400 << 16)
 #define DECODER_FATAL_ERROR_UNSUPPORT_FORMAT    (0x800 << 16)
 #define DECODER_ES_INPUT_UNDERRUN               (0x2000 << 16)
+#define DECODER_REPORT_DV_FLAG                  (0x4000 << 16)
 
 #define DECODER_ERROR_MASK	(0xffff << 16)
 /* The total slot number for fifo_buf */
