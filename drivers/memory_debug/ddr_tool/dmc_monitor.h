@@ -37,7 +37,7 @@
 #define DMC_DEBUG_IRQ_THREAD	BIT(6)
 #define DMC_DEBUG_VALUE		BIT(7)
 
-enum init_dmc_mode_type {
+enum dmc_mode_type {
 	DMC_MODE_RESERVED = 0x0,
 	DMC_MODE_DEFAULT = 0x1,
 	DMC_MODE_NORMAL  = 0x2,
@@ -114,10 +114,11 @@ void dmc_monitor_disable(void);
  * start: physical start address, aligned to 64KB
  * end: physical end address, aligned to 64KB
  * dev_mask: device bit to set
+ * mode: dmc_mode_type
  * en: 0: close monitor, 1: enable monitor
  */
 int dmc_set_monitor(unsigned long start, unsigned long end,
-		    unsigned long dev_mask, int en);
+		    unsigned long dev_mask, enum dmc_mode_type mode, int en);
 
 /*
  * start: physical start address, aligned to 64KB

@@ -47,7 +47,7 @@
 #include "dmc_trace.h"
 
 // #define DEBUG
-#define DMC_VERSION		"1.10.1"
+#define DMC_VERSION		"1.10.2"
 
 #define IRQ_CHECK		0
 #define IRQ_CLEAR		1
@@ -67,7 +67,7 @@ char exception_filter_sym[] = "alloc_from_cma";
 char default_filter_dev[] = "USB,ETH,EMMC,TCON1";
 char default_filter_sym[] = "__dma_direct_alloc_pages,alloc_page_boost_work_func,dma_direct_alloc";
 
-static enum init_dmc_mode_type init_dmc_mode = DMC_MODE_RESERVED;
+static enum dmc_mode_type init_dmc_mode = DMC_MODE_RESERVED;
 static unsigned long init_dev_mask;
 static unsigned long init_start_addr;
 static unsigned long init_end_addr;
@@ -593,7 +593,8 @@ static unsigned int get_other_dev_mask(void)
 		    strstr(dmc_mon->port[i].port_name, "ETH") ||
 		    strstr(dmc_mon->port[i].port_name, "EMMC") ||
 		    strstr(dmc_mon->port[i].port_name, "TEST") ||
-		    strstr(dmc_mon->port[i].port_name, "AMFC"))
+		    strstr(dmc_mon->port[i].port_name, "AMFC") ||
+		    strstr(dmc_mon->port[i].port_name, "MTE"))
 			continue;
 
 		ret |= (1 << dmc_mon->port[i].port_id);
@@ -795,10 +796,7 @@ static void dmc_set_default(struct dmc_monitor *mon)
 			mon->device, mon->addr_start, mon->addr_end,
 			mon->debug, default_filter_dev, default_filter_sym);
 
-	init_dmc_mode = DMC_MODE_DEFAULT;
-	if (dmc_mon->addr_start < dmc_mon->addr_end && dmc_mon->ops &&
-	     dmc_mon->ops->set_monitor)
-		dmc_mon->ops->set_monitor(dmc_mon);
+	dmc_set_monitor(mon->addr_start, mon->addr_end, mon->device, DMC_MODE_DEFAULT, 1);
 }
 
 static void dmc_clear_reserved_memory(struct dmc_monitor *mon)
@@ -847,11 +845,9 @@ static void dmc_enabled_reserved_memory(struct platform_device *pdev, struct dmc
 	mon->debug |= DMC_DEBUG_CMA;
 	mon->debug |= DMC_DEBUG_SAME;
 
-	if (mon->addr_start < mon->addr_end && mon->ops && mon->ops->set_monitor) {
-		pr_emerg("DMC DEBUG MEMORY ENABLED: range:%lx-%lx, device=%llx, debug=%x\n",
+	pr_emerg("DMC DEBUG MEMORY ENABLED: range:%lx-%lx, device=%llx, debug=%x\n",
 				mon->addr_start, mon->addr_end, mon->device, mon->debug);
-		mon->ops->set_monitor(mon);
-	}
+	dmc_set_monitor(mon->addr_start, mon->addr_end, mon->device, DMC_MODE_RESERVED, 1);
 }
 
 size_t dump_dmc_reg(char *buf)
@@ -1092,15 +1088,19 @@ static int dmc_regulation_dev(unsigned long dev, int add)
 }
 
 int dmc_set_monitor(unsigned long start, unsigned long end,
-		    unsigned long dev_mask, int en)
+		    unsigned long dev_mask, enum dmc_mode_type mode, int en)
 {
 	if (!dmc_mon)
 		return -EINVAL;
 
+	set_dmc_filter(default_filter_dev);
+	set_dmc_filter(default_filter_sym);
+	set_dmc_filter(exception_filter_sym);
+
 	dmc_mon->addr_start = start;
 	dmc_mon->addr_end   = end;
 	dmc_regulation_dev(dev_mask, en);
-	init_dmc_mode = DMC_MODE_NORMAL;
+	init_dmc_mode = mode;
 	if (start < end && dmc_mon->ops && dmc_mon->ops->set_monitor)
 		return dmc_mon->ops->set_monitor(dmc_mon);
 	return -EINVAL;
@@ -1115,10 +1115,10 @@ int dmc_set_monitor_by_name(unsigned long start, unsigned long end,
 	dmc_clear_reserved_memory(dmc_mon);
 	id = dev_name_to_id(port_name);
 	if (id >= 0 && dmc_dev_is_byte(dmc_mon))
-		return dmc_set_monitor(start, end, id, en);
+		return dmc_set_monitor(start, end, id, DMC_MODE_NORMAL, en);
 	else if (id < 0 || id >= BITS_PER_LONG)
 		return -EINVAL;
-	return dmc_set_monitor(start, end, 1UL << id, en);
+	return dmc_set_monitor(start, end, 1UL << id, DMC_MODE_NORMAL, en);
 }
 EXPORT_SYMBOL(dmc_set_monitor_by_name);
 
@@ -1162,7 +1162,7 @@ static ssize_t range_store(struct class *cla,
 		pr_info("%s, bad input:%s\n", __func__, buf);
 		return count;
 	}
-	dmc_set_monitor(start, end, dmc_mon->device, 1);
+	dmc_set_monitor(start, end, dmc_mon->device, DMC_MODE_NORMAL, 1);
 	return count;
 }
 static CLASS_ATTR_RW(range);
@@ -1223,7 +1223,8 @@ static ssize_t device_store(struct class *cla,
 		}
 	}
 
-	dmc_set_monitor(dmc_mon->addr_start, dmc_mon->addr_end, dmc_mon->device, 1);
+	dmc_set_monitor(dmc_mon->addr_start, dmc_mon->addr_end,
+				dmc_mon->device, DMC_MODE_NORMAL, 1);
 	return count;
 }
 
@@ -1331,7 +1332,8 @@ static ssize_t debug_store(struct class *cla,
 		return count;
 	}
 
-	dmc_set_monitor(dmc_mon->addr_start, dmc_mon->addr_end, dmc_mon->device, 1);
+	dmc_set_monitor(dmc_mon->addr_start, dmc_mon->addr_end,
+				dmc_mon->device, DMC_MODE_NORMAL, 1);
 
 	return count;
 }
@@ -1747,9 +1749,6 @@ static int __init dmc_monitor_probe(struct platform_device *pdev)
 	if (init_dmc_irq_thread_en)
 		dmc_mon->debug |= DMC_DEBUG_IRQ_THREAD;
 
-	set_dmc_filter(default_filter_dev);
-	set_dmc_filter(default_filter_sym);
-	set_dmc_filter(exception_filter_sym);
 	if (strlen(dmc_filter_early_buf))
 		set_dmc_filter(dmc_filter_early_buf);
 
@@ -1761,7 +1760,7 @@ static int __init dmc_monitor_probe(struct platform_device *pdev)
 
 	if (init_dmc_mode == DMC_MODE_NORMAL) {
 		dmc_set_monitor(init_start_addr,
-				init_end_addr, init_dev_mask, 1);
+				init_end_addr, init_dev_mask, DMC_MODE_NORMAL, 1);
 	}
 #if IS_ENABLED(CONFIG_AMLOGIC_USER_FAULT) && \
 	defined(CONFIG_TRACEPOINTS) && \

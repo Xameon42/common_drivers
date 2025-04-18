@@ -135,7 +135,7 @@ static void s7_dmc_bandwidth_enable(struct ddr_bandwidth *db)
 	unsigned int val;
 
 	/* enable all channel */
-	val =  (0x01 << 31) |	/* enable bit */
+	val =  (db->mode << 31) |	/* enable bit */
 	       (0xff <<  0);
 	writel(val, db->ddr_reg1 + DMC_MON_CTRL0);
 }
