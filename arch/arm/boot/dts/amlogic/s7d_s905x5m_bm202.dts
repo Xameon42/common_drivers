@@ -380,27 +380,6 @@
 				};
 			};
 		};
-
-		dmc_thermal: dmc_thermal {
-			polling-delay = <500>;
-			polling-delay-passive = <500>;
-			thermal-sensors = <&dmc_tsensor 2>;
-			trips {
-				dmc_hot: trip-point@0 {
-					temperature = <15000>;
-					hysteresis = <5000>;
-					type = "hot";
-				};
-			};
-
-			cooling-maps {
-				dmc_cooling_map {
-					trip = <&dmc_hot>;
-					cooling-device = <&dmc_tsensor 0 0>;
-					contribution = <1024>;
-				};
-			};
-		};
 	};/*thermal zone end*/
 
 	multi-di {

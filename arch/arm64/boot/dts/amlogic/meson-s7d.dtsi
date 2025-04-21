@@ -20,6 +20,7 @@
 #include <dt-bindings/mailbox/s7d-mbox.h>
 #include <dt-bindings/iio/adc/amlogic-saradc.h>
 #include <dt-bindings/display/hdr10plus.h>
+#include <dt-bindings/thermal/ddr-params.h>
 #include "meson-ir-map.dtsi"
 #include "meson-valhall.dtsi"
 
@@ -1530,20 +1531,6 @@
 		cust_governor = "power_allocator";
 	};
 
-	dmc_tsensor: dmc_tsensor {
-		compatible = "amlogic, indmc-tsensor";
-		status = "okay";
-		#thermal-sensor-cells = <1>;
-		#cooling-cells = <2>;
-		tsensor_id = <2>;
-		reg_dram_type = <0xfe036814>;
-		reg_dram_rate = <0xfe0368a8>;
-		reg_sensor = <0xfe036a80>;
-		reg_dmc_refresh = <0xfe0364b4 0xfe0365b4>;
-		reg_dmc_init = <0xfe036678 0xfe036674>;
-		sensor_bits_need_reverse;
-	};
-
 	meson_cooldev: meson-cooldev@0 {
 			status = "okay";
 			compatible = "amlogic, meson-cooldev";
@@ -1563,6 +1550,100 @@
 				#cooling-cells = <2>; /* min followed by max */
 			};
 		};/*meson cooling devices end*/
+
+	ddr_control: ddr_control {
+		compatible = "amlogic, ddr-control";
+		reg = <0x0 0xfe036894 0x0 0x4>,
+		      <0x0 0xfe036814 0x0 0x4>,
+		      <0x0 0xfe0368a8 0x0 0x4>;
+		reg-names = "sip-addr",
+			    "type-addr",
+			    "freq-addr";
+		sip-mask = <24 8>;
+		type-mask = <8 8>;
+		freq-mask = <0 16>;
+		status = "okay";
+		ddr4_nosip {
+			particle = <DDR4_NOSIP_PARTICLE>;
+			particle-flag = <DDR_SIP_TYPE_FLAG>;
+			condition-type = <DDR_THERMAL>;
+			zone-name = "soc_thermal";
+			caddr = <0xfe0364b4>,
+				<0xfe0365b4>;
+			caddr-mask = <0 16>,
+				     <0 16>;
+			cstep-val = <85000 90000 95000 100000>,
+				    <105000 110000 115000 120000>;
+			caddr-val = <7800 3900>,
+				    <6240 3120>,
+				    <4875 2438>,
+				    <4875 2438>,
+				    <3900 1950>,
+				    <3120 1560>,
+				    <2437 1219>,
+				    <1950 975>;
+		};
+		ddr4_sip {
+			particle = <DDR4_SIP_PARTICLE>;
+			particle-flag = <DDR_SIP_TYPE_FLAG>;
+			condition-type = <DDR_THERMAL>;
+			zone-name = "soc_thermal";
+			caddr = <0xfe0364b4>,
+				<0xfe0365b4>;
+			caddr-mask = <0 16>,
+				     <0 16>;
+			cstep-val = <85000 90000 95000 100000>,
+				    <105000 110000 115000 120000>;
+			caddr-val = <7800 3900>,
+				    <6240 3120>,
+				    <4875 2438>,
+				    <4875 2438>,
+				    <3900 1950>,
+				    <3120 1560>,
+				    <2437 1219>,
+				    <1950 975>;
+		};
+		lpddr4_nosip {
+			particle = <LPDDR4_NOSIP_PARTICLE>;
+			particle-flag = <DDR_SIP_TYPE_FLAG>;
+			condition-type = <DDR_THERMAL>;
+			zone-name = "soc_thermal";
+			caddr = <0xfe0364b4>,
+				<0xfe0365b4>;
+			caddr-mask = <0 16>,
+				     <0 16>;
+			cstep-val = <85000 90000 95000 100000>,
+				    <105000 110000 115000 120000>;
+			caddr-val = <3900 1950>,
+				    <3120 1560>,
+				    <2437 1219>,
+				    <2437 1219>,
+				    <1950 975>,
+				    <1560 780>,
+				    <1218 609>,
+				    <975 488>;
+		};
+		lpddr4_sip {
+			particle = <LPDDR4_SIP_PARTICLE>;
+			particle-flag = <DDR_SIP_TYPE_FLAG>;
+			condition-type = <DDR_THERMAL>;
+			zone-name = "soc_thermal";
+			caddr = <0xfe0364b4>,
+				<0xfe0365b4>;
+			caddr-mask = <0 16>,
+				     <0 16>;
+			cstep-val = <85000 90000 95000 100000>,
+				    <105000 110000 115000 120000>;
+			caddr-val = <3900 1950>,
+				    <3120 1560>,
+				    <2437 1219>,
+				    <2437 1219>,
+				    <1950 975>,
+				    <1560 780>,
+				    <1218 609>,
+				    <975 488>;
+		};
+	};
 
 	ion_dev {
 		compatible = "amlogic, ion_dev";
