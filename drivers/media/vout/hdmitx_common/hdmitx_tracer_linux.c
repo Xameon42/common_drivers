@@ -12,7 +12,8 @@
 #endif
 #include "hdmitx_log.h"
 
-#define HDMI_TRACE_SIZE (BIT(12)) /* 4k */
+/* 4k */
+#define HDMI_TRACE_SIZE (BIT(12))
 
 struct hdmitx_tracer {
 	int previous_event;
@@ -24,7 +25,8 @@ struct hdmitx_tracer {
 };
 
 #ifdef CONFIG_AMLOGIC_MEDIA_RESMANAGE
-/* hdmitx diagnostic information reporting function, see SWPL-164722 for details
+/*
+ * hdmitx diagnostic information reporting function, see SWPL-164722 for details
  * subModule
  *   11: EERORMONITOR_SUBMODULE_HDMITX
  * level
@@ -41,7 +43,7 @@ struct hdmitx_tracer {
  *   7: AML_SYS_TYPE_DISP_HDMI_CEC_ABNORMAL
  *   8: AML_SYS_TYPE_DISP_HDMI_HDCP_ABNORMAL
  *
- **/
+ */
 static void hdmitx_diagnostic_info(enum hdmitx_event_log_bits event)
 {
 	char base_info[100] = {"{\"subModule\":11,\"level\":2,\"logType\":1,\"errorType\":"};
@@ -53,7 +55,7 @@ static void hdmitx_diagnostic_info(enum hdmitx_event_log_bits event)
 		strcat(base_info, msg_info);
 		resman_notify_error_info(base_info);
 		break;
-	case HDMITX_HDCP_AUTH_FAILURE:
+	case HDMITX_HDCP_I2C_ERROR:
 		msg_info = "8,\"msg\":\"HDMITX_HDCP_AUTH_FAILURE\"}";
 		strcat(base_info, msg_info);
 		resman_notify_error_info(base_info);
