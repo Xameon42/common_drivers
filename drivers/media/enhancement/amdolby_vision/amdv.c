@@ -3858,6 +3858,19 @@ static int amdv_policy_process_v1(struct vframe_s *vf,
 		}
 		return mode_change;
 	}
+	if (vf && (vf->type_ext & VIDTYPE_EXT_LCEVC)) {
+		if (dolby_vision_mode !=
+			AMDV_OUTPUT_MODE_BYPASS) {
+			if (debug_dolby & 2)
+				pr_dv_dbg
+					("lc-evc source, dovi output -> BYPASS\n");
+			*mode = AMDV_OUTPUT_MODE_BYPASS;
+			mode_change = 1;
+		} else {
+			mode_change = 0;
+		}
+		return mode_change;
+	}
 	if (dolby_vision_policy == AMDV_FOLLOW_SINK) {
 		/* bypass dv_mode with efuse */
 		if (efuse_mode == 1 && !amdv_efuse_bypass)  {
@@ -4232,6 +4245,19 @@ static int amdv_policy_process_v2_stb(struct vframe_s *vf,
 			if (debug_dolby & 2)
 				pr_dv_dbg
 					("cuva, dovi output -> BYPASS\n");
+			*mode = AMDV_OUTPUT_MODE_BYPASS;
+			mode_change = 1;
+		} else {
+			mode_change = 0;
+		}
+		return mode_change;
+	}
+	if (vf && (vf->type_ext & VIDTYPE_EXT_LCEVC)) {
+		if (dolby_vision_mode !=
+			AMDV_OUTPUT_MODE_BYPASS) {
+			if (debug_dolby & 2)
+				pr_dv_dbg
+					("lc-evc source, dovi output -> BYPASS\n");
 			*mode = AMDV_OUTPUT_MODE_BYPASS;
 			mode_change = 1;
 		} else {
