@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# RTC class/drivers configuration
+#
+
+config LEDS_AW21036
+  tristate "LED AW21036 Support"
+  default n
+  help
+    This option enables support for LED AW21036 drivers.

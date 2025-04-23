@@ -18,3 +18,6 @@
 
 # st7789v3_tft_170x320.ko
   spi_bus_type
+
+# light_ucs11681.ko
+  input_set_abs_params

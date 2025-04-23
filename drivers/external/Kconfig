@@ -10,7 +10,11 @@ config AMLOGIC_EXTERNAL_DRIVER
          Say Y here if you want to use external device.
 
 if AMLOGIC_EXTERNAL_DRIVER
-source "$(COMMON_DRIVERS_DIR)/drivers/external/st7789v3_tft/Kconfig"
+source "$(COMMON_DRIVERS_DIR)/drivers/external/leds/Kconfig"
+source "$(COMMON_DRIVERS_DIR)/drivers/external/nfc/nta533/Kconfig"
+source "$(COMMON_DRIVERS_DIR)/drivers/external/sensor/htu20d/Kconfig"
+source "$(COMMON_DRIVERS_DIR)/drivers/external/sensor/ucs11681/Kconfig"
+source "$(COMMON_DRIVERS_DIR)/drivers/external/video/st7789v3_tft/Kconfig"
 endif
 
 endmenu

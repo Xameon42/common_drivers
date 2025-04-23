@@ -20,7 +20,7 @@
 	aliases {
 		serial0 = &uart_B;
 		serial1 = &uart_A;
-		serial2 = &uart_C;
+		serial3 = &uart_C;
 		i2c0 = &i2c0;
 		i2c1 = &i2c1;
 		i2c2 = &i2c2;
@@ -171,7 +171,7 @@
 			 */
 			size = <0x0 0x1bc00000>;
 			alignment = <0x0 0x400000>;
-			alloc-ranges = <0x3 0x0 0x0 0xe0000000>;
+			alloc-ranges = <0x0 0x0 0x0 0xe0000000>;
 			linux,contiguous-region;
 		};
 
@@ -264,10 +264,38 @@
 		status = "ok";
 		tv_mode = <0>;/*1:enable ;0:disable*/
 	};
+
+	sysled {
+		compatible = "amlogic, sysled";
+		dev_name = "sysled";
+		status = "disabled";
+		workqueue = <0>;
+		led_gpio = <&gpio GPIOF_4 GPIO_ACTIVE_HIGH>;
+		od_gpio_name = "null";
+	};
+
+	pwmleds {
+		compatible = "pwm-leds";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pwm_c_pins5>;
+		status = "disabled";
+		led1 {
+			//active-low | active-high d4
+			active-high;
+			label = "LCD_BL";
+			linux,default-trigger = "breathe";
+			max-brightness = <255>;
+			//1000 000 000 /
+			pwms = <&pwm_c 0 50000 0>;
+			work-mode = <22>;
+		};
+	};
+
+
 /* Audio Related start */
 	auge_sound {
 		compatible = "amlogic, auge-sound-card";
-		spk_mute-gpios = <&gpio GPIOH_5 GPIO_ACTIVE_LOW>;
+		//spk_mute-gpios = <&gpio GPIOH_5 GPIO_ACTIVE_LOW>;
 		/*gpio high is enable spk,control by "SPK mute"*/
 		aml-audio-card,name = "AML-AUGESOUND";
 		aml-audio-card,dai-link@0 {
@@ -900,25 +928,26 @@
 	adc_keypad {
 		compatible = "amlogic, adc_keypad";
 		status = "okay";
-		key_name = "vol-", "vol+", "power";
-		key_num = <3>;
+		key_name = "KEY_F10";	//sw2(findMe)
+		key_num = <1>;
 		io-channels = <&saradc 3>;
 		io-channel-names = "key-chan-3";
-		key_chan = <SARADC_CH3 SARADC_CH3 SARADC_CH3>;
-		key_code = <KEY_VOLUMEDOWN KEY_VOLUMEUP KEY_POWER>;
-		key_val = <1600 1050 50>;	/* Unit: millivolt */
-		key_tolerance = <70 70 70>;	/* Unit: millivolt */
+		key_chan = <3>;
+		key_code = <68>;
+		key_val = <20>; 		//val=voltage/1800mV*1023
+		key_tolerance = <40>;
 	};
 
 	gpio_keypad {
 		compatible = "amlogic, gpio_keypad";
 		status = "okay";
 		scan_period = <20>;
-		key_num = <1>;
-		key_name = "power";
-		key_code = <KEY_POWER>;
-		key_type = <EV_KEY>;
-		key-gpios = <&gpio GPIOD_2 GPIO_ACTIVE_HIGH>;
+		key_num = <2>;
+		key_name = "bluetooth", "mute";//mute, sw1(bt)
+		key_code = <600 SW_MUTE_DEVICE>;
+		key_type = <EV_KEY EV_SW>;
+		key-gpios = <&gpio GPIOD_2 GPIO_ACTIVE_HIGH
+			     &gpio GPIOH_5 GPIO_ACTIVE_HIGH>;
 		/* 0:polling mode, 1:irq mode */
 		detect_mode = <0>;
 	};
@@ -1005,7 +1034,7 @@
 		regulator-max-microvolt = <3300000>;
 		pinctrl-names = "default";
 		// GPIOF_2(Down) Output L/H= Enable/Disable VCC3V3
-		gpio = <&gpio GPIOF_2 GPIO_ACTIVE_HIGH>;
+		//gpio = <&gpio GPIOF_2 GPIO_ACTIVE_HIGH>;
 		startup-delay-us = <7000>;
 		regulator-boot-on;
 		regulator-always-on;
@@ -1040,10 +1069,110 @@
 };
 
 &i2c4 {
-	status = "disabled";
+	status = "okay";
 	pinctrl-names="default";
-	pinctrl-0=<&i2c4_pins3>;
+	pinctrl-0=<&i2c4_pins1>;
 	clock-frequency = <300000>;
+
+	ntp8918_codec: ntp8918_codec@2a {
+		compatible = "NTP, ntp8918";
+		#sound-dai-cells = <0>;
+		reg = <0x2A>;
+		status = "okay";
+		//power_pin = <&gpio GPIOC_4 GPIO_ACTIVE_LOW>;
+		//pd_pin = <&gpio GPIOX_8 GPIO_ACTIVE_HIGH>;
+		//reset_pin = <&gpio GPIOY_2 GPIO_ACTIVE_HIGH>;
+		//power-gpio = <&gpio GPIOY_3 GPIO_ACTIVE_HIGH>;
+		//pd-gpio = <&gpio GPIOX_8 GPIO_ACTIVE_HIGH>;
+		reset-gpio = <&gpio GPIOC_1 GPIO_ACTIVE_HIGH>;
+		//[3: 3w] | [5: 5w]
+		eq_power = <5>;
+		//default[0]: BTL [1]:PBTL
+		work_mode = <0>;
+		//default:[0]: power on mute, [1]: power on unmute
+		spk_mute = <0>;
+		//[0] disabled [1]:enable ;[low power consumption]
+		low_power = <0>;
+		no_mclk;
+	};
+
+	aw21036@34 {
+		compatible = "seirobotics,aw21036_led";
+		reg = <0x34>;
+		reset-gpio = <&gpio GPIOD_3 GPIO_ACTIVE_HIGH>;
+		status = "okay";
+		platform = <5>;
+
+		led0 {
+			default_colors = <0 0 0>;
+			r_io_number = <0>;
+			g_io_number = <1>;
+			b_io_number = <2>;
+		};
+
+		led1 {
+			default_colors = <0 0 0>;
+			r_io_number = <3>;
+			g_io_number = <4>;
+			b_io_number = <5>;
+		};
+
+		led2 {
+			default_colors = <0 0 0>;
+			r_io_number = <6>;
+			g_io_number = <7>;
+			b_io_number = <8>;
+		};
+
+		led3 {
+			default_colors = <0 0 0>;
+			r_io_number = <9>;
+			g_io_number = <10>;
+			b_io_number = <11>;
+		};
+
+		led4 {
+			default_colors = <0 0 0>;
+			r_io_number = <12>;
+			g_io_number = <13>;
+			b_io_number = <14>;
+		};
+
+		led5 {
+			default_colors = <0 0 0>;
+			r_io_number = <15>;
+			g_io_number = <16>;
+			b_io_number = <17>;
+		};
+
+		led6 {
+			default_colors = <0 0 0>;
+			r_io_number = <18>;
+			g_io_number = <19>;
+			b_io_number = <20>;
+		};
+
+		led7 {
+			default_colors = <0 0 0>;
+			r_io_number = <21>;
+			g_io_number = <22>;
+			b_io_number = <23>;
+		};
+
+		led8 {
+			default_colors = <0 0 0>;
+			r_io_number = <24>;
+			g_io_number = <25>;
+			b_io_number = <26>;
+		};
+
+		led9 {
+			default_colors = <0 0 0>;
+			r_io_number = <27>;
+			g_io_number = <28>;
+			b_io_number = <29>;
+		};
+	};
 };
 
 &i2c5 {
@@ -1063,7 +1192,7 @@
 		clocks = <&clkc CLKID_MCLK0>;
 		clock-names = "mclk0";
 
-		pwdn-gpios = <&gpio GPIOX_5 GPIO_ACTIVE_HIGH>;
+		//pwdn-gpios = <&gpio GPIOX_5 GPIO_ACTIVE_HIGH>;
 		// reset-gpios = <&gpio GPIOX_4 GPIO_ACTIVE_HIGH>;
 
 		port {
@@ -1073,10 +1202,30 @@
 			};
 		};
 	};
+
+	htu20d@40 {
+		compatible = "sei,htu20d";
+		reg = <0x40>;
+		status = "okay";
+	};
+
+	ucs11681@38 {
+        compatible = "sei,ucs11681";
+        reg = <0x38>;
+        status = "okay";
+	};
+
+	nta533@54 {
+		compatible = "NXP,nta533";
+		reg = <0x54>;
+		status = "okay";
+		ed-gpio = <&gpio GPIOA_8 GPIO_ACTIVE_HIGH>;
+		repeatcount = <5>;
+	};
 };
 
 &i2c0 {
-	status = "okay";
+	status = "disabled";
 	pinctrl-names="default";
 	pinctrl-0=<&i2c0_pins4>;
 	clock-frequency = <300000>; /* default 100k */
@@ -1088,25 +1237,21 @@
 		reset_pin-gpios = <&gpio GPIOD_5 GPIO_ACTIVE_HIGH>;
 	};
 
-ntp8918_codec: ntp8918_codec@2a {
-	compatible = "NTP, ntp8918";
-	#sound-dai-cells = <0>;
-	reg = <0x2A>;
-	status = "okay";
-	power_pin = <&gpio GPIOC_4 GPIO_ACTIVE_LOW>;   //for module power control, case: no pd_pin
-	//pd_pin = <&gpio GPIOX_8 GPIO_ACTIVE_HIGH>;
-	//reset_pin = <&gpio GPIOY_2 GPIO_ACTIVE_HIGH>;
-	//power-gpio = <&gpio GPIOY_3 GPIO_ACTIVE_HIGH>; //for module power control, case: no pd_pin
-	//pd-gpio = <&gpio GPIOX_8 GPIO_ACTIVE_HIGH>;
-	reset-gpio = <&gpio GPIOD_5 GPIO_ACTIVE_HIGH>;
-	eq_power = <5>;
-	work_mode = <0>;
-	spk_mute = <0>;
-	low_power = <1>;//[0] disabled [1]:enable ;[low power consumption]
-	no_mclk;
-};
+	aw2016@64 {
+		compatible = "seirobotics,aw2016_led";
+		reg = <0x64>;
+		status = "okay";
+		platform = <0>;
 
-aw9523: aw9523_led@5b {
+		led0 {
+			default_colors = <255 255 255>;
+			r_io_number = <0>;
+			g_io_number = <1>;
+			b_io_number = <2>;
+		};
+	};
+
+	aw9523: aw9523_led@5b {
 		compatible = "amlogic,aw9523b_led";
 		reg = <0x5b>;
 		status = "disabled";
@@ -1163,22 +1308,21 @@ aw9523: aw9523_led@5b {
 
 &tdma {
 	pinctrl-names = "tdm_pins";
-	// [SEI-Mack.Zhang 2024-09-07] remove for spi function
-	//pinctrl-0 = <&bt_pcm_gpio_x_pins
-	//	&tdm_d1_pins
-	//	&tdm_d0_pins
-	//	&tdma_clk_pins>;
+	pinctrl-0 = </*&bt_pcm_gpio_x_pins
+		&tdm_d1_pins
+		&tdm_d0_pins
+		&tdma_clk_pins*/>;
 };
 
 &tdmc {
 	pinctrl-names = "tdm_pins";
-	pinctrl-0 = <&i2s_gpio_d_pins_1
-		&tdm_d3_pins
-		&tdmc_clk_pins>;
+	pinctrl-0 = <&i2s_gpio_c_pins_1
+		&tdm_d6_pins_1
+		&tdmc_clk_pins_1>;
 };
 
 &pdma {
-	lane-mask-in = <0 0 0 1>;	//modify by SEI-Mack
+	lane-mask-in = <0 0 0 1>;
 };
 
 &spdifa {
@@ -1197,7 +1341,6 @@ aw9523: aw9523_led@5b {
 			function = "tsin_a";
 		};
 	};
-	//[SEI-Mack.Zhang 2024-09-07] Added for spi function {
 	spicc0_pins_x_1: spicc0_pins_x_1 {
 		mux {
 			groups = "spi_a_mosi_x",
@@ -1207,9 +1350,48 @@ aw9523: aw9523_led@5b {
 			drive-strength-microamp = <3000>;
 		};
 	};
-	//[SEI-Mack.Zhang 2024-09-07] Added for spi function }
+	spicc0_pins_f_1: spicc0_pins_f_1 {
+		mux {
+			groups = "spi_a_mosi_f",
+				"spi_a_ss0_f",
+				 "spi_a_clk_f";
+			function = "spi_a";
+			drive-strength-microamp = <3000>;
+		};
+	};
 
+	remote_pins_d_1: remote_pin_d_1 { //GPIOD_6
+		mux {
+			groups = "ir_remote_in_d";
+			function = "ir_remote";
+			bias-disable;
+		};
+	};
+
+	i2s_gpio_c_pins_1: i2s_gpio_c_1 {
+		mux { /* GPIOC_3 GPIOC_2 GPIOC_0 */
+			groups = "tdm_sclk1_c",
+				"tdm_fs1_c",
+				"tdm_d6_c";
+			function = "tdm";
+		};
+	};
 }; /* end of periphs_pinctrl */
+
+&pinctrl_audio {
+	tdm_d6_pins_1: tdm_d6_pin_1 {
+		mux {
+			groups = "tdm_d6";
+			function = "tdmoutc_lane0";
+		};
+	};
+	tdmc_clk_pins_1: tdmc_clk_pin_1 {
+		mux {
+			groups = "tdm_sclk1", "tdm_lrclk1";
+			function = "tdm_clk_outc";
+		};
+	};
+};
 
 &usb_phy20 {
 	status = "okay";
@@ -1219,9 +1401,6 @@ aw9523: aw9523_led@5b {
 &usb_phy21 {
 	status = "okay";
 	portnum = <1>;
-	/* otg & 3.0 share the vbus power. */
-	gpio-vbus-power = "GPIOH_8";
-	gpios = <&gpio GPIOH_8 (GPIO_ACTIVE_HIGH|GPIO_OPEN_DRAIN)>;
 };
 
 &usb_phy30 {
@@ -1236,7 +1415,7 @@ aw9523: aw9523_led@5b {
 
 &crg_otg {
 	status = "okay";
-	controller-type = <1>; /* 0~3: normal, host, device, otg */
+	controller-type = <3>; /* 0~3: normal, host, device, otg */
 };
 
 &crg_drd {
@@ -1255,12 +1434,12 @@ aw9523: aw9523_led@5b {
 	reset-gpio = <&gpio GPIOX_0 GPIO_ACTIVE_HIGH>;
 	max-link-speed=<1>;
 	iommu-map = <0x100 &smmu 0x5 0x10>;
-	status = "okay";
+	status = "disabled";
 };
 
 /* SDIO */
 &sd_emmc_a {
-	status = "disabled"; //[SEI-Tiger-2024/09/06] reuse with PCIe RST
+	status = "okay";
 	pinctrl-0 = <&sdio_pins>;
 	pinctrl-1 = <&sdio_clk_gate_pins>;
 	pinctrl-names = "default", "clk-gate";
@@ -1287,7 +1466,7 @@ aw9523: aw9523_led@5b {
 
 /* SD card */
 &sd_emmc_b {
-	status = "disabled";	//[SEI-Mack.Zhang 2024-09-07] remove this function for spi panel
+	status = "disabled";
 	pinctrl-0 = <&sdcard_pins>;
 	pinctrl-1 = <&sdcard_clk_gate_pins>;
 	pinctrl-2 = <&sd_1bit_pins>;
@@ -1474,14 +1653,15 @@ aw9523: aw9523_led@5b {
 
 &ir {
 	status = "okay";
-	pinctrl-0 = <&remote_pins>;
+	pinctrl-0 = <&remote_pins_d_1>;
 	pinctrl-names = "default";
 };
 
 &spicc0 {
 	status = "okay";
 	pinctrl-names = "default";
-	pinctrl-0 = <&spicc0_pins_x_1>;
+	pinctrl-0 = <&spicc0_pins_f_1>;
+	// cs-gpios = <&gpio GPIOX_10 0>;
 
 	st7789v3@0 {
 		compatible = "st7789v3";
@@ -1489,10 +1669,14 @@ aw9523: aw9523_led@5b {
 		status = "okay";
 		reg = <0>;
 		spi-max-frequency = <30000000>;
-		gpio_rs = <&gpio GPIOX_9 GPIO_ACTIVE_LOW>;
-		gpio_rst = <&gpio GPIOC_0 GPIO_ACTIVE_LOW>;
-		gpio_fmark = <&gpio GPIOC_1 GPIO_ACTIVE_LOW>;
-		// gpio_pwm = <&gpio_ao GPIOAO_4 GPIO_ACTIVE_LOW>;
+		gpio_rs = <&gpio GPIOF_1 GPIO_ACTIVE_LOW>;
+		gpio_rst = <&gpio GPIOC_4 GPIO_ACTIVE_LOW>;
+		gpio_fmark = <&gpio GPIOC_5 GPIO_ACTIVE_LOW>;
+
+		//gpio_pwm = <&gpio GPIOF_4 GPIO_ACTIVE_HIGH>;
+
+		pwms = <&pwm_c 0 50000 0>; //50000ns period
+		default_brightness = <50>; //max brightness 100
 	};
 
 };
@@ -1589,22 +1773,21 @@ aw9523: aw9523_led@5b {
 	status = "okay";
 };
 
-//[SEI-Mack.Zhang 2024-08-28] //motor config {
-//&pwm_f {
-//	pinctrl-names = "default";
-//	pinctrl-0 = <&pwm_f_pins2>; //GPIOZ_12
-//	status = "disabled";
-//};
-
-&pwm_b{
+&pwm_c {
+	pinctrl-0 = <&pwm_c_pins5>;
 	pinctrl-names = "default";
-	pinctrl-0 = <&pwm_b_pins6>; //GPIOZ_13
-	status = "disabled"; //[SEI-Tiger-2024/09/06] reuse with 1000M-ETH
+	status = "okay";
 };
 
 &uart_A {
 	status = "okay";
 	uart-has-rtscts;
+};
+
+&uart_C {
+	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&c_uart_pins1>; //GPIOD_4 GPIOD_5
 };
 
 &cma_shrinker {
@@ -1617,8 +1800,21 @@ aw9523: aw9523_led@5b {
 };
 
 &pdma {
-		pinctrl-names = "pdm_pins";
-		pinctrl-0 = <&pdmin>;
+	status = "okay";
+	pinctrl-names = "pdm_pins";
+	pinctrl-0 = <&pdmin>;
+
+	lane-mask-in = <0 0 0 1>;
+};
+
+&amlvecm {
+	compatible = "amlogic, vecm-s6";
+	dev_name = "aml_vecm";
+	status = "okay";
+	gamma_en = <0>;/*1:enable ;0:disable*/
+	wb_en = <0>;/*1:enable ;0:disable*/
+	/*0: 709/601  1: bt2020*/
+	tx_op_color_primary = <0>;
 };
 
 &amlvecm {
