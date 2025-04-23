@@ -4522,14 +4522,7 @@ enum hdr_process_sel hdr_func(enum hdr_module_sel module_sel,
 				mtx_sel = VPP_OSD2_MTX;
 		}
 
-		if (!flag_lc_evc) {
-			mtx_setting(mtx_sel, mtx_csc, mtx_on);
-		} else {
-			if (mtx_sel == VPP_OSD1_MTX)
-				mtx_setting(mtx_sel, MATRIX_OSD_LC_EVC, mtx_on);
-			else
-				mtx_setting(mtx_sel, mtx_csc, mtx_on);
-		}
+		mtx_setting(mtx_sel, mtx_csc, mtx_on);
 
 		pr_csc(12, "%s: ic(%d) OSD(%d) mtx_csc(%d) mtx_on(%d)\n",
 			__func__, chip_type_id, mtx_sel, mtx_csc, mtx_on);

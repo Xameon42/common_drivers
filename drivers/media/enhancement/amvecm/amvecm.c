@@ -2099,6 +2099,8 @@ static int vpp_mtx_update(struct vpp_mtx_info_s *mtx_info, int vpp_index)
 		return 0;
 
 	mtx_sel = mtx_info->mtx_sel;
+	if (flag_lc_evc && mtx_sel == VD1_MTX)
+		return 0;
 	switch (mtx_sel) {
 	case VD1_MTX:
 		matrix_coef00_01 = VPP_VD1_MATRIX_COEF00_01;
