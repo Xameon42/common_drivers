@@ -80,6 +80,7 @@
 #define SARADC_CHANNEL_MAX			8
 #define SARADC_MAX_FIFO_SIZE			16
 #define SARADC_TIMEOUT				100	/* Millisecond */
+#define SARADC_SOFT_AVG_NUM			8
 
 #define SARADC_DEFAULT_CLOCK_FREQUENCY		1200000
 #define SARADC_DEFAULT_TEST_CHANNEL		7
@@ -236,9 +237,9 @@ static void amlogic_saradc_stop_sample(struct amlogic_saradc_priv *priv)
 			   SARADC_REG0_ADC_EN, 0);
 }
 
-static int amlogic_saradc_get_sample(struct iio_dev *indio_dev,
-				     const struct iio_chan_spec *chan,
-				     int *val, bool en_avg)
+static int amlogic_saradc_get_sample_once(struct iio_dev *indio_dev,
+					  const struct iio_chan_spec *chan,
+					  int *val, bool en_avg)
 {
 	struct amlogic_saradc_priv *priv = iio_priv(indio_dev);
 	int ret;
@@ -247,7 +248,7 @@ static int amlogic_saradc_get_sample(struct iio_dev *indio_dev,
 	mutex_lock(&priv->lock);
 
 	/* Configure the averaging mode of the channels we use */
-	amlogic_saradc_set_averaging(priv, 0,
+	amlogic_saradc_set_averaging(priv, chan->address,
 				     en_avg ? MEDIAN_AVERAGING : NO_AVERAGING,
 				     en_avg ? EIGHT_SAMPLES : ONE_SAMPLE);
 
@@ -271,6 +272,31 @@ static int amlogic_saradc_get_sample(struct iio_dev *indio_dev,
 
 fail:
 	mutex_unlock(&priv->lock);
+	return ret;
+}
+
+static int amlogic_saradc_get_sample(struct iio_dev *indio_dev,
+				     const struct iio_chan_spec *chan,
+				     int *val, bool en_avg)
+{
+	struct amlogic_saradc_priv *priv = iio_priv(indio_dev);
+	int sum = 0;
+	int tmp;
+	int ret;
+	int count;
+
+	if (!priv->apply_workaround || !en_avg)
+		return amlogic_saradc_get_sample_once(indio_dev, chan, val, en_avg);
+
+	for (count = 0; count < SARADC_SOFT_AVG_NUM; count++) {
+		ret = amlogic_saradc_get_sample_once(indio_dev, chan, &tmp, false);
+		if (ret < 0)
+			return ret;
+		sum += tmp;
+	}
+
+	*val = sum / SARADC_SOFT_AVG_NUM;
+
 	return ret;
 }
 
