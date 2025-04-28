@@ -402,6 +402,20 @@ void am_set_regmap(struct am_regs_s *p, int vpp_index)
 					break;
 
 #ifndef CONFIG_AMLOGIC_ZAPPER_CUT
+				if (chip_type_id == chip_s6 &&
+					(addr == 0x518a ||
+					addr == 0x511e ||
+					addr == 0x5048 ||
+					addr == 0x5049 ||
+					addr == 0x504d ||
+					addr == 0x5100)) {
+					temp = aml_read_vcbus_s(addr);
+					WRITE_VPP_REG(addr,
+						(temp & (~mask)) |
+						(val & mask));
+					break;
+				}
+
 				if (addr == offset_addr(SRSHARP1_LC_TOP_CTRL)) {
 					if (!lc_en)
 						val = val & 0xffffffef;
