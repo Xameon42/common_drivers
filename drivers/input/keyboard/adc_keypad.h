@@ -5,6 +5,8 @@
 
 #ifndef __LINUX_ADC_KEYPAD_H
 #define __LINUX_ADC_KEYPAD_H
+
+#include <linux/types.h>
 #include <linux/list.h>
 #include <linux/input.h>
 #include <linux/kobject.h>
@@ -35,6 +37,7 @@ struct adc_key {
 	unsigned int type; /* input key type */
 	int value; /* voltage/3.3v * 1023 */
 	int tolerance;
+	bool ignore;
 	struct list_head list;
 };
 

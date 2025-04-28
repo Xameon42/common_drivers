@@ -5,6 +5,9 @@
 
 #include <linux/module.h>
 #include <linux/init.h>
+#include <linux/types.h>
+#include <linux/string.h>
+#include <linux/kstrtox.h>
 #include <linux/input.h>
 #include <linux/platform_device.h>
 #include <linux/of.h>
@@ -28,6 +31,7 @@ struct pin_desc {
 	u32 key_type;
 	const char *name;
 	int count;
+	bool ignore;
 };
 
 struct gpio_keypad {
@@ -86,6 +90,7 @@ static void polling_timer_handler(struct timer_list *t)
 	if (keypad->use_irq) {/* irq mode */
 		for (i = 0; i < keypad->key_size; i++) {
 			gpio_val = gpiod_get_value(keypad->key[i].desc);
+			gpio_val |= keypad->key[i].ignore;
 			if (gpio_val == 0) {
 				keypad->key[i].count++;
 				is_pressing = 1;
@@ -103,15 +108,16 @@ static void polling_timer_handler(struct timer_list *t)
 	} else {/* polling mode */
 		for (i = 0; i < keypad->key_size; i++) {
 			gpio_val = gpiod_get_value(keypad->key[i].desc);
+			gpio_val |= keypad->key[i].ignore;
 			if (gpio_val == 0)
 				keypad->key[i].count++;
 			if (keypad->key[i].current_status != gpio_val) {
 				keypad->current_key = &keypad->key[i];
 				report_key_code(keypad, gpio_val);
 			}
+		}
 		mod_timer(&keypad->polling_timer,
 			  jiffies + msecs_to_jiffies(keypad->scan_period));
-		}
 	}
 }
 
@@ -133,10 +139,95 @@ static ssize_t table_show(struct class *cls, struct class_attribute *attr,
 	return len;
 }
 
+static ssize_t ignore_show(struct class *cls, struct class_attribute *attr, char *buf)
+{
+	struct gpio_keypad *keypad = container_of(cls, struct gpio_keypad, kp_class);
+	int index;
+	int len = 0;
+
+	for (index = 0; index < keypad->key_size; index++) {
+		len += sysfs_emit_at(buf, len, "%s,%d: %c\n",
+				     keypad->key[index].name,
+				     keypad->key[index].code,
+				     keypad->key[index].ignore ? 'Y' : 'N');
+	}
+
+	return len;
+}
+
+static ssize_t ignore_store(struct class *cls, struct class_attribute *attr,
+			    const char *buf, size_t count)
+{
+	struct gpio_keypad *keypad = container_of(cls, struct gpio_keypad, kp_class);
+	struct device *dev = keypad->input_dev->dev.parent;
+	char nbuf[128];
+	char tmp[32];
+	int index;
+	char *value = nbuf;
+	char *name;
+	bool ignore;
+	bool found;
+
+	if (count > sizeof(nbuf)) {
+		dev_err(dev, "data is too long\n");
+		return -EINVAL;
+	}
+	memcpy(nbuf, buf, count);
+	strreplace(nbuf, '\n', '\0');
+
+	name = strsep(&value, " ");
+	if (!name)
+		goto err;
+
+	if (!strcmp("all", name)) {
+		for (index = 0; index < keypad->key_size; index++)
+			keypad->key[index].ignore = true;
+		dev_dbg(dev, "ignore all keys\n");
+	} else if (!strcmp("none", name)) {
+		for (index = 0; index < keypad->key_size; index++)
+			keypad->key[index].ignore = false;
+		dev_dbg(dev, "enable all keys\n");
+	} else {
+		if (!value)
+			goto err;
+
+		if (kstrtobool(value, &ignore)) {
+			dev_err(dev, "invalid '%s', please use Y/N instead\n", value);
+			return -EINVAL;
+		}
+
+		/* search key */
+		found = false;
+		for (index = 0; index < keypad->key_size; index++) {
+			snprintf(tmp, sizeof(tmp), "%s,%d",
+				 keypad->key[index].name,
+				 keypad->key[index].code);
+			if (!strcmp(tmp, name)) {
+				found = true;
+				break;
+			}
+		}
+
+		if (!found) {
+			dev_err(dev, "invalid key '%s'\n", name);
+			return -EINVAL;
+		}
+		keypad->key[index].ignore = ignore;
+		dev_dbg(dev, "ignore %s: %s\n", name, value);
+	}
+
+	return count;
+err:
+	dev_err(dev, "the correct format is: [name],[code] [ignore]\n");
+	return -EINVAL;
+}
+
 static CLASS_ATTR_RO(table);
+static CLASS_ATTR_RW(ignore);
 
 static struct attribute *meson_gpiokey_attrs[] = {
 	&class_attr_table.attr,
+	&class_attr_ignore.attr,
 	NULL
 };
 

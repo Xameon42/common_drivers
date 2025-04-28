@@ -14,6 +14,7 @@
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 #include <linux/string.h>
+#include <linux/kstrtox.h>
 #include <linux/of.h>
 #include <linux/iio/consumer.h>
 #include <linux/mailbox_controller.h>
@@ -44,7 +45,7 @@ static struct adc_key *meson_adc_kp_search_key(struct meson_adc_kp *kp)
 			if (value < 0)
 				continue;
 			list_for_each_entry(key, &kp->adckey_head, list) {
-				if (key->chan == kp->chan[i] &&
+				if (key->chan == kp->chan[i] && !key->ignore &&
 				    (value >= key->value - key->tolerance) &&
 				    (value <= key->value + key->tolerance)) {
 					mutex_unlock(&kp->kp_lock);
@@ -495,10 +496,100 @@ err:
 	return state;
 }
 
+static ssize_t ignore_show(struct class *cls, struct class_attribute *attr, char *buf)
+{
+	struct meson_adc_kp *kp = container_of(cls, struct meson_adc_kp, kp_class);
+	struct adc_key *key;
+	int len = 0;
+
+	mutex_lock(&kp->kp_lock);
+	list_for_each_entry(key, &kp->adckey_head, list) {
+		len += sysfs_emit_at(buf, len, "%s,%d: %c\n", key->name,
+				     key->code, key->ignore ? 'Y' : 'N');
+	}
+	mutex_unlock(&kp->kp_lock);
+
+	return len;
+}
+
+static ssize_t ignore_store(struct class *cls, struct class_attribute *attr,
+			    const char *buf, size_t count)
+{
+	struct meson_adc_kp *kp = container_of(cls, struct meson_adc_kp, kp_class);
+	struct adc_key *key;
+	struct device *dev = kp->input->dev.parent;
+	char nbuf[TMP_BUF_MAX];
+	char tmp[32];
+	char *value = nbuf;
+	char *name;
+	bool ignore;
+	bool found;
+
+	if (count > TMP_BUF_MAX) {
+		dev_err(dev, "data is too long\n");
+		return -EINVAL;
+	}
+	memcpy(nbuf, buf, count);
+	strreplace(nbuf, '\n', '\0');
+
+	name = strsep(&value, " ");
+	if (!name)
+		goto err;
+
+	if (!strcmp("all", name)) {
+		mutex_lock(&kp->kp_lock);
+		list_for_each_entry(key, &kp->adckey_head, list)
+			key->ignore = true;
+		mutex_unlock(&kp->kp_lock);
+		dev_dbg(dev, "ignore all keys\n");
+	} else if (!strcmp("none", name)) {
+		mutex_lock(&kp->kp_lock);
+		list_for_each_entry(key, &kp->adckey_head, list)
+			key->ignore = false;
+		mutex_unlock(&kp->kp_lock);
+		dev_dbg(dev, "enable all keys\n");
+	} else {
+		if (!value)
+			goto err;
+
+		if (kstrtobool(value, &ignore)) {
+			dev_err(dev, "invalid '%s', please use Y/N instead\n", value);
+			return -EINVAL;
+		}
+
+		/* search key */
+		found = false;
+		mutex_lock(&kp->kp_lock);
+		list_for_each_entry(key, &kp->adckey_head, list) {
+			snprintf(tmp, sizeof(tmp), "%s,%d", key->name, key->code);
+			if (!strcmp(tmp, name)) {
+				found = true;
+				break;
+			}
+		}
+
+		if (!found) {
+			mutex_unlock(&kp->kp_lock);
+			dev_err(dev, "invalid key '%s'\n", name);
+			return -EINVAL;
+		}
+		key->ignore = ignore;
+		mutex_unlock(&kp->kp_lock);
+		dev_dbg(dev, "ignore %s: %s\n", name, value);
+	}
+
+	return count;
+err:
+	dev_err(dev, "the correct format is: [name],[code] [ignore]\n");
+	return -EINVAL;
+}
+
 static CLASS_ATTR_RW(table);
+static CLASS_ATTR_RW(ignore);
 
 static struct attribute *meson_adckey_attrs[] = {
 	&class_attr_table.attr,
+	&class_attr_ignore.attr,
 	NULL
 };
 
