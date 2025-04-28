@@ -380,6 +380,8 @@ struct crg_gadget_dev {
 	int portsc_on_reconnecting;
 	int controller_type;
 	u32 phy_id;
+	int recovery;
+	struct delayed_work	reset_udc;
 };
 
 static inline bool crg_udc_suspend_reinit(struct crg_gadget_dev *crg_udc)
@@ -475,6 +477,7 @@ do {									\
 } while (0)
 
 #define CRG_ERROR(fmt...) pr_err(fmt)
+int crg_rewrite_otg_write_UDC(void);
 
 static struct usb_endpoint_descriptor crg_udc_ep0_desc = {
 	.bLength = USB_DT_ENDPOINT_SIZE,
@@ -483,6 +486,12 @@ static struct usb_endpoint_descriptor crg_udc_ep0_desc = {
 	.bmAttributes = USB_ENDPOINT_XFER_CONTROL,
 	.wMaxPacketSize = cpu_to_le16(64),
 };
+
+static void crg_rewrite_udc_for_error(struct work_struct *work)
+{
+	CRG_ERROR("--------------%s---\n", __func__);
+	crg_rewrite_otg_write_UDC();
+}
 
 void crg_gadget_hold(struct crg_udc_lock *lock)
 {
@@ -2237,6 +2246,10 @@ crg_udc_ep_dequeue(struct usb_ep *_ep, struct usb_request *_req)
 				if (!--times) {
 					CRG_ERROR("%s time out, read ep_running: 0x%x\n",
 								__func__, tmp);
+					spin_unlock_irqrestore(&crg_udc->udc_lock, flags);
+					if (!delayed_work_pending(&crg_udc->reset_udc))
+						queue_delayed_work(system_long_wq,
+									&crg_udc->reset_udc, 1000);
 					return -EIO;
 				}
 			}
@@ -2331,6 +2344,10 @@ crg_udc_ep_dequeue(struct usb_ep *_ep, struct usb_request *_req)
 				if (!--times) {
 					CRG_ERROR("%s time out,line=%u, read ep_running: 0x%x\n",
 								__func__, __LINE__, tmp);
+					spin_unlock_irqrestore(&crg_udc->udc_lock, flags);
+					if (!delayed_work_pending(&crg_udc->reset_udc))
+						queue_delayed_work(system_long_wq,
+									&crg_udc->reset_udc, 1000);
 					return -EIO;
 				}
 			}
@@ -2349,6 +2366,10 @@ crg_udc_ep_dequeue(struct usb_ep *_ep, struct usb_request *_req)
 				if (!--times) {
 					CRG_ERROR("%s time out,line=%u, read ep_running: 0x%x\n",
 								__func__, __LINE__, tmp);
+					spin_unlock_irqrestore(&crg_udc->udc_lock, flags);
+					if (!delayed_work_pending(&crg_udc->reset_udc))
+						queue_delayed_work(system_long_wq,
+									&crg_udc->reset_udc, 1000);
 					return -EIO;
 				}
 			}
@@ -3722,7 +3743,7 @@ void crg_handle_setup_pkt(struct crg_gadget_dev *crg_udc,
 				crg_udc->setup_status = WAIT_FOR_SETUP;
 				return;
 			}
-
+			crg_udc->recovery = 1;
 			setaddressrequest(crg_udc, wValue, wIndex, wLength);
 			return;
 		case USB_REQ_SET_SEL:
@@ -3771,6 +3792,7 @@ void crg_handle_setup_pkt(struct crg_gadget_dev *crg_udc,
 				 */
 			CRG_DEBUG("USB_REQ_SET_CONFIGURATION\n");
 			CRG_DEBUG("CONFIGURATION wValue=%d\n", wValue);
+			crg_udc->recovery = 0;
 
 			if (setconfigurationrequest(crg_udc, wValue)) {
 				/* Get here if request has been processed.
@@ -4272,6 +4294,16 @@ int crg_handle_port_status(struct crg_gadget_dev *crg_udc, unsigned long flags)
 				}
 				spin_lock_irqsave(&crg_udc->udc_lock, flags);
 			}
+		}
+	}
+
+	if ((portsc_val & CRG_U3DC_PORTSC_PEC) && !(portsc_val & CRG_U3DC_PORTSC_PED)) {
+		if (crg_udc->recovery) {
+			mdelay(3);
+			CRG_DEBUG("------MEET ERROR----------\n");
+			if (!delayed_work_pending(&crg_udc->reset_udc))
+				queue_delayed_work(system_long_wq,
+									&crg_udc->reset_udc, 1000);
 		}
 	}
 
@@ -4872,6 +4904,8 @@ static int crg_udc_probe(struct platform_device *pdev)
 	/*	GFP_KERNEL);*/
 	g_device_phy_id = phy_id;
 	crg_udc_probe_state = 1;
+	crg_udc->recovery = 0;
+	INIT_DELAYED_WORK(&crg_udc->reset_udc, crg_rewrite_udc_for_error);
 	return ret;
 
 	/* TODO: add error resources release. */
@@ -5057,7 +5091,6 @@ err:
 }
 EXPORT_SYMBOL_GPL(crg_otg_write_UDC);
 
-#if IS_ENABLED(CONFIG_AMLOGIC_COMMON_USB)
 int crg_rewrite_otg_write_UDC(void)
 {
 	struct crg_gadget_dev *crg_udc;
@@ -5089,7 +5122,7 @@ int crg_rewrite_otg_write_UDC(void)
 		name[len - 1] = '\0';
 
 	if (gi->unbind) {
-		CRG_ERROR("f=%s, l=%u,---have been unregister\n", __func__, __LINE__);
+		pr_info("gadget_driver---have been unregister\n");
 		ret = -ENODEV;
 		goto err;
 	}
@@ -5098,10 +5131,10 @@ int crg_rewrite_otg_write_UDC(void)
 		goto err;
 	kfree(gi->composite.gadget_driver.udc_name);
 	gi->composite.gadget_driver.udc_name = NULL;
-	mutex_unlock(&gi->lock);
+	//mutex_unlock(&gi->lock);
 
-	mdelay(50);
-	mutex_lock(&gi->lock);
+	//mdelay(50);
+	//mutex_lock(&gi->lock);
 	if (!gi->composite.gadget_driver.udc_name) {
 		gi->composite.gadget_driver.udc_name = name;
 		ret = usb_gadget_probe_driver(&gi->composite.gadget_driver);
@@ -5120,7 +5153,6 @@ err:
 	kfree(name);
 	return ret;
 }
-#endif
 
 #ifdef CONFIG_PM
 static int crg_udc_suspend(struct device *dev)

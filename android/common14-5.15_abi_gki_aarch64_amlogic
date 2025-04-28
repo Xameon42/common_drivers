@@ -50,3 +50,6 @@
 # amlogic-input.ko
   sysfs_emit_at
   strreplace
+
+# amlogic-usb.ko
+  system_long_wq
