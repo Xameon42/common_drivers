@@ -213,7 +213,7 @@
 		dvb_power_value = <1>;
 		dvb_power_dir = <0>; /* 0: out, 1: in. */
 
-		fe_num = <4>;
+		fe_num = <5>;
 
 		/* header: max 12 bytes */
 		/* data: The same as demux */
@@ -304,6 +304,9 @@
 		/*fe3_ant_power_gpio = <&gpio GPIOH_9 GPIO_ACTIVE_HIGH>;*/
 		fe3_ts = <0>; /* select tsin port */
 		fe3_ts_out_mode = <0>; /* 0: serial, 1: parallel. */
+
+		fe4_demod = "dummy";
+		fe4_ts = <4>;
 	};
 
 	dvb-demux {
@@ -358,6 +361,8 @@
 		ts3_header_len = <4>;
 		ts3_header = <0x4b 0x15 0x0 0x0>;
 		ts3_sid_offset = <1>;
+
+		ts4_sid = <0x7>;
 
 		/*tsinb=0,tsinb1=1,tsinb2=2*/
 		tsinb = <2>;

@@ -223,7 +223,7 @@
 		dvb_power_value = <1>;
 		dvb_power_dir = <0>; /* 0: out, 1: in. */
 
-		fe_num = <3>; /* interal 2 * dvb-c, extern 1 * dvb-s */
+		fe_num = <4>; /* internal 2 * dvb-c, extern 1 * dvb-s */
 		fe0_demod = "internal";
 		fe0_tuner0 = <0>; /* use tuner0 */
 
@@ -240,6 +240,9 @@
 		fe2_ant_power_gpio = <&gpio GPIOH_9 GPIO_ACTIVE_HIGH>;
 		fe2_ts = <0>;
 		fe2_tuner1 = <3>; /* use tuner3, only S. */
+
+		fe3_demod = "dummy";
+		fe3_ts = <3>;
 
 		tuner_num = <4>; /* tuner number, multi tuner support */
 		tuner0_name = "r836_tuner";
@@ -299,6 +302,8 @@
 		ts2 = "parallel";
 		ts2_control = <0x0>;
 		ts2_invert = <0>;
+
+		ts3_sid = <0x7>;
 
 		pinctrl-names = "s_ts0";
 		pinctrl-0 = <&dvb_s_ts0_pins>;

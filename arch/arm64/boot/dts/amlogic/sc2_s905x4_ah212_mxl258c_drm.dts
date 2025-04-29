@@ -282,7 +282,7 @@
 		dev_name = "dvb-extern";
 		status = "okay";
 
-		fe_num = <4>;
+		fe_num = <5>;
 
 		/* header: max 12 bytes */
 		/* data: The same as demux */
@@ -373,6 +373,9 @@
 		/*fe3_ant_power_gpio = <&gpio GPIOC_1 GPIO_ACTIVE_HIGH>;*/
 		fe3_ts = <1>; /* select tsin port */
 		fe3_ts_out_mode = <1>; /* 0: serial, 1: parallel. */
+
+		fe4_demod = "dummy";
+		fe4_ts = <4>;
 	};
 
 	dvb-demux {
@@ -418,6 +421,8 @@
 		ts3_header_len = <4>;
 		ts3_header = <0x4b 0x23 0x0 0x0>;
 		ts3_sid_offset = <1>;
+
+		ts4_sid = <0x7>;
 
 		pinctrl-names = "p_ts1";
 		pinctrl-0 = <&dvb_p_ts1_pins>;

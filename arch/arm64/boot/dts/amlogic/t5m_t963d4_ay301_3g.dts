@@ -963,8 +963,11 @@
 		dev_name = "dvb-extern";
 		status = "okay";
 
-		fe_num = <1>;
+		fe_num = <2>;
 		fe0_demod = "internal";
+
+		fe1_demod = "dummy";
+		fe1_ts = <3>;
 
 		tuner_num = <2>; // tuner number, multi tuner support
 		tuner0_name = "r842_tuner";
@@ -1003,6 +1006,9 @@
 		ts2 = "parallel";
 		ts2_control = <0x0>;
 		ts2_invert = <0>;
+
+		ts3_sid = <0x7>;
+
 		pinctrl-names = "p_ts1";
 		pinctrl-0 = <&dvb_p_ts1_pins>;
 	};
