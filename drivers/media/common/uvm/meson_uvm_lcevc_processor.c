@@ -43,6 +43,22 @@ static int lcevc_print(int debug_flag, const char *fmt, ...)
 	return 0;
 }
 
+static void lcevc_fput(struct file *lcevc_out_file, s32 lcevc_fd, s32 base_fd)
+{
+	lcevc_print(LCEVC_LOG_DEBUG,
+		"%s: lcevc_fd %d base_fd %d\n",
+		__func__, lcevc_fd, base_fd);
+	fput(lcevc_out_file);
+}
+
+static struct file *lcevc_fget(s32 lcevc_fd, s32 base_fd)
+{
+	lcevc_print(LCEVC_LOG_DEBUG,
+		"%s: lcevc_fd %d base_fd %d\n",
+		__func__, lcevc_fd, base_fd);
+	return fget(lcevc_fd);
+}
+
 static long long phy_addr_from_dmabuff(struct dma_buf *dbuf)
 {
 	long long phy_addr = 0;
@@ -53,19 +69,16 @@ static long long phy_addr_from_dmabuff(struct dma_buf *dbuf)
 
 	heap = dma_heap_find(CODECMM_HEAP_NAME);
 	if (!heap) {
-		lcevc_print(LCEVC_LOG_ERROR, "%s: heap is NULL\n", __func__);
 		return 0;
 	}
 	attach = dma_buf_attach(dbuf, dma_heap_get_dev(heap));
 	if (IS_ERR(attach)) {
-		lcevc_print(LCEVC_LOG_ERROR, "%s: attach err\n", __func__);
 		return 0;
 	}
 
 	table = dma_buf_map_attachment(attach, DMA_BIDIRECTIONAL);
 	if (!table) {
 		dma_buf_detach(dbuf, attach);
-		lcevc_print(LCEVC_LOG_ERROR, "%s: table is NULL\n", __func__);
 		return 0;
 	}
 	page = sg_page(table->sgl);
@@ -88,8 +101,6 @@ static int lcevc_ioctl_data_2_hook_data
 
 	dmabuf = dma_buf_get(ioctl_data->lcevc_fd);
 	if (IS_ERR_OR_NULL(dmabuf)) {
-		lcevc_print(LCEVC_LOG_ERROR,
-			"%s: Invalid dmabuf\n", __func__);
 		return -1;
 	}
 
@@ -137,12 +148,6 @@ int attach_lcevc_hook_mod_info(int shared_fd,
 	is_v4l_vf = is_valid_mod_type(dmabuf, VF_PROCESS_V4LVIDEO);
 	if (is_dec_vf) {
 		vf = dmabuf_get_vframe(dmabuf);
-		if (!vf) {
-			lcevc_print(LCEVC_LOG_ERROR,
-				"%s: vf is NULL\n", __func__);
-			dma_buf_put(dmabuf);
-			return -EINVAL;
-		}
 		dmabuf_put_vframe(dmabuf);
 	} else if (is_v4l_vf) {
 		v4l_uhmod = uvm_get_hook_mod(dmabuf, VF_PROCESS_V4LVIDEO);
@@ -183,10 +188,28 @@ int attach_lcevc_hook_mod_info(int shared_fd,
 		}
 		lcevc_ioctl_data_2_hook_data(lcevc_info, lcevc_4_attach);
 	} else {
+		uvm_put_hook_mod(dmabuf, PROCESS_LCEVC);
 		attached = true;
 		lcevc_4_attach = uhmod->arg;
 		lcevc_ioctl_data_2_hook_data(lcevc_info, lcevc_4_attach);
 	}
+
+	if (lcevc_4_attach->lcevc_out_file_count > 0) {
+		lcevc_fput(lcevc_4_attach->lcevc_out_file,
+			lcevc_4_attach->lcevc_fd, lcevc_4_attach->base_fd);
+		lcevc_4_attach->lcevc_out_file_count--;
+	}
+	lcevc_4_attach->lcevc_out_file = lcevc_fget(lcevc_info->lcevc_fd, shared_fd);
+	if (!lcevc_4_attach->lcevc_out_file) {
+		lcevc_print(LCEVC_LOG_ERROR,
+			"%s: fget lcevc fd %d fail\n",
+			__func__, lcevc_info->lcevc_fd);
+		dma_buf_put(dmabuf);
+		return -EBADF;
+	}
+	lcevc_4_attach->base_fd = shared_fd;
+	lcevc_4_attach->lcevc_fd = lcevc_info->lcevc_fd;
+	lcevc_4_attach->lcevc_out_file_count++;
 
 	dma_buf_put(dmabuf);
 
@@ -225,6 +248,12 @@ void lcevc_free_data(void *arg)
 {
 	struct uvm_lcevc_hook_data *hook_data = (struct uvm_lcevc_hook_data *)arg;
 
-	if (hook_data)
+	if (hook_data) {
+		if (hook_data->lcevc_out_file_count > 0) {
+			lcevc_fput(hook_data->lcevc_out_file,
+				hook_data->lcevc_fd, hook_data->base_fd);
+			hook_data->lcevc_out_file_count--;
+		}
 		kfree((u8 *)arg);
+	}
 }

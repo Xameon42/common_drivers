@@ -73,7 +73,7 @@ struct uvm_lcevc_frame_info {
 };
 
 struct uvm_ioctl_lcevc_data {
-	s32 lcevc_fd;//lcevc yuv dma fd
+	s32 lcevc_fd; //lcevc yuv dma fd
 	s32 buffer_index;
 	u32 stride;
 	u32 has_new_plane_info;
@@ -83,8 +83,11 @@ struct uvm_ioctl_lcevc_data {
 };
 
 struct uvm_lcevc_hook_data {
-	//send to video composer, vpp
-	struct uvm_lcevc_frame_info lcevc_vframe;
+	struct file *lcevc_out_file;
+	u32 lcevc_out_file_count;
+	s32 lcevc_fd; //lcevc yuv dma fd
+	s32 base_fd; //base yuv dma fd
+	struct uvm_lcevc_frame_info lcevc_vframe; //send to video composer, vpp
 };
 
 int attach_lcevc_hook_mod_info(int shared_fd,
