@@ -3954,6 +3954,10 @@ static void video_composer_task(struct composer_dev *dev)
 
 		if (is_repeat_vf) {
 			vf->repeat_count++;
+			if (vf->type_ext & VIDTYPE_EXT_LCEVC) {
+				enhance_vf = vf->enhance_vf;
+				enhance_vf->repeat_count = vf->repeat_count;
+			}
 			vc_print(dev->index, PRINT_FENCE,
 				 "repeat =%d, frame_index=%d\n",
 				 vf->repeat_count,
