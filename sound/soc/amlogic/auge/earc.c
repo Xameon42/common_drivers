@@ -2758,8 +2758,16 @@ static int arcrx_set_ui_flag(struct snd_kcontrol *kcontrol,
 	if (p_earc->rx_ui_flag == ucontrol->value.integer.value[0])
 		return 0;
 	p_earc->rx_ui_flag = ucontrol->value.integer.value[0];
-	if (p_earc->earcrx_5v)
+	if (p_earc->earcrx_5v) {
+		if (p_earc->rx_ui_flag) {
+			/* keep 5v low for 300ms */
+			gpiod_set_value(p_earc->hdmitx_5v_desc, 0);
+			schedule_delayed_work(&p_earc->hdmitx_5v_work, msecs_to_jiffies(300));
+		}
 		earcrx_init(p_earc->rx_ui_flag);
+		if (!p_earc->rx_ui_flag)
+			earcrx_update_attend_event(p_earc, false, false);
+	}
 
 	return 0;
 }
