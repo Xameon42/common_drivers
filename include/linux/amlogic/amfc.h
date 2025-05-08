@@ -93,6 +93,7 @@
 #define ADDR_DST				1
 
 #define AMFC_STREAM_MARGIN			64
+#define CACHELINE_SIZE				64
 
 #define AMFC_VER_1_0				0x0100
 #define AMFC_VER_1_1				0x0101
@@ -169,6 +170,8 @@ struct amfc {
 
 	unsigned long rate;			/* hz */
 	struct clk *clk;
+	int in_dec_err;
+	int in_enc_err;
 	unsigned char chip;
 	unsigned char work_mode;		/* 0: irq mode, 1: poll mode  */
 	unsigned char log;

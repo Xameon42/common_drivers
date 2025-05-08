@@ -167,7 +167,7 @@ static unsigned long vmalloc_to_phys(void *va)
 {
 	unsigned long pfn = vmalloc_to_pfn(va);
 
-	WARN_ON(!pfn);
+	WARN_ON(!pfn_valid(pfn));
 	return __pa(pfn_to_kaddr(pfn)) + offset_in_page(va);
 }
 
@@ -647,6 +647,7 @@ out:
 	if (!IS_ERR_OR_NULL(dst_table) && dst_table != amfc->pages[TABLE_DST_DECOMPRESS])
 		__free_pages(dst_table, dst_order);
 	if (ret < 0) {
+		amfc->in_dec_err = 1;
 		if ((ret == -AMFC_DEC_DST_SIZE_OVF || ret == -AMFC_DEC_DST_PAGE_ERR) && stream) {
 			while (amfc_hw_read(AMFC_WR_MIF_STATUS))
 				;
@@ -668,10 +669,17 @@ out:
 			dump_addr(dst, dst_size);
 			need_copy = 0;	// decompress real failed
 		}
-		spin_lock(&amfc->com_lock);
 		/* sw reset */
+		while (!spin_trylock(&amfc->com_lock)) {
+			if (amfc->in_enc_err) {
+				amfc_hw_write(0x80000000, AMFC_GL_CMD1_CONTROL);
+				goto error_handled;
+			}
+		}
 		amfc_hw_write(0x80000000, AMFC_GL_CMD1_CONTROL);
 		spin_unlock(&amfc->com_lock);
+error_handled:
+		amfc->in_dec_err = 0;
 	} else {
 		amfc->din += src_size;
 		if (stream) {  // separate for EROFS and ZRAM
@@ -695,6 +703,7 @@ out:
 		spin_unlock(&amfc->dec_lock);
 	else
 		spin_unlock_irqrestore(&amfc->dec_lock, flags);
+
 	if (stream)
 		amfc_unmap_addr((long)dst, dst_size - AMFC_STREAM_MARGIN, DMA_FROM_DEVICE);
 	else
@@ -734,7 +743,7 @@ int amfc_compress(void *src, void *dst, ssize_t src_size, ssize_t dst_size)
 	/* for compress, zram usually give size large than source, but we only
 	 * need flush source size
 	 */
-	amfc_map_addr((long)dst, src_size, DMA_FROM_DEVICE);
+	amfc_map_addr((long)dst,  dst_size > (src_size + CACHELINE_SIZE) ? (src_size + CACHELINE_SIZE) : dst_size, DMA_FROM_DEVICE);
 
 	if (spin_is_locked(&amfc->com_lock))
 		amfc->c_congestion++;
@@ -759,7 +768,7 @@ int amfc_compress(void *src, void *dst, ssize_t src_size, ssize_t dst_size)
 	}
 
 	if (_vmalloc_or_module_addr(dst)) {
-		dst_table = create_map(acl, dst, dst_size, 0,
+		dst_table = create_map(acl, dst, dst_size, 1,
 				       TABLE_DST_COMPRESS, &dst_order);
 		if (IS_ERR(dst_table))
 			goto out;
@@ -800,8 +809,8 @@ again:
 				break;
 			cur = sched_clock();
 			if (cur - tick >= timeout * 1000) {
-				pr_emerg("%s timeout:%lld -> %lld, %ld\n",
-					 __func__, tick, cur, timeout);
+				pr_emerg("%s timeout:%lld -> %lld, %ld, tick:%d\n",
+					 __func__, tick, cur, timeout, amfc_hw_read(AMFC_CMD0_TIME_MEASURE));
 				show_regs(NULL);
 				show_acl(acl);
 				if (cur - tick >= timeout * 50000)
@@ -835,17 +844,24 @@ out:
 	if (!IS_ERR_OR_NULL(dst_table) && dst_table != amfc->pages[TABLE_DST_COMPRESS])
 		__free_pages(dst_table, dst_order);
 	if (ret < 0) {
+		amfc->in_enc_err = 1;
 		if (((status & AMFC_ERR_MASK) >> 8) != AMFC_ENC_DST_SIZE_OVF) {
 			pr_err("acl:%px, compress failed, src:%px, dst:%px, ssize:%d, dsize:%d, ret:%d, status:%x\n",
 				acl, src, dst, (int)src_size, (int)dst_size,
 				ret, amfc_hw_read(AMFC_GL_CMD0_STATUS));
 			show_regs(NULL);
 			show_acl(acl);
-			spin_lock(&amfc->dec_lock);
-			/* sw reset */
-			amfc_hw_write(0x80000000, AMFC_GL_CMD0_CONTROL);
-			spin_unlock(&amfc->dec_lock);
 		}
+		while (!spin_trylock(&amfc->dec_lock)) {
+			if (amfc->in_dec_err) {
+				amfc_hw_write(0x80000000, AMFC_GL_CMD0_CONTROL);
+				goto error_handled;
+			}
+		}
+		amfc_hw_write(0x80000000, AMFC_GL_CMD0_CONTROL);
+		spin_unlock(&amfc->dec_lock);
+error_handled:
+		amfc->in_enc_err = 0;
 	} else {
 		amfc->cin         += src_size;
 		amfc->cout        += ret;
