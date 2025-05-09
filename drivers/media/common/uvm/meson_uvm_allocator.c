@@ -37,6 +37,7 @@
 #include "meson_uvm_aiface_processor.h"
 #include "meson_uvm_aicolor_processor.h"
 #include "meson_uvm_buffer_info.h"
+#include "meson_uvm_aisubtitle_processor.h"
 
 static struct mua_device *mdev;
 
@@ -795,7 +796,11 @@ static int mua_attach(int fd, int type, char *buf)
 		if (ret)
 			return -EINVAL;
 		break;
-
+	case PROCESS_AISUBTITLE:
+		ret = attach_aisubtitle_hook_mod_info(fd, buf, &info);
+		if (ret)
+			return -EINVAL;
+		break;
 	default:
 		MUA_PRINTK(MUA_DBG, "mod_type is not valid.\n");
 	}
