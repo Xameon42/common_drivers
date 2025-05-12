@@ -83,6 +83,7 @@ module_param(scatter_debug_mode, int, 0644);
 #define DUMP_PR_LEVEL	0x0F
 #define DUMP_SC_INFO	0x10
 #define DUMP_SLOT_INFO	0x20
+#define DUMP_NORMAL_INFO	0x40
 
 /*#define PHY_ADDR_NEED_64BITS*/
 #if PAGE_SHIFT >= 12
@@ -2903,6 +2904,7 @@ int codec_mm_scatter_mgt_delay_free_switch(int on, int delay_ms,
 {
 	struct codec_mm_scatter_mgt *smgt;
 	int wait_size_pages_align = codec_mm_scatter_align_count(PAGE_COUNT(wait_size_M));
+	int total_free_page;
 
 	pr_dbg("%s tail_pages_start %d start_id %d\n",
 		__func__, wait_size_pages_align, wait_size_M);
@@ -2923,8 +2925,19 @@ int codec_mm_scatter_mgt_delay_free_switch(int on, int delay_ms,
 	}
 	codec_mm_list_unlock(smgt);
 	if (on && wait_size_pages_align > 0 /*&& !is_tvp*/) {
-		smgt->force_cache_on = 1;
-		smgt->force_cache_page_cnt = wait_size_pages_align;
+		codec_mm_list_lock(smgt);
+		if (scatter_debug_mode & DUMP_NORMAL_INFO)
+			INFO_LOG("cached_pages is %d wait_size_pages_align is %d\n",
+				smgt->cached_pages, wait_size_pages_align);
+		total_free_page = smgt->total_page_num -
+			smgt->alloced_page_num + smgt->cached_pages;
+		if (total_free_page < wait_size_pages_align) {
+			smgt->force_cache_page_cnt = wait_size_pages_align - total_free_page;
+			smgt->force_cache_on = 1;
+			if (scatter_debug_mode & DUMP_NORMAL_INFO)
+				INFO_LOG("open force_cache size %d\n", smgt->force_cache_page_cnt);
+		}
+		codec_mm_list_unlock(smgt);
 		smgt->delay_free_timeout_jiffies64 =
 			get_jiffies_64() + 10000 * HZ / 1000;
 		codec_mm_schedule_delay_work(smgt, 0, 1);/*start cache*/
