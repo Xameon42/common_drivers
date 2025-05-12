@@ -1413,17 +1413,30 @@ static int __init amfc_probe(struct platform_device *pdev)
 		goto err;
 	}
 
-	irq = platform_get_irq_byname(pdev, "amfc0");
-	r = request_irq(irq, amfc0_irq_handler,
-			IRQF_SHARED, "amfc0", amfc);
-	if (r < 0)
-		pr_err("request irq failed:%d, r:%d\n", irq, r);
+	/*
+	 * Test on T6D:
+	 * ZRAM  average compress time:6.7us, max:16us, decompress is faster
+	 * than compress of ZRAM. EROFS decomperss average time:18us, max:69us.
+	 * There are too many atomic envs in upper layer caller,so can't
+	 * use schedule, if with IRQ enabled when spinlock, AMFC hardware
+	 * may be interrupted by other long IRQ over 7 ~ 9 ms,
+	 * this will cause long waiting time of AMFC upper caller compared
+	 * with IRQ disabled. So finally chose spinlock with IRQ off.
+	 */
+	amfc->work_mode = AMFC_POLL_IRQ_OFF;
+	if (!amfc->work_mode) {
+		irq = platform_get_irq_byname(pdev, "amfc0");
+		r = request_irq(irq, amfc0_irq_handler,
+				IRQF_SHARED, "amfc0", amfc);
+		if (r < 0)
+			pr_err("request irq failed:%d, r:%d\n", irq, r);
 
-	irq = platform_get_irq_byname(pdev, "amfc1");
-	r = request_irq(irq, amfc1_irq_handler,
-			IRQF_SHARED, "amfc1", amfc);
-	if (r < 0)
-		pr_err("request irq failed:%d, r:%d\n", irq, r);
+		irq = platform_get_irq_byname(pdev, "amfc1");
+		r = request_irq(irq, amfc1_irq_handler,
+				IRQF_SHARED, "amfc1", amfc);
+		if (r < 0)
+			pr_err("request irq failed:%d, r:%d\n", irq, r);
+	}
 
 	amfc->clk = devm_clk_get(&pdev->dev, NULL);
 	if (!amfc->clk) {
@@ -1444,17 +1457,6 @@ static int __init amfc_probe(struct platform_device *pdev)
 	spin_lock_init(&amfc->com_lock);
 	spin_lock_init(&amfc->dec_lock);
 	amfc_hw_init();
-	/*
-	 * Test on T6D:
-	 * ZRAM  average compress time:6.7us, max:16us, decompress is faster
-	 * than compress of ZRAM. EROFS decomperss average time:18us, max:69us.
-	 * There are too many atomic envs in upper layer caller,so can't
-	 * use schedule, if with IRQ enabled when spinlock, AMFC hardware
-	 * may be interrupted by other long IRQ over 7 ~ 9 ms,
-	 * this will cause long waiting time of AMFC upper caller compared
-	 * with IRQ disabled. So finally chose spinlock with IRQ off.
-	 */
-	amfc->work_mode = AMFC_POLL_IRQ_OFF;
 #ifdef CONFIG_AMFC_DEBUG
 	amfc->log = 1;
 #endif
