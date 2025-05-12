@@ -57,6 +57,8 @@ struct meson_pwm_tee_channel {
 	unsigned int hi;
 	unsigned int lo;
 	struct clk *clk;
+	u8 pre_div;
+	u8 clk_div;
 };
 
 /*pwm register att*/
