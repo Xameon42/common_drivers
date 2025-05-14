@@ -50,7 +50,7 @@ AMLOGIC_COMMON_MODULES = [
     "common_drivers/drivers/debug/amlogic-debug-iotrace.ko",
     "common_drivers/drivers/drm/aml_drm.ko",
     "common_drivers/drivers/dvb/amlogic-dvb.ko",
-#   "common_drivers/drivers/dvb/dummy_fe/amlogic-dummy-fe.ko",
+    "common_drivers/drivers/dvb/dummy_fe/amlogic-dummy-fe.ko",
     "common_drivers/drivers/dvb_ci/amlogic-dvb-ci.ko",
     "common_drivers/drivers/dvb_usbci/amlogic-usb-cam.ko",
     "common_drivers/drivers/dvb/demux/amlogic-dvb-demux.ko",
