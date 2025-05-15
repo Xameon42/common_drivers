@@ -1,19 +1,6 @@
 // SPDX-License-Identifier: (GPL-2.0+ OR MIT)
 /*
- * drivers/amlogic/media/video_sink/video_receiver.c
- *
- * Copyright (C) 2017 Amlogic, Inc. All rights reserved.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
- * more details.
- *
+ * Copyright (c) 2019 Amlogic, Inc. All rights reserved.
  */
 
 #include <linux/version.h>
@@ -511,17 +498,20 @@ static bool is_vsync_vppx_rdma_enable(u8 vpp_index)
 	return enable;
 }
 
-static void common_toggle_frame(struct video_recv_s *ins,
+static int  common_toggle_frame(struct video_recv_s *ins,
 				struct vframe_s *vf)
 {
 	if (!ins || !vf)
-		return;
+		return -1;
 
 	if (vf->width == 0 || vf->height == 0) {
-		pr_err("%s %s: invalid frame dimension\n",
+		pr_err("%s %s: frame_index=%d, width=%d, height=%d invalid frame dimension\n",
 		       __func__,
-		       ins->recv_name);
-		return;
+		       ins->recv_name,
+		       vf->frame_index,
+		       vf->width, vf->height);
+		common_vf_put(ins, vf);
+		return -1;
 	}
 	if (ins->cur_buf &&
 	    ins->cur_buf != &ins->local_buf &&
@@ -563,6 +553,7 @@ static void common_toggle_frame(struct video_recv_s *ins,
 		vf->type_backup = vf->type;
 	ins->cur_buf = vf;
 	ins->original_vf = vf;
+	return 0;
 }
 
 /*********************************************************
@@ -601,11 +592,11 @@ static struct vframe_s *recv_common_dequeue_frame(struct video_recv_s *ins,
 	struct vframe_s *vf = NULL;
 	struct vframe_s *toggle_vf = NULL;
 	s32 drop_count = -1;
+	int ret = -1;
 #ifdef CONFIG_AMLOGIC_MEDIA_ENHANCEMENT_DOLBYVISION
 	enum vframe_signal_fmt_e fmt;
 	enum vd_path_e vd_path;
 	int layer_info_id = 0;
-	int ret;
 	struct vframe_s *vf_top1 = NULL;
 #endif
 
@@ -705,7 +696,9 @@ static struct vframe_s *recv_common_dequeue_frame(struct video_recv_s *ins,
 					}
 				}
 #endif
-				common_toggle_frame(ins, vf);
+				ret = common_toggle_frame(ins, vf);
+				if (ret < 0)
+					return NULL;
 				toggle_vf = vf;
 #ifdef CONFIG_AMLOGIC_MEDIA_ENHANCEMENT_DOLBYVISION
 
