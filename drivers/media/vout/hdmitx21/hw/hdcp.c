@@ -210,7 +210,11 @@ void hdcptx1_get_ds_ksvlists(u8 **p_ksv, u8 count)
 {
 	u16 bytes_to_read = 0;
 	u16 fifo_byte_counter = 0;
-	u8 time_out = 100; /* timeout for reading ds ksv list */
+	/*
+	 * timeout for reading ds ksv list
+	 * relate to i2c clk frequency
+	 */
+	u8 time_out = 200;
 	u8 fifo_status = 0;
 	int temp = 0;
 	int i = 0;
