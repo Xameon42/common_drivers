@@ -529,6 +529,9 @@ int amfc_decompress(void *src, void *dst, ssize_t src_size, ssize_t dst_size, in
 	if (!amfc || !amfc->decompress)
 		return -ENOMEM;
 
+	if (!src || !dst || !src_size || !dst_size)
+		return -EINVAL;
+
 	if (amfc->log > 1)
 		pr_info("%s, src:%px, dst:%px, src size:%d, dst size:%d\n",
 			__func__, src, dst, (int)src_size, (int)dst_size);
@@ -736,6 +739,9 @@ int amfc_compress(void *src, void *dst, ssize_t src_size, ssize_t dst_size)
 	if (!amfc || !amfc->compress)
 		return -ENOMEM;
 
+	if (!src || !dst || !src_size || !dst_size)
+		return -EINVAL;
+
 	if (amfc->log > 1)
 		pr_info("%s, src:%px, dst:%px, src size:%d, dst size:%d\n",
 			__func__, src, dst, (int)src_size, (int)dst_size);
@@ -815,6 +821,7 @@ again:
 				show_acl(acl);
 				if (cur - tick >= timeout * 50000)
 					break;
+
 				// init again and retry;
 				amfc_hw_init();
 				goto again;
@@ -877,7 +884,7 @@ error_handled:
 		spin_unlock_irqrestore(&amfc->com_lock, flags);
 
 	if (ret > 0)
-		amfc_unmap_addr((long)dst, ret, DMA_FROM_DEVICE);
+		amfc_unmap_addr((long)dst, ret > dst_size ? dst_size : ret, DMA_FROM_DEVICE);
 	amfc_unmap_addr((long)src, src_size, DMA_TO_DEVICE);
 	return ret;
 }
