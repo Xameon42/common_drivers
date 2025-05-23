@@ -244,12 +244,12 @@ int aml_platform_device_register(struct platform_device *pdev);
 void aml_platform_device_unregister(struct platform_device *pdev);
 int demod_attach_register_cb(const enum dtv_demod_type type, dm_attach_cb funcb);
 void aml_dvb_extern_attach(void);
+int aml_dvb_extern_i2c_write(u16 addr, u8 *buf, u16 len);
+int aml_dvb_extern_i2c_write_sub(u16 main_addr, u16 sub_addr, u8 *buf, u16 len);
+int aml_dvb_extern_i2c_read(u16 addr, u8 *wbuf, u16 wlen, u8 *rbuf, u16 rlen);
+int aml_dvb_extern_i2c_read_sub(u16 main_addr, u16 sub_addr,
+		u8 *wbuf, u16 wlen, u8 *rbuf, u16 rlen);
 
-int aml_dvb_extern_i2c_write(struct i2c_client *client,
-		unsigned char *buff, unsigned int len);
-int aml_dvb_extern_i2c_read(struct i2c_client *client,
-		unsigned char *wbuf, unsigned int wlen,
-		unsigned char *rbuf, unsigned int rlen);
 #else
 
 static inline __maybe_unused void aml_dvb_extern_attach(void)
@@ -364,15 +364,25 @@ static inline __maybe_unused int demod_attach_register_cb(const enum dtv_demod_t
 	return -ENODEV;
 }
 
-static inline __maybe_unused int aml_dvb_extern_i2c_write(struct i2c_client *client,
-		unsigned char *buff, unsigned int len)
+static inline __maybe_unused int aml_dvb_extern_i2c_write(u16 addr, u8 *buf, u16 len)
 {
 	return -ENODEV;
 }
 
-static inline __maybe_unused int aml_dvb_extern_i2c_read(struct i2c_client *client,
-		unsigned char *wbuf, unsigned int wlen,
-		unsigned char *rbuf, unsigned int rlen)
+static inline __maybe_unused int aml_dvb_extern_i2c_write_sub(u16 main_addr, u16 sub_addr,
+		u8 *buf, u16 len)
+{
+	return -ENODEV;
+}
+
+static inline __maybe_unused int aml_dvb_extern_i2c_read(u16 addr, u8 *wbuf, u16 wlen,
+		u8 *rbuf, u16 rlen)
+{
+	return -ENODEV;
+}
+
+static inline __maybe_unused int aml_dvb_extern_i2c_read_sub(u16 main_addr, u16 sub_addr,
+		u8 *wbuf, u16 wlen, u8 *rbuf, u16 rlen)
 {
 	return -ENODEV;
 }

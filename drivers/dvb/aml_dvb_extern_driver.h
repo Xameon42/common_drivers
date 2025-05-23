@@ -8,6 +8,7 @@
 
 #include <linux/device.h>
 #include <media/dvb_frontend.h>
+#include <linux/amlogic/aml_demod_common.h>
 
 #ifdef AML_DVB_EXTERN_EN_EARLY_SUSPEND
 #if IS_ENABLED(CONFIG_AMLOGIC_LEGACY_EARLY_SUSPEND)
@@ -88,6 +89,8 @@ struct dvb_extern_device {
 	struct early_suspend suspend;
 #endif
 #endif
+
+	struct list_head i2c_client_list;
 };
 
 struct device *aml_get_dvb_extern_dev(void);

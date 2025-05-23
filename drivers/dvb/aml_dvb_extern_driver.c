@@ -24,9 +24,9 @@
 #include "aml_dvb_extern_i2c.h"
 
 #define AML_DVB_EXTERN_DEVICE_NAME "aml_dvb_extern"
-#define AML_DVB_EXTERN_VERSION     "V1.29"
+#define AML_DVB_EXTERN_VERSION     "V1.30"
 
-static struct dvb_extern_device *dvb_extern_dev;
+struct dvb_extern_device *dvb_extern_dev;
 static struct mutex dvb_extern_mutex;
 
 
@@ -760,7 +760,7 @@ static ssize_t demod_debug_store(struct class *class,
 		pr_err("demod numbers: %d\n", dev->demod_num);
 		pr_err("all demods:\n");
 		list_for_each_entry(ops, &demod->list, list) {
-			name = ops->fe ? ops->fe->ops.info.name : "";
+			name = ops->fe ? ops->fe->ops.info.name : NULL;
 			pr_err("demod%d, id %d (%s) %s, %sregistered, %sdetected, use tuner0 %s, tuner1 %s\n",
 					ops->index, ops->cfg.id,
 					name ? name : "", ops->attached ?
@@ -774,7 +774,7 @@ static ssize_t demod_debug_store(struct class *class,
 		aml_dvb_extern_i2c_debug_show(NULL);
 
 		if (demod->used && demod->used->fe) {
-			name = ops->fe->ops.info.name;
+			name = demod->used->fe->ops.info.name;
 			pr_err("current use demod%d, id %d (%s), fe type %d, delivery system %d\n",
 					demod->used->index,
 					demod->used->cfg.id,
@@ -1385,13 +1385,14 @@ static int aml_dvb_extern_probe(struct platform_device *pdev)
 	unsigned int val = 0;
 	char buf[32] = { 0 };
 	const char *str = NULL;
-	struct i2c_client *client = NULL;
 	struct tuner_ops *tops = NULL;
 	struct demod_ops *dops = NULL;
 	struct dvb_extern_device *dvbdev = NULL;
 	struct device *pcfgdev = NULL;
 	static int cdevno_maj;
 	static int cdevno_min;
+	struct i2c_client *client = NULL;
+	struct aml_dvb_extern_i2c_client *dvb_client = NULL, *temp = NULL;
 
 	if (!IS_ERR_OR_NULL(dvb_extern_dev))
 		goto PROPERTY_DONE;
@@ -1444,6 +1445,8 @@ static int aml_dvb_extern_probe(struct platform_device *pdev)
 	} else {
 		dvbdev->cdev = *pcfgdev;
 	}
+
+	INIT_LIST_HEAD(&dvbdev->i2c_client_list);
 
 	/* DVB Power pin. */
 	str = NULL;
@@ -1503,20 +1506,39 @@ static int aml_dvb_extern_probe(struct platform_device *pdev)
 			dvb_tuner_ops_destroy(tops);
 
 			pr_err("can't find tuner%d\n", i);
+			continue;
+		}
+		tops->index = i;
+
+		pr_debug("find tuner%d, id %d, i2c_addr 0x%x\n",
+			i, tops->cfg.id, tops->cfg.i2c_addr);
+
+		ret = dvb_tuner_ops_add(tops);
+		if (ret) {
+			pr_err("add tuner ops fail %d\n", ret);
 		} else {
-			tops->index = i;
-
-			pr_debug("find tuner%d, id %d, i2c_addr 0x%x\n",
-				i, tops->cfg.id, tops->cfg.i2c_addr);
-
-			ret = dvb_tuner_ops_add(tops);
-			if (ret) {
-				pr_err("add tuner ops fail %d\n", ret);
-			} else {
-				if (!tops->cfg.i2c_adap && tops->cfg.i2c_addr) {
-					client = aml_dvb_extern_get_i2c_client(tops->cfg.i2c_addr);
-					if (client)
-						tops->cfg.i2c_adap = client->adapter;
+			dvb_client = kzalloc(sizeof(*dvb_client), GFP_KERNEL);
+			if (dvb_client) {
+				client = kzalloc(sizeof(*client), GFP_KERNEL);
+				if (!client) {
+					kfree(dvb_client);
+					pr_err("kzalloc i2c_client fail\n");
+				} else {
+					INIT_LIST_HEAD(&dvb_client->list);
+					client->adapter = tops->cfg.i2c_adap;
+					strncpy(client->name, tops->cfg.name, sizeof(client->name));
+					client->addr = (tops->cfg.i2c_addr & 0x80) ?
+						(tops->cfg.i2c_addr >> 1) :
+						tops->cfg.i2c_addr;
+					dvb_client->client = client;
+					dvb_client->flag = FLAG_CUSTOM_ALLOC;
+					list_add_tail(&dvb_client->list,
+							&dvbdev->i2c_client_list);
+					pr_info("Tuner: client %s 0x%02x adapter %p %s\n",
+						dvb_client->client->name, dvb_client->client->addr,
+						dvb_client->client->adapter,
+						dvb_client->client->adapter ?
+						dvb_client->client->adapter->name : "null");
 				}
 			}
 		}
@@ -1565,11 +1587,50 @@ PROPERTY_DEMOD:
 			pr_err("add demod ops fail %d\n", ret);
 
 			continue;
-		} else {
-			if (!dops->cfg.i2c_adap && dops->cfg.i2c_addr) {
-				client = aml_dvb_extern_get_i2c_client(dops->cfg.i2c_addr);
-				if (client)
-					dops->cfg.i2c_adap = client->adapter;
+		}
+		if (!IS_ERR_OR_NULL(dops->cfg.i2c_adap)) { //for external demod
+			//append demod's i2c adapter to tuner
+			list_for_each_entry(temp, &dvbdev->i2c_client_list, list) {
+				if (!IS_ERR_OR_NULL(temp)) {
+					if (!temp->client)
+						continue;
+
+					if (!temp->client->adapter) {
+						temp->client->adapter = dops->cfg.i2c_adap;
+						pr_info("Tuner: client %s adapter %p %s\n",
+							temp->client->name,
+							temp->client->adapter,
+							temp->client->adapter->name);
+					}
+				}
+			}
+
+			dvb_client = NULL;
+			client = NULL;
+			dvb_client = kzalloc(sizeof(*dvb_client), GFP_KERNEL);
+			if (dvb_client) {
+				client = kzalloc(sizeof(*client), GFP_KERNEL);
+				if (!client) {
+					kfree(dvb_client);
+					pr_err("kzalloc i2c_client fail\n");
+				} else {
+					INIT_LIST_HEAD(&dvb_client->list);
+					client->adapter = dops->cfg.i2c_adap;
+					strncpy(client->name, dops->cfg.name,
+						sizeof(client->name));
+					client->addr = (dops->cfg.i2c_addr & 0x80) ?
+						(dops->cfg.i2c_addr >> 1) :
+						dops->cfg.i2c_addr;
+					dvb_client->client = client;
+					dvb_client->flag = FLAG_CUSTOM_ALLOC;
+					list_add_tail(&dvb_client->list,
+						&dvbdev->i2c_client_list);
+					pr_info("Demod: client %s 0x%02x adapter %p %s\n",
+						dvb_client->client->name,
+						dvb_client->client->addr,
+						dvb_client->client->adapter,
+						dvb_client->client->adapter->name);
+				}
 			}
 		}
 
@@ -1647,6 +1708,7 @@ fail_proc_dir:
 static int aml_dvb_extern_remove(struct platform_device *pdev)
 {
 	struct dvb_extern_device *dvbdev = platform_get_drvdata(pdev);
+	struct aml_dvb_extern_i2c_client *dvb_client = NULL, *temp = NULL;
 
 	if (IS_ERR_OR_NULL(dvbdev))
 		return -EFAULT;
@@ -1668,6 +1730,17 @@ static int aml_dvb_extern_remove(struct platform_device *pdev)
 #endif
 
 	aml_dvb_extern_set_power(&dvbdev->dvb_power, 0);
+
+	list_for_each_entry_safe(dvb_client, temp, &dvbdev->i2c_client_list, list) {
+		if (!IS_ERR_OR_NULL(dvb_client)) {
+			if (dvb_client->flag == FLAG_CUSTOM_ALLOC) {
+				list_del_init(&dvb_client->list);
+				kfree(dvb_client->client);
+				kfree(dvb_client);
+			}
+		}
+	}
+	list_del_init(&dvbdev->i2c_client_list);
 
 	kfree(dvbdev);
 	dvbdev = NULL;
@@ -1770,16 +1843,16 @@ int __init aml_dvb_extern_init(void)
 {
 	int ret = 0;
 
-	ret = aml_dvb_extern_i2c_init();
-	if (ret)
-		pr_err("aml_dvb_extern_i2c_init fail %d\n", ret);
-
 	ret = platform_driver_register(&aml_dvb_extern_driver);
 	if (ret) {
 		pr_err("%s: register driver error %d\n",
 				__func__, ret);
 		return ret;
 	}
+
+	ret = aml_dvb_extern_i2c_init();
+	if (ret)
+		pr_err("aml_dvb_extern_i2c_init fail %d\n", ret);
 
 	pr_info("%s: OK, version: %s\n", __func__, AML_DVB_EXTERN_VERSION);
 

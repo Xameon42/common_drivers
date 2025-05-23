@@ -238,7 +238,9 @@
 
 		tuner_num = <2>; /* for extern demod use tuner */
 		tuner0_name = "r836_tuner";
+		tuner0_i2c_addr = <0x1A>;
 		tuner1_name = "av2018_tuner";
+		tuner1_i2c_addr = <0xC4>;
 	};
 
 	dvb-demux {

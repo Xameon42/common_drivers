@@ -11,13 +11,19 @@
 
 #define AML_DVB_EXTERN_I2C_DEV_MAX 4
 
-struct aml_dvb_extern_i2c_dev {
-	unsigned int dev_cnt;
-	struct i2c_client *client[AML_DVB_EXTERN_I2C_DEV_MAX];
+enum i2c_client_alloc_flag {
+	FLAG_NO_ALLOC,
+	FLAG_CUSTOM_ALLOC,
+	FLAG_SYSTEM_ALLOC
+};
+
+struct aml_dvb_extern_i2c_client {
+	struct i2c_client *client;
+	enum i2c_client_alloc_flag flag;
+	struct list_head list;
 };
 
 int aml_dvb_extern_i2c_debug_show(char *buf);
-struct i2c_client *aml_dvb_extern_get_i2c_client(unsigned char addr);
 int aml_dvb_extern_i2c_init(void);
 void aml_dvb_extern_i2c_exit(void);
 

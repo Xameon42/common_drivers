@@ -224,6 +224,7 @@
 
 		tuner_num = <1>; /* tuner number, multi tuner support */
 		tuner0_name = "av2018_tuner";
+		tuner0_i2c_addr = <0xC4>;
 	};
 
 	dvb-demux {
