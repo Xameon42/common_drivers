@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: (GPL-2.0+ OR MIT) */
+/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  * Copyright (c) 2019 Amlogic, Inc. All rights reserved.
  */
@@ -6,7 +6,16 @@
 #ifndef _AML_MKL_H_
 #define _AML_MKL_H_
 
+#ifdef __KERNEL__
 #include <linux/types.h>
+#include <linux/ioctl.h>
+#else
+#include <stdint.h>
+#include <sys/ioctl.h>
+typedef uint8_t __u8;
+typedef uint16_t __u16;
+typedef uint32_t __u32;
+#endif
 
 /**
  * Key-Ladder parameters
@@ -39,13 +48,10 @@
 #define AML_KL_MRK_ETSI_3 (3)
 
 /* AML key ladder mrk_cfg_index */
-#define AML_KL_MRK_ACGK (0)
-#define AML_KL_MRK_ACUK (1)
 #define AML_KL_MRK_DVGK (2)
 #define AML_KL_MRK_DVUK (3)
 #define AML_KL_MRK_DGPK1 (4)
 #define AML_KL_MRK_DGPK2 (5)
-#define AML_KL_MRK_ACRK (6)
 
 /* key ladder kl_num */
 #define AML_KL_NUM_0 (0)

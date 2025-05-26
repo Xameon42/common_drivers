@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: (GPL-2.0+ OR MIT) */
+/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  * Copyright (c) 2019 Amlogic, Inc. All rights reserved.
  */
@@ -6,7 +6,16 @@
 #ifndef _AML_KT_H_
 #define _AML_KT_H_
 
+#ifdef __KERNEL__
 #include <linux/types.h>
+#include <linux/ioctl.h>
+#else
+#include <stdint.h>
+#include <sys/ioctl.h>
+typedef uint8_t __u8;
+typedef uint16_t __u16;
+typedef uint32_t __u32;
+#endif
 
 /* key user */
 #define AML_KT_USER_M2M_0        (0)

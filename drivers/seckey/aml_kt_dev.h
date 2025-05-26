@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: (GPL-2.0+ OR MIT) */
 /*
- * Copyright (c) 2021 Amlogic, Inc. All rights reserved.
+ * Copyright (c) 2019 Amlogic, Inc. All rights reserved.
  */
 
 #ifndef AML_KT_DEV
@@ -11,7 +11,6 @@
 #define KT_IV_FLAG_OFFSET (31)
 
 struct aml_kt_dev {
-	struct cdev cdev;
 	struct mutex lock; /*define mutex*/
 	struct amlkt_cfg_param *kt_slot[KT_KTE_MAX];
 	struct amlkt_cfg_param *kt_iv_slot[KT_IVE_MAX];
@@ -33,6 +32,7 @@ struct aml_kt_dev {
 	u32 ive_start;
 	u32 ive_end;
 	u32 kt_reserved;
+	struct cdev cdev;
 };
 
 extern struct aml_kt_dev aml_kt_dev;

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: (GPL-2.0+ OR MIT)
 /*
- * Copyright (c) 2019 Amlogic, Inc. All rights reserved.
+ * Copyright (c) 2025 Amlogic, Inc. All rights reserved.
  */
 
-#include <linux/amlogic/aml_mkl.h>
+#include <uapi/amlogic/aml_mkl.h>
 
 #include <linux/kernel.h>
 #include <linux/init.h>
@@ -25,7 +25,7 @@
 #include <linux/fs.h>
 #include <linux/uaccess.h>
 #include <linux/amlogic/iomap.h>
-#include <linux/amlogic/aml_kt.h>
+#include <uapi/amlogic/aml_kt.h>
 
 #include "aml_seckey_log.h"
 
@@ -90,7 +90,6 @@
 #define KL_STATUS_ERROR_BAD_STATE (6)
 
 struct aml_mkl_dev {
-	struct cdev cdev;
 	struct mutex lock; /*define mutex*/
 	void __iomem *base_addr;
 	union {
@@ -114,6 +113,7 @@ struct aml_mkl_dev {
 	};
 	u32 kl_type;
 	u32 kl_vid_type;
+	struct cdev cdev;
 };
 
 static dev_t aml_mkl_devt;
@@ -731,7 +731,8 @@ static long aml_mkl_ioctl(struct file *filp, unsigned int cmd,
 		}
 		break;
 	default:
-		KL_LOGE("No appropriate IOCTL found\n");
+		KL_LOGE("Unknown cmd: %d\n", cmd);
+		break;
 	}
 
 	return ret;
@@ -807,10 +808,11 @@ int aml_mkl_init(struct class *aml_mkl_class, struct platform_device *pdev)
 	struct device *device;
 	struct resource *res;
 
-	if (alloc_chrdev_region(&aml_mkl_devt, 0, DEVICE_INSTANCES,
-				AML_MKL_DEVICE_NAME) < 0) {
+	ret = alloc_chrdev_region(&aml_mkl_devt, 0, DEVICE_INSTANCES,
+				AML_MKL_DEVICE_NAME);
+	if (ret < 0) {
 		KL_LOGE("%s device can't be allocated.\n", AML_MKL_DEVICE_NAME);
-		return -ENXIO;
+		return ret;
 	}
 
 	cdev_init(&aml_mkl_dev.cdev, &aml_mkl_fops);

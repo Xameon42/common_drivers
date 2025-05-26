@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: (GPL-2.0+ OR MIT)
 /*
- * Copyright (c) 2021 Amlogic, Inc. All rights reserved.
+ * Copyright (c) 2025 Amlogic, Inc. All rights reserved.
  */
 
-#include <linux/amlogic/aml_key.h>
-#include <linux/amlogic/aml_kt.h>
+#include <uapi/amlogic/aml_key.h>
+#include <uapi/amlogic/aml_kt.h>
 
 #include <linux/version.h>
 #include <linux/kernel.h>
@@ -247,7 +247,7 @@ static long aml_key_ioctl(struct file *filp, unsigned int cmd,
 	u32 handle = 0;
 	u32 flag = 0;
 	u32 key_sts = 0;
-	int ret = 0;
+	int ret = -ENOTTY;
 
 	switch (cmd) {
 	case KEY_ALLOC:
@@ -339,10 +339,10 @@ static long aml_key_ioctl(struct file *filp, unsigned int cmd,
 		break;
 	default:
 		LOGE("Unknown cmd: %d\n", cmd);
-		return -EFAULT;
+		break;
 	}
 
-	return 0;
+	return ret;
 }
 
 static const struct file_operations aml_key_fops = {
@@ -358,10 +358,11 @@ int aml_key_init(struct class *aml_key_class)
 	int ret = -1;
 	struct device *device;
 
-	if (alloc_chrdev_region(&aml_key_devt, 0, DEVICE_INSTANCES,
-				AML_KEY_DEVICE_NAME) < 0) {
+	ret = alloc_chrdev_region(&aml_key_devt, 0, DEVICE_INSTANCES,
+				AML_KEY_DEVICE_NAME);
+	if (ret < 0) {
 		LOGE("%s device can't be allocated.\n", AML_KEY_DEVICE_NAME);
-		return -ENXIO;
+		return ret;
 	}
 
 	cdev_init(&aml_key_dev.cdev, &aml_key_fops);
