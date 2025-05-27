@@ -6,6 +6,7 @@ RAMDISK_MODULES_LOAD_LIST=(
 	amlogic-cpuinfo
 	amlogic-memory-debug
 	amlogic-secmon
+	aml_cma.ko
 	clk-scmi.ko
 	amlogic-clk
 	amlogic-aoclk
