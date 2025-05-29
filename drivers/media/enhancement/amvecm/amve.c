@@ -107,6 +107,9 @@ MODULE_PARM_DESC(dnlp_sel, "dnlp_sel");
 #endif
 
 int flag_lc_evc;
+int cur_contrast_v;
+int cur_contrast_u;
+int cur_vpp_index;
 
 static int amve_debug;
 module_param(amve_debug, int, 0664);
@@ -1937,6 +1940,9 @@ void vpp_vd_adj1_contrast(signed int cont_val, struct vframe_s *vf, int vpp_inde
 		//VSYNC_WRITE_VPP_REG(VPP_VADJ1_Y_2, vd1_contrast);
 		VSYNC_WRITE_VPP_REG_BITS_VPP_SEL(VPP_VADJ1_Y_2, cont_val, 0, 8, vpp_index);
 
+		cur_contrast_u = contrast_u;
+		cur_contrast_v = contrast_v;
+		cur_vpp_index = vpp_index;
 		vpp_contrast_adj_by_uv(contrast_u, contrast_v, vpp_index);
 		return;
 	} else if (get_cpu_type() > MESON_CPU_MAJOR_ID_GXTVBB) {
@@ -5990,33 +5996,12 @@ void amve_lc_elc_ctrl(unsigned int enable)
 	if (flag_lc_evc == enable)
 		return;
 
-	if (chip_type_id == chip_t6w) {
-		if (lc_evc_src) {
-			VSYNC_WRITE_VPP_REG_BITS_VPP_SEL(0x1a73, 1, 25, 1, 0);
-#ifndef CONFIG_AMLOGIC_ZAPPER_CUT
-			muxio_config(VPP_MUXIO_SEL_LC_EVC_HDR, 1, 0);
-#endif
-		} else {
-			VSYNC_WRITE_VPP_REG_BITS_VPP_SEL(0x1a73, 0, 25, 1, 0);
-#ifndef CONFIG_AMLOGIC_ZAPPER_CUT
-			muxio_config(VPP_MUXIO_SEL_VD1_HDR, 1, 0);
-#endif
-		}
-
-		pr_amve_dbg("[%s] set flag_lc_evc %d-->%d, flag_lc_evc_src %d --> %d\n",
-			__func__, flag_lc_evc, enable, flag_lc_evc_src, lc_evc_src);
-
-		flag_lc_evc = enable;
-		flag_lc_evc_src = lc_evc_src;
-		return;
-	}
-
 	if (enable) {
-		vecm_latch_flag |= FLAG_VADJ1_CON;
 		flag_lc_evc = 1;
+		vpp_contrast_adj_by_uv(cur_contrast_u, cur_contrast_v, cur_vpp_index);
 	} else {
-		vecm_latch_flag |= FLAG_VADJ1_CON;
 		flag_lc_evc = 0;
+		vpp_contrast_adj_by_uv(cur_contrast_u, cur_contrast_v, cur_vpp_index);
 	}
 	force_toggle();
 }

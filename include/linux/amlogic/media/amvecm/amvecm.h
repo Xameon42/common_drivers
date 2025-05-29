@@ -642,5 +642,9 @@ int get_amdv_src_format(enum vd_path_e vd_path);
 
 void resume_recovery_process(int vpp_index);
 
+extern int cur_contrast_v;
+extern int cur_contrast_u;
+extern int cur_vpp_index;
+
 #endif /* AMVECM_H */
 
