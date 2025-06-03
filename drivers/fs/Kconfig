@@ -7,4 +7,10 @@ config AMLOGIC_NTFS3_ISSUE
 	help
 	  ntfs3 has evict hang issue, amlogic provide a modification to fix it.
 
+config AMLOGIC_DM_BOW_BUGFIX
+	bool "DM BOW bug fix"
+	depends on DM_BOW
+	default n
+	help
+	  DM BOW bug fix by Amlogic.
 endmenu

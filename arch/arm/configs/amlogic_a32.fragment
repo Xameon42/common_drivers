@@ -510,6 +510,9 @@ CONFIG_AMLOGIC_ARMV8_AARCH32=y
 # fix ntfs3 update parent issue
 CONFIG_AMLOGIC_NTFS3_ISSUE=y
 
+# fix dm-bow state change bug
+CONFIG_AMLOGIC_DM_BOW_BUGFIX=y
+
 # CONFIG_CXD2880_SPI_DRV is not set
 # CONFIG_MEDIA_TUNER_SIMPLE is not set
 # CONFIG_MEDIA_TUNER_TDA18250 is not set
