@@ -1,0 +1,39 @@
+From b66fd33872a873b2709a9c81f7c0c5bf93135b4b Mon Sep 17 00:00:00 2001
+From: "chuangcheng.peng" <chuangcheng.peng@amlogic.com>
+Date: Fri, 30 May 2025 15:22:20 +0800
+Subject: [PATCH] demux: don't get info when filter not ready [1/1]
+
+PD#OTT-80153
+
+Problem:
+get info cause kernel crash
+
+Solution:
+don't get info when filter not ready
+
+Verify:
+verified at project
+Change-Id: I7bd7733cabb2306270dfca82e172e34312768d0c
+Signed-off-by: chuangcheng.peng <chuangcheng.peng@amlogic.com>
+---
+ drivers/media/dvb-core/dmxdev.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/drivers/media/dvb-core/dmxdev.c b/drivers/media/dvb-core/dmxdev.c
+index 0708c70e0baaa..5533615e26691 100644
+--- a/drivers/media/dvb-core/dmxdev.c
++++ b/drivers/media/dvb-core/dmxdev.c
+@@ -1132,6 +1132,10 @@ static int dvb_demux_do_ioctl(struct file *file,
+ 		ret = dmx_ext->set_input(dmxdev->demux, arg);
+ 		break;
+ 	case DMX_GET_MEM_INFO:
++		if (dmxdevfilter->state < DMXDEV_STATE_GO) {
++			ret = -EINVAL;
++			break;
++		}
+ 		if (mutex_lock_interruptible(&dmxdevfilter->mutex)) {
+ 			mutex_unlock(&dmxdev->mutex);
+ 			return -ERESTARTSYS;
+-- 
+2.47.0
+
