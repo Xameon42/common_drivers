@@ -111,6 +111,9 @@ KERNEL_VERSION(\
 #define DEVICE_NAME   "amlvideo2.0"
 #endif
 
+static const char amlvideo2_group_name[] = "amlvideo2";
+
+#define AMLVIDEO2_MAX_INSTANCE 1
 #define BUFFER_COUNT 4
 
 #define DUR2PTS_RM(x) ((x) & 0xf)
@@ -354,6 +357,18 @@ struct crop_info_s {
 	int capture_crop_enable;
 };
 
+struct dump_info_s {
+	u32 width;
+	u32 height;
+	u32 sizeimage;
+	u64 phy_addr;
+	void *vir_addr;
+	wait_queue_head_t dump_wq;
+	bool is_dump;
+	bool config_dump_done;
+	struct mutex mutex;/*for dump finish then user layer to dq*/
+};
+
 struct screen_display_info_s {
 	struct vdisplay_info_s display_info;
 	enum aml_screen_mode_e mode;
@@ -427,6 +442,8 @@ struct amlvideo2_node {
 	struct completion suspend_sema;
 #endif
 	int vdin_port_ext;
+	struct dump_info_s dump_info_src;
+	struct dump_info_s dump_info_dst;
 };
 
 struct amlvideo2_fh {
@@ -3780,6 +3797,52 @@ int amlvideo2_ge2d_pre_process(struct vframe_s *vf,
 	return output_canvas;
 }
 
+static void config_dump_src_data(struct vframe_s *vf, struct amlvideo2_node *node)
+{
+	struct canvas_s cs0;
+
+	if (!vf || !node)
+		return;
+
+	if (vf->canvas0Addr == (u32)-1) {
+		node->dump_info_src.width = vf->canvas0_config[0].width;
+		node->dump_info_src.height = vf->canvas0_config[0].height;
+		node->dump_info_src.sizeimage = vf->canvas0_config[0].width *
+			vf->canvas0_config[0].height * 3 / 2;
+		node->dump_info_src.phy_addr = vf->canvas0_config[0].phy_addr;
+	} else {
+		canvas_read(vf->canvas0Addr & 0xff, &cs0);
+		node->dump_info_src.width = cs0.width;
+		node->dump_info_src.height = cs0.height;
+		node->dump_info_src.sizeimage = cs0.width * cs0.height * 3 / 2;
+		node->dump_info_src.phy_addr = cs0.addr;
+	}
+}
+
+static void config_dump_dst_data(struct amlvideo2_output *output, struct amlvideo2_node *node)
+{
+	int output_canvas;
+	struct canvas_s cd;
+
+	if (!output || !node)
+		return;
+
+	output_canvas = output->canvas_id;
+	canvas_read(output_canvas & 0xff, &cd);
+
+	node->dump_info_dst.width = cd.width;
+	node->dump_info_dst.height = cd.height;
+	node->dump_info_dst.phy_addr = cd.addr;
+
+	if (output->v4l2_format == V4L2_PIX_FMT_RGB24 ||
+		output->v4l2_format == V4L2_PIX_FMT_BGR24 ||
+		output->v4l2_format == V4L2_PIX_FMT_RGB32 ||
+		output->v4l2_format == V4L2_PIX_FMT_ARGB32)
+		node->dump_info_dst.sizeimage = cd.width * cd.height;
+	else
+		node->dump_info_dst.sizeimage = cd.width * cd.height * 3 / 2;
+}
+
 static void dump_vf(struct vframe_s *vf, int type)
 {
 #ifdef CONFIG_AMLOGIC_ENABLE_VIDEO_PIPELINE_DUMP_DATA
@@ -4012,6 +4075,21 @@ static int amlvideo2_fillbuff(struct amlvideo2_fh *fh,
 		if (atomic_read(&node->is_suspend))
 			complete(&node->suspend_sema);
 #endif
+	}
+
+	if (node->dump_info_src.is_dump) {
+		config_dump_src_data(vf, node);
+		node->dump_info_src.config_dump_done = 1;
+		wake_up_interruptible(&node->dump_info_src.dump_wq);
+		mutex_lock(&node->dump_info_src.mutex);
+		mutex_unlock(&node->dump_info_src.mutex);
+	}
+	if (node->dump_info_dst.is_dump) {
+		config_dump_dst_data(&output, node);
+		node->dump_info_dst.config_dump_done = 1;
+		wake_up_interruptible(&node->dump_info_dst.dump_wq);
+		mutex_lock(&node->dump_info_dst.mutex);
+		mutex_unlock(&node->dump_info_dst.mutex);
 	}
 
 	if (amlvideo2_dump) {
@@ -6844,10 +6922,14 @@ static int amlvideo2_create_node(struct platform_device *pdev, int node_id)
 	/* init video dma queues */
 	INIT_LIST_HEAD(&vid_node->vidq.active);
 	init_waitqueue_head(&vid_node->vidq.wq);
+	init_waitqueue_head(&vid_node->dump_info_src.dump_wq);
+	init_waitqueue_head(&vid_node->dump_info_dst.dump_wq);
 
 	/* initialize locks */
 	spin_lock_init(&vid_node->slock);
 	mutex_init(&vid_node->mutex);
+	mutex_init(&vid_node->dump_info_src.mutex);
+	mutex_init(&vid_node->dump_info_dst.mutex);
 	init_completion(&vid_node->plug_sema);
 #ifdef CONFIG_PM
 	init_completion(&vid_node->suspend_sema);
@@ -6934,9 +7016,169 @@ static int amlvideo2_create_node(struct platform_device *pdev, int node_id)
 	return ret;
 }
 
+static ssize_t dump_src_show(struct file *filp, struct kobject *kobj,
+			 struct bin_attribute *attr, char *buf, loff_t off,
+			 size_t count)
+{
+	int ret = 0;
+	struct device *dev = kobj_to_dev(kobj);
+	struct v4l2_device *v4l2_dev = dev_get_drvdata(dev);
+	struct amlvideo2_device *aml2_dev = container_of(v4l2_dev,
+			struct amlvideo2_device, v4l2_dev);
+	struct amlvideo2_node *node = aml2_dev->node[aml2_dev->node_id];
+	struct dump_info_s *info = &node->dump_info_src;
+	u32 sizeimage;
+	u8 *vir_addr;
+	size_t to_copy;
+
+	if (!info->vir_addr && off == 0) {
+		ret = mutex_lock_interruptible(&info->mutex);
+		if (ret < 0) {
+			pr_info("dump src: interrupted while waiting for mutex\n");
+			return ret;
+		}
+		info->is_dump = 1;
+		ret = wait_event_interruptible_timeout(info->dump_wq,
+							info->config_dump_done,
+							 msecs_to_jiffies(500000));
+		if (ret == 0) {
+			pr_info("dump src timeout\n");
+		} else if (ret < 0) {
+			pr_info("dump src: wait interrupted by signal, ret=%d\n", ret);
+			info->is_dump = 0;
+			mutex_unlock(&info->mutex);
+			return ret;
+		}
+
+		pr_info("src phy_addr:%llx width:%d height:%d sizeimage:%d\n",
+			info->phy_addr, info->width, info->height, info->sizeimage);
+
+		info->vir_addr = codec_mm_vmap(info->phy_addr, info->sizeimage);
+		if (!info->vir_addr) {
+			pr_info("vmap failed. vir_addr is null\n");
+			info->is_dump = 0;
+			mutex_unlock(&info->mutex);
+			return -EINVAL;
+		}
+	}
+
+	sizeimage = info->sizeimage;
+	vir_addr = info->vir_addr;
+	if (!vir_addr || off >= sizeimage) {
+		mutex_unlock(&info->mutex);
+		return 0;
+	}
+	to_copy = min_t(size_t, count, sizeimage - off);
+	memcpy(buf, vir_addr + off, to_copy);
+	if ((off + to_copy) >= sizeimage) {
+		codec_mm_unmap_phyaddr(info->vir_addr);
+		info->vir_addr = NULL;
+		info->is_dump = 0;
+		info->config_dump_done = 0;
+		mutex_unlock(&info->mutex);
+	}
+
+	return to_copy;
+}
+
+static ssize_t dump_dst_show(struct file *filp, struct kobject *kobj,
+			 struct bin_attribute *attr, char *buf, loff_t off,
+			 size_t count)
+{
+	int ret = 0;
+	struct device *dev = kobj_to_dev(kobj);
+	struct v4l2_device *v4l2_dev = dev_get_drvdata(dev);
+	struct amlvideo2_device *aml2_dev = container_of(v4l2_dev,
+			struct amlvideo2_device, v4l2_dev);
+	struct amlvideo2_node *node = aml2_dev->node[aml2_dev->node_id];
+	struct dump_info_s *info = &node->dump_info_dst;
+	u32 sizeimage;
+	u8 *vir_addr;
+	size_t to_copy;
+
+	if (!info->vir_addr && off == 0) {
+		ret = mutex_lock_interruptible(&info->mutex);
+		if (ret < 0) {
+			pr_info("dump dst: interrupted while waiting for mutex\n");
+			return ret;
+		}
+		info->is_dump = 1;
+		ret = wait_event_interruptible_timeout(info->dump_wq,
+							info->config_dump_done,
+							 msecs_to_jiffies(500000));
+		if (ret == 0) {
+			pr_info("dump dst timeout\n");
+		} else if (ret < 0) {
+			pr_info("dump dst: wait interrupted by signal, ret=%d\n", ret);
+			info->is_dump = 0;
+			mutex_unlock(&info->mutex);
+			return ret;
+		}
+
+		pr_info("dst phy_addr:%llx width:%d height:%d sizeimage:%d\n",
+			info->phy_addr, info->width, info->height, info->sizeimage);
+
+		info->vir_addr = codec_mm_vmap(info->phy_addr, info->sizeimage);
+		if (!info->vir_addr) {
+			pr_info("vmap failed. vir_addr is null\n");
+			info->is_dump = 0;
+			mutex_unlock(&info->mutex);
+			return -EINVAL;
+		}
+	}
+
+	sizeimage = info->sizeimage;
+	vir_addr = info->vir_addr;
+	if (!vir_addr || off >= sizeimage) {
+		mutex_unlock(&info->mutex);
+		return 0;
+	}
+	to_copy = min_t(size_t, count, sizeimage - off);
+	memcpy(buf, vir_addr + off, to_copy);
+	if ((off + to_copy) >= sizeimage) {
+		codec_mm_unmap_phyaddr(info->vir_addr);
+		info->vir_addr = NULL;
+		info->is_dump = 0;
+		info->config_dump_done = 0;
+		mutex_unlock(&info->mutex);
+	}
+
+	return to_copy;
+}
+
+static struct bin_attribute amlvideo2_attr[] = {
+	{
+		.attr.name = "dump_src",
+		.attr.mode = 0664,
+		.private = NULL,
+		.read = dump_src_show,
+		.write = NULL,
+	},
+	{
+		.attr.name = "dump_dst",
+		.attr.mode = 0664,
+		.private = NULL,
+		.read = dump_dst_show,
+		.write = NULL,
+	},
+};
+
+static struct bin_attribute *amlvideo2_bin_attrs[] = {
+	&amlvideo2_attr[0],
+	&amlvideo2_attr[1],
+	NULL,
+};
+
+static const struct attribute_group amlvideo2_attr_group[AMLVIDEO2_MAX_INSTANCE] = {
+	{
+		.name = amlvideo2_group_name,
+		.bin_attrs = amlvideo2_bin_attrs,
+	},
+};
+
 static int amlvideo2_driver_probe(struct platform_device *pdev)
 {
-	s32 ret;
+	s32 ret, i;
 	struct amlvideo2_device *dev = NULL;
 
 	dev = kzalloc(sizeof(*dev), GFP_KERNEL);
@@ -6974,6 +7216,12 @@ static int amlvideo2_driver_probe(struct platform_device *pdev)
 		dev->support_4k_capture = 0;
 	} else {
 		pr_info("support_4k %d for amlvideo2.%d\n", dev->support_4k_capture, dev->node_id);
+	}
+
+	for (i = 0; i < AMLVIDEO2_MAX_INSTANCE; i++) {
+		ret = sysfs_create_group(&pdev->dev.kobj, &amlvideo2_attr_group[i]);
+		if (ret)
+			pr_err("amlvideo2 creat dump node fail.\n");
 	}
 
 	dev->framebuffer_total_size = dev->support_4k_capture ? CMA_ALLOC_SIZE_4K : CMA_ALLOC_SIZE;
