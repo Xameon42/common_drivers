@@ -2955,6 +2955,36 @@ static int hdmitx_cntl_ddc(struct hdmitx_hw_common *hw_comm, u32 cmd,
 		/*wait recover for resetting DDC*/
 		usleep_range(1000, 2000);
 		break;
+	/*
+	 * AON_CYP_CTL_IVCTX: i2c clk div, default value = 0x2, means 75k
+	 * DDC_DELAY_CNT_IVCTX: DDC I2C delay counter, defalut 0x26
+	 * config i2c 50k: AON_CYP_CTL_IVCTX as default, DDC_DELAY_CNT_IVCTX as 0x3d
+	 */
+	case DDC_I2C_RATE:
+		switch (argv) {
+		case DDC_I2C_25K:
+			/* config i2c 25k */
+			hdmitx21_set_reg_bits(AON_CYP_CTL_IVCTX, 3, 0, 2);
+			hdmitx21_wr_reg(DDC_DELAY_CNT_IVCTX, 0x3d);
+			break;
+		case DDC_I2C_38K:
+			/* config i2c 37.5k */
+			hdmitx21_set_reg_bits(AON_CYP_CTL_IVCTX, 3, 0, 2);
+			hdmitx21_wr_reg(DDC_DELAY_CNT_IVCTX, 0x26);
+			break;
+		case DDC_I2C_75K:
+			/* config i2c 75k */
+			hdmitx21_set_reg_bits(AON_CYP_CTL_IVCTX, 2, 0, 2);
+			hdmitx21_wr_reg(DDC_DELAY_CNT_IVCTX, 0x26);
+			break;
+		case DDC_I2C_50K:
+		default:
+			/* config i2c 50k */
+			hdmitx21_set_reg_bits(AON_CYP_CTL_IVCTX, 2, 0, 2);
+			hdmitx21_wr_reg(DDC_DELAY_CNT_IVCTX, 0x3d);
+			break;
+		}
+		break;
 	case DDC_PIN_MUX_OP:
 		if (argv == PIN_MUX)
 			hdmitx21_ddc_hw_op(DDC_MUX_DDC);
