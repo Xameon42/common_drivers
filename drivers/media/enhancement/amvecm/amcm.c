@@ -201,6 +201,79 @@ void cm_wr_api(unsigned int addr, unsigned int data,
 }
 #endif
 
+int parse_mask_int(int val, int start, int len)
+{
+	unsigned int ret = 0;
+	int tmp = 32 - len;
+
+	if (tmp < 0)
+		tmp = 0;
+
+	ret = ~((0xffffffff >> len) << len);
+	ret &= ((val >> start) << tmp) >> tmp;
+
+	return ret;
+}
+
+void write_reg_by_mask(unsigned int addr, unsigned int mask,
+	unsigned int val, unsigned int write_mode, int vpp_index)
+{
+	unsigned int i = 0;
+	unsigned int data = 0;
+	unsigned int start = 0;
+	unsigned int len = 0;
+	unsigned int update_flag = 0;
+	unsigned int match_flag = 0;
+
+	if (!mask || !addr)
+		return;
+
+	pr_amcm_dbg("[%s] addr:0x%x, val:0x%x, mask:0x%x\n",
+		__func__, addr, val, mask);
+
+	for (i = 0; i < 32; i++) {
+		if (!match_flag &&
+			(mask & (1 << i))) {
+			start = i;
+			match_flag = 1;
+			pr_amcm_dbg("[%s] start:%d, match_flag:%d\n",
+				__func__, start, match_flag);
+		}
+
+		if (match_flag) {
+			if ((mask & (1 << i)) == 0) {
+				len = i - start;
+				match_flag = 0;
+				update_flag = 1;
+				pr_amcm_dbg("[%s] start:%d, len:%d\n",
+					__func__, start, len);
+			} else if (i == 31) {
+				len = 32 - start;
+				match_flag = 0;
+				update_flag = 1;
+				pr_amcm_dbg("[%s] 31 start:%d, len:%d\n",
+					__func__, start, len);
+			}
+		}
+
+		if (update_flag && len) {
+			data = parse_mask_int(val, start, len);
+
+			pr_amcm_dbg("[%s] addr:0x%x, rdma:%d, data:0x%x, start/len:%d/%d\n",
+				__func__, addr, write_mode, data, start, len);
+
+			if (write_mode)
+				VSYNC_WRITE_VPP_REG_BITS_EX_VPP_SEL(addr,
+					data, start, len, 0, vpp_index);
+			else
+				WRITE_VPP_REG_BITS(addr, data,
+					start, len);
+
+			update_flag = 0;
+		}
+	}
+}
+
 void am_set_regmap(struct am_regs_s *p, int vpp_index)
 {
 	unsigned short i;
@@ -220,6 +293,13 @@ void am_set_regmap(struct am_regs_s *p, int vpp_index)
 		mask = p->am_reg[i].mask;
 		val = p->am_reg[i].val;
 		addr = p->am_reg[i].addr;
+
+		if (addr == 0) {
+			pr_amcm_dbg("\n[%s] i=%d, mask=%d, val=%d, p length=%d\n",
+				__func__, i, mask, val, p->length);
+			continue;
+		}
+
 		skip = skip_pq_ctrl_load(&p->am_reg[i]);
 		if (skip != 0)
 			mask &= ~skip;
@@ -427,17 +507,9 @@ void am_set_regmap(struct am_regs_s *p, int vpp_index)
 				}
 #endif
 
-				if (pq_reg_wr_rdma) {
-					temp = READ_VPP_REG(addr);
-					VSYNC_WRITE_VPP_REG_EX_VPP_SEL(addr,
-						(temp & (~mask)) |
-						(val & mask), 0, vpp_index);
-				} else {
-					temp = aml_read_vcbus_s(addr);
-					WRITE_VPP_REG(addr,
-						(temp & (~mask)) |
-						(val & mask));
-				}
+				write_reg_by_mask(addr, mask,
+					val, pq_reg_wr_rdma, vpp_index);
+
 #ifndef CONFIG_AMLOGIC_ZAPPER_CUT
 				/*for slice1 sr*/
 				if (chip_type_id == chip_t3x &&
@@ -772,7 +844,7 @@ void amcm_enable(enum wr_md_e md, int vpp_index)
 		WRITE_VPP_REG(VPP_CHROMA_ADDR_PORT, STA_CFG_REG);
 		temp = READ_VPP_REG(VPP_CHROMA_DATA_PORT);
 		temp = (temp & (~0xc0000000)) | (1 << 30);
-		temp = (temp & (~0xff0000)) | (24 << 16);
+		temp = (temp & (~0xff0000)) | (1 << 16);
 		WRITE_VPP_REG(VPP_CHROMA_ADDR_PORT, STA_CFG_REG);
 		WRITE_VPP_REG(VPP_CHROMA_DATA_PORT, temp);
 
@@ -993,8 +1065,15 @@ void cm_frame_size_s5(struct vframe_s *vf, int vpp_index)
 				else
 					overlap = 0;
 
-				width = vd_size_info->slice[0].vd1_slice_in_hsize - overlap;
-				height = vd_size_info->slice[0].vd1_slice_in_vsize;
+				width = vd_size_info->slice[0].hsize;
+				height = vd_size_info->slice[0].vsize;
+				pr_amcm_dbg("[amcm] s[%d] in_size( %d,%d) size(%d,%d),overlap=%d\n",
+					i,
+					vd_size_info->slice[i].vd1_slice_in_hsize,
+					vd_size_info->slice[i].vd1_slice_in_vsize,
+					vd_size_info->slice[i].hsize,
+					vd_size_info->slice[i].vsize,
+					vd_size_info->slice[i].vd1_overlap);
 #else
 				width = 0xf00;
 				height = 0x870;
@@ -1056,13 +1135,12 @@ void cm2_frame_size_patch(struct vframe_s *vf,
 	addr_port = VPP_CHROMA_ADDR_PORT;
 	data_port = VPP_CHROMA_DATA_PORT;
 
-	if (!cm_en)
+	if (!cm_en || width == 0 || height == 0)
 		return;
 	else if (width < cm_width_limit)
-		amcm_disable(WR_VCB, 0);/*(WR_DMA);*/
+		amcm_disable(WR_DMA, vpp_index);
 	else if (!cm_en_flag && !cm_dis_flag)
 		amcm_enable(WR_DMA, vpp_index);
-
 	vpp_size = width | (height << 16);
 	if (cm_size != vpp_size) {
 		VSYNC_WRITE_VPP_REG_VPP_SEL(addr_port, 0x205, vpp_index);
