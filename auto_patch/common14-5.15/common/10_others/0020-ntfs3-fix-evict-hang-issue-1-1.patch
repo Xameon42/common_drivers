@@ -1,4 +1,4 @@
-From 150593a3dcba39f352289125b411a7af4f192a0b Mon Sep 17 00:00:00 2001
+From e5147bd832528bd59b7e048f5d42c6f53ab1da8c Mon Sep 17 00:00:00 2001
 From: Jiucheng Xu <jiucheng.xu@amlogic.com>
 Date: Thu, 19 Dec 2024 11:55:45 +0000
 Subject: [PATCH] ntfs3: fix evict hang issue [1/1]
@@ -43,26 +43,11 @@ s7d
 Change-Id: Id60be398505120db5eb6208875bb94982cd35a3b
 Signed-off-by: Jiucheng Xu <jiucheng.xu@amlogic.com>
 ---
- fs/ntfs3/Kconfig   | 6 ++++++
  fs/ntfs3/frecord.c | 3 +++
- 2 files changed, 9 insertions(+)
+ 1 file changed, 3 insertions(+)
 
-diff --git a/fs/ntfs3/Kconfig b/fs/ntfs3/Kconfig
-index 6e4cbc48ab8e..cf956aa88a35 100644
---- a/fs/ntfs3/Kconfig
-+++ b/fs/ntfs3/Kconfig
-@@ -44,3 +44,9 @@ config NTFS3_FS_POSIX_ACL
- 	  NOTE: this is linux only feature. Windows will ignore these ACLs.
- 
- 	  If you don't know what Access Control Lists are, say N.
-+
-+config AMLOGIC_NTFS3_ISSUE
-+	bool "NTFS3 has bug when update parent"
-+	depends on NTFS3_FS
-+	help
-+	  ntfs3 has evict hang issue, amlogic provide a modification to fix it.
 diff --git a/fs/ntfs3/frecord.c b/fs/ntfs3/frecord.c
-index b02778cbb1d3..ffc98d6932f0 100644
+index 7a1f57dc58dfc..de59c5ad50931 100644
 --- a/fs/ntfs3/frecord.c
 +++ b/fs/ntfs3/frecord.c
 @@ -3246,6 +3246,9 @@ int ni_write_inode(struct inode *inode, int sync, const char *hint)

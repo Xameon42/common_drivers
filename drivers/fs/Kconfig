@@ -1,0 +1,10 @@
+
+menu "Meson filesystem modification for common code"
+
+config AMLOGIC_NTFS3_ISSUE
+	bool "NTFS3 has bug when update parent"
+	depends on NTFS3_FS
+	help
+	  ntfs3 has evict hang issue, amlogic provide a modification to fix it.
+
+endmenu
