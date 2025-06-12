@@ -3151,12 +3151,12 @@ static irqreturn_t meson_mmc_irq(int irq, void *dev_id)
 		return IRQ_HANDLED;
 	}
 
-	cmd = host->cmd;
-	data = cmd->data;
 	if (WARN_ON(!host->cmd)) {
 		dev_err(host->dev, "host->cmd is NULL.\n");
 		return IRQ_HANDLED;
 	}
+	cmd = host->cmd;
+	data = cmd->data;
 
 	cmd->error = 0;
 	if (status & IRQ_CRC_ERR) {
