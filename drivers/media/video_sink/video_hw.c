@@ -5615,7 +5615,8 @@ void switch_3d_view_per_vsync(struct video_layer_s *layer)
 	misc_off = layer->misc_reg_offt;
 	cur_frame_par = layer->cur_frame_par;
 	if (FA_enable && toggle_3d_fa_frame == OUT_FA_A_FRAME) {
-		if (cur_dev->display_module == OLD_DISPLAY_MODULE) {
+		if (get_cpu_type() < MESON_CPU_MAJOR_ID_SC2 &&
+			cur_dev->display_module == OLD_DISPLAY_MODULE) {
 			cur_dev->rdma_func[vpp_index].rdma_wr_bits
 				(VPP_MISC + misc_off, 1, 14, 1);
 				/* VPP_VD1_PREBLEND disable */
@@ -5690,7 +5691,8 @@ void switch_3d_view_per_vsync(struct video_layer_s *layer)
 			}
 		}
 	} else if (FA_enable && (toggle_3d_fa_frame == OUT_FA_B_FRAME)) {
-		if (cur_dev->display_module == OLD_DISPLAY_MODULE) {
+		if (get_cpu_type() < MESON_CPU_MAJOR_ID_SC2 &&
+			cur_dev->display_module == OLD_DISPLAY_MODULE) {
 			cur_dev->rdma_func[vpp_index].rdma_wr_bits
 				(VPP_MISC + misc_off, 1, 14, 1);
 			/* VPP_VD1_PREBLEND disable */
@@ -5762,7 +5764,8 @@ void switch_3d_view_per_vsync(struct video_layer_s *layer)
 			}
 		}
 	} else if (FA_enable && (toggle_3d_fa_frame == OUT_FA_BANK_FRAME)) {
-		if (cur_dev->display_module == OLD_DISPLAY_MODULE) {
+		if (get_cpu_type() < MESON_CPU_MAJOR_ID_SC2 &&
+			cur_dev->display_module == OLD_DISPLAY_MODULE) {
 			/* output a banking frame */
 			cur_dev->rdma_func[vpp_index].rdma_wr_bits
 				(VPP_MISC + misc_off, 0, 14, 1);
@@ -8617,6 +8620,7 @@ void vpp_blend_update(const struct vinfo_s *vinfo, u8 vpp_index)
 				vinfo->field_height);
 		}
 	}
+
 	if (!legacy_vpp) {
 		u32 set_value = 0;
 		u32 set_value1 = 0;
@@ -8761,9 +8765,11 @@ void vpp_blend_update(const struct vinfo_s *vinfo, u8 vpp_index)
 				set_value |= VPP_VD1_POSTBLEND;
 				set_value |= VPP_VD1_PREBLEND;
 			}
+
 			/* t5d bit 9:11 used by wm ctrl, chip after g12 not used bit 9:11, mask it*/
 			set_value &= 0xfffff1ff;
 			set_value |= (vpp_misc_save & 0xe00);
+
 			if (!is_meson_txhd2_cpu()) {
 				cur_dev->rdma_func[vpp_index].rdma_wr
 					(VPP_MISC + vpp_off,
