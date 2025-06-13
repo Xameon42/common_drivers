@@ -663,6 +663,13 @@ static int lowlatency_vsync(u8 instance_id)
 				hscaler_8tap_enable[1] = false;
 			} else {
 				switch_from_lcevc_to_nonlcevc(false);
+				if (video_lcevc.lcevc_switch_normal) {
+					vd2_path_id = glayer_info[1].display_path_id;
+					if (debug_common_flag & DEBUG_FLAG_COMMON_LCEVC)
+						pr_info("%s, line=%d, lcevc_switch_normal vd2_path_id=%d, vd_layer[1].global_output=%d\n",
+							__func__, __LINE__,
+							vd2_path_id, vd_layer[1].global_output);
+				}
 			}
 		}
 		cur_blackout = 1;
