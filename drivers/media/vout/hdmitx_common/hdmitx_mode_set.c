@@ -597,13 +597,13 @@ static void hdmitx_set_bist(u32 num, void *data)
 
 static int hdmitx_vout_set_vframe_rate_hint(int duration, void *data)
 {
-	HDMITX_ERROR("not support %S\n", __func__);
+	HDMITX_ERROR("not support %s\n", __func__);
 	return 0;
 }
 
 static int hdmitx_vout_get_vframe_rate_hint(void *data)
 {
-	HDMITX_ERROR("not support %S\n", __func__);
+	HDMITX_ERROR("not support %s\n", __func__);
 	return 0;
 }
 
