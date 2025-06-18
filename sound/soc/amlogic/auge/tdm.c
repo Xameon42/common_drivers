@@ -1803,17 +1803,22 @@ static int aml_dai_tdm_prepare(struct snd_pcm_substream *substream,
 		/* i2s source to hdmix */
 		if (get_hdmitx_audio_src(rtd->card) == (p_tdm->id + HDMITX_SRC_TDM_A)) {
 			enum aud_codec_types codec_type = get_i2s2hdmitx_audio_format(rtd->card);
-			int i2s_out_mask = get_hdmitx_i2s_mask(rtd->card);
+			int i2s_out_data_lane_mask = get_hdmitx_i2s_mask(rtd->card);
 			unsigned int event_type = 0;
 			struct iec958_chsts chsts;
 			struct aud_para aud_param;
 
+			/* notify HDMITX to disable audio packet */
+			notify_hdmitx_to_prepare();
 			memset(&aud_param, 0, sizeof(aud_param));
 			aud_param.rate = runtime->rate;
 			aud_param.size = runtime->sample_bits;
 			if (codec_type == AUD_CODEC_TYPE_STEREO_PCM) {
 				aud_param.chs  = 2;
-				aud_param.i2s_ch_mask = (u8)i2s_out_mask;
+				if (i2s_out_data_lane_mask == 0)
+					aud_param.i2s_ch_mask = 0x1;
+				else
+					aud_param.i2s_ch_mask = (u8)i2s_out_data_lane_mask;
 			} else {
 				aud_param.chs  = runtime->channels;
 				aud_param.i2s_ch_mask = (1 << (runtime->channels / 2)) - 1;
@@ -2084,13 +2089,6 @@ static int aml_dai_tdm_hw_params(struct snd_pcm_substream *substream,
 	struct aml_tdm *p_tdm = snd_soc_dai_get_drvdata(cpu_dai);
 	unsigned int rate = params_rate(params);
 	unsigned int channels = params_channels(params);
-	struct snd_soc_card *card = cpu_dai->component->card;
-
-	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
-		if (get_hdmitx_audio_src(card) == (p_tdm->id + HDMITX_SRC_TDM_A))
-			/* notify HDMITX to disable audio packet */
-			notify_hdmitx_to_prepare();
-	}
 
 	return aml_tdm_hw_setting_init(p_tdm, rate, channels, substream->stream);
 }

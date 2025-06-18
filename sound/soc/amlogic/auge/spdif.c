@@ -1314,7 +1314,6 @@ static void aml_dai_spdif_shutdown(struct snd_pcm_substream *substream,
 {
 	struct aml_spdif *p_spdif = snd_soc_dai_get_drvdata(cpu_dai);
 	char *clk_name = (char *)__clk_get_name(p_spdif->sysclk);
-	struct snd_soc_card *card = cpu_dai->component->card;
 
 	if (!clk_name)
 		return;
@@ -1324,18 +1323,6 @@ static void aml_dai_spdif_shutdown(struct snd_pcm_substream *substream,
 			if (!strcmp(clk_name, "hifi_pll")) {
 				clk_set_rate(p_spdif->sysclk, MPLL_HBR_FIXED_FREQ);
 			}
-		}
-	}
-
-	/* disable clock and gate */
-	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
-		if (get_hdmitx_audio_src(card) == p_spdif->id)
-			notify_hdmitx_to_prepare();
-
-		if (p_spdif->clk_cont) {
-			pr_debug("spdif_%s keep clk continuous\n",
-				(p_spdif->id == 0) ? "a" : "b");
-			return;
 		}
 	}
 }
@@ -1400,6 +1387,7 @@ static int aml_dai_spdif_prepare(struct snd_pcm_substream *substream,
 				enable_spdif_to_hdmitx_clk(true);
 			enable_spdif_to_hdmitx_dat(false);
 			notify_hdmitx_to_prepare();
+			set_spdif_to_hdmitx_id(p_spdif->id);
 		}
 
 		if (p_spdif->codec_type == AUD_CODEC_TYPE_TRUEHD ||
@@ -1581,17 +1569,11 @@ static int aml_dai_spdif_hw_params(struct snd_pcm_substream *substream,
 				struct snd_soc_dai *cpu_dai)
 {
 	struct aml_spdif *p_spdif = snd_soc_dai_get_drvdata(cpu_dai);
-	struct snd_soc_card *card = cpu_dai->component->card;
 	unsigned int rate = params_rate(params);
 	int ret = 0;
 
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
 		rate *= 128;
-		if (get_hdmitx_audio_src(card) == p_spdif->id) {
-			/* notify HDMITX to disable audio packet */
-			notify_hdmitx_to_prepare();
-			set_spdif_to_hdmitx_id(p_spdif->id);
-		}
 
 		snd_soc_dai_set_sysclk(cpu_dai,
 				0, rate, SND_SOC_CLOCK_OUT);
