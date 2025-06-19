@@ -114,6 +114,8 @@ static void cal_ddr_usage_single(struct ddr_bandwidth *db)
 	for (i = 0; i < db->dmc_number; i++) {
 		/* mbw = (ddr_freq * 2 * (data_bus_width/8)) */
 		freq = db->data_extern[i].ddr_freq;
+		if (db->ddr_type == LPDDR5)
+			freq = (u64)freq * 4;
 		mbw = (u64)freq * (db->data_extern[i].data_bus_width >> 2);
 		mbw /= 1024;
 		mul  = db->data_extern[i].dg.all_grant;
@@ -215,16 +217,22 @@ static void cal_ddr_usage(struct ddr_bandwidth *db, struct ddr_grant *dg)
 		if (dmc_is_asymmetry(aml_db)) {
 			for (i = 0; i < db->dmc_number; i++) {
 				freq = db->data_extern[i].ddr_freq;
+				if (db->ddr_type == LPDDR5)
+					freq = (u64)freq * 4;
 				mbw += (u64)freq * (db->data_extern[i].data_bus_width >> 2);
 			}
 		} else {
 			/* theoretic max bandwidth =  ddr_freq * 2 * width / 8 */
+			if (db->ddr_type == LPDDR5)
+				mbw = (u64)db->ddr_freq * 4;
+			else
+				mbw = (u64)db->ddr_freq;
 			if (ddr_width_is_16bit(db))
-				mbw = (u64)db->ddr_freq * 2 * 2;
+				mbw = (u64)mbw * 2 * 2;
 			else if (ddr_width_is_64bit(db))
-				mbw = (u64)db->ddr_freq * 2 * 8;
+				mbw = (u64)mbw * 2 * 8;
 			else /* default is 32 */
-				mbw = (u64)db->ddr_freq * 2 * 4;
+				mbw = (u64)mbw * 2 * 4;
 		}
 		if (!mbw) {
 			pr_emerg("warning: theoretic max bandwidth is zero\n");

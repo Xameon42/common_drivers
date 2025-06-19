@@ -24,7 +24,10 @@
 #define DMC_MON_ALL_BW			((0x0013 << 2))
 #define DMC_MON_ALL16_BW		((0x0014 << 2))
 
-#define DMC_AXI0_READ_BW		((0x0020  << 2))
+#define DMC_AXI0_READ_BW		((0x0020 << 2))
+#define DMC_CMD_FILTER_CTRL3		((0x0053 << 2))
+
+#define DDR_TYPE			((0x0305 << 2))
 
 static void s6_dmc_port_config(struct ddr_bandwidth *db, int channel, int port)
 {
@@ -44,10 +47,14 @@ static void s6_dmc_port_config(struct ddr_bandwidth *db, int channel, int port)
 
 static unsigned long s6_get_dmc_freq_quick(struct ddr_bandwidth *db)
 {
-	db->ddr_freq = (readl(db->pll_reg) & 0xffff) * 1000000;
-
-	/* S6 dmc freq =  1/4 ddr freq */
-	db->dmc_freq = db->ddr_freq >> 2;
+	if ((readl(db->ddr_reg1 + DDR_TYPE) & 0xff00) == 0x600) {
+		db->ddr_type = LPDDR5;
+		db->dmc_freq = (readl(db->pll_reg) & 0xffff) * 1000000;
+		db->ddr_freq = db->dmc_freq;
+	} else {
+		db->ddr_freq = (readl(db->pll_reg) & 0xffff) * 1000000;
+		db->dmc_freq = db->ddr_freq >> 2;
+	}
 
 	return db->dmc_freq;
 }

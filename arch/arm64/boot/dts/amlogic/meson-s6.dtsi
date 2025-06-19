@@ -1252,7 +1252,7 @@
 	ddr_bandwidth {
 		compatible = "amlogic,ddr-bandwidth-s6";
 		status = "okay";
-		reg = <0x0 0xfe036000 0x0 0x400
+		reg = <0x0 0xfe036000 0x0 0x1000
 		       0x0 0xfe036ca8 0x0 0x4>;
 		interrupts = <0 78 IRQ_TYPE_EDGE_RISING>;
 		interrupt-names = "ddr_bandwidth";
