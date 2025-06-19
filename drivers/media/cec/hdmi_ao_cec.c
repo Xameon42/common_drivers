@@ -542,8 +542,8 @@ static void cec_new_msg_push(void)
 			return;
 		wake_up(&cec_msg_wait_queue);
 		/* uevent to notify cec msg received */
-		queue_delayed_work(cec_dev->cec_rx_event_wq,
-				   &cec_dev->work_cec_rx, 0);
+//		queue_delayed_work(cec_dev->cec_rx_event_wq,
+//				   &cec_dev->work_cec_rx, 0);
 	}
 }
 
@@ -551,8 +551,8 @@ static void cec_stored_msg_push(void)
 {
 	if (cec_config(0, 0) & CEC_FUNC_CFG_CEC_ON) {
 		wake_up(&cec_msg_wait_queue);
-		queue_delayed_work(cec_dev->cec_rx_event_wq,
-				   &cec_dev->work_cec_rx, CEC_NOTIFY_DELAY);
+//		queue_delayed_work(cec_dev->cec_rx_event_wq,
+//				   &cec_dev->work_cec_rx, CEC_NOTIFY_DELAY);
 	}
 }
 
