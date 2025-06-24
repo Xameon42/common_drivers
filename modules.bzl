@@ -92,6 +92,7 @@ AMLOGIC_COMMON_MODULES = [
     "common_drivers/drivers/net/mdio/amlogic-mdio-g12a.ko",
     "common_drivers/drivers/net/phy/amlogic-inphy.ko",
     "common_drivers/drivers/net/phy/amlogic-realtek.ko",
+    "common_drivers/drivers/net/phy/amlogic-maxio.ko",
     "common_drivers/drivers/pci/controller/amlogic-pcie.ko",
     "common_drivers/drivers/pm/amlogic-pm.ko",
     "common_drivers/drivers/power/amlogic-power.ko",
