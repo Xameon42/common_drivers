@@ -98,6 +98,9 @@ static int _dummy_fe_property_process_get(struct dummy_fe_ctx_t *ctx,
 	case DUMMY_FE_FREQUENCY:
 		c = &ctx->frontend.dtv_property_cache;
 		*data = c->frequency;
+		/* frequency in Hz for terrestrial/cable or in kHz for Satellite  */
+		if (c->delivery_system == SYS_DVBS || c->delivery_system == SYS_DVBS2)
+			*data = c->frequency * 1000;
 		break;
 	case DUMMY_FE_MODULATION:
 		break;
@@ -423,6 +426,18 @@ static int dvb_dummy_fe_init(struct dvb_frontend *fe)
 	return 0;
 }
 
+static int dvb_dummy_fe_set_tone(struct dvb_frontend *fe,
+				 enum fe_sec_tone_mode tone)
+{
+	return 0;
+}
+
+static int dvb_dummy_fe_set_voltage(struct dvb_frontend *fe,
+				    enum fe_sec_voltage voltage)
+{
+	return 0;
+}
+
 static void dvb_dummy_fe_release(struct dvb_frontend *fe)
 {
 	// do nothing
@@ -489,7 +504,7 @@ static const struct dvb_frontend_ops dvb_dummy_fe_ops = {
 				FE_CAN_GUARD_INTERVAL_AUTO |
 				FE_CAN_HIERARCHY_AUTO,
 		.frequency_min_hz = 40000000,
-		.frequency_max_hz = 974000000,
+		.frequency_max_hz = 2147000000,
 	},
 
 	.release = dvb_dummy_fe_release,
@@ -505,6 +520,9 @@ static const struct dvb_frontend_ops dvb_dummy_fe_ops = {
 	.read_signal_strength = dvb_dummy_fe_read_signal_strength,
 	.read_snr = dvb_dummy_fe_read_snr,
 	.read_ucblocks = dvb_dummy_fe_read_ucblocks,
+	.set_voltage = dvb_dummy_fe_set_voltage,
+	.set_tone = dvb_dummy_fe_set_tone,
+
 #ifdef CONFIG_AMLOGIC_DVB_COMPAT
 	.get_property = dvb_dummy_fe_get_property,
 #endif
