@@ -24,7 +24,7 @@
 #include "aml_dvb_extern_i2c.h"
 
 #define AML_DVB_EXTERN_DEVICE_NAME "aml_dvb_extern"
-#define AML_DVB_EXTERN_VERSION     "V1.28"
+#define AML_DVB_EXTERN_VERSION     "V1.29"
 
 static struct dvb_extern_device *dvb_extern_dev;
 static struct mutex dvb_extern_mutex;
@@ -630,13 +630,15 @@ static ssize_t demod_debug_store(struct class *class,
 	struct dvb_extern_device *dev =
 			container_of(class, struct dvb_extern_device, class);
 	struct dvb_frontend *fe = dev->demod_fe;
-	struct dtv_frontend_properties *c = &fe->dtv_property_cache;
+	struct dtv_frontend_properties *c = NULL;
 	struct dtv_property tvp;
 	enum fe_status s = FE_NONE;
 	enum fe_delivery_system delsys = 0;
 
 	buf_orig = kstrdup(buf, GFP_KERNEL);
 	ps = buf_orig;
+	if (fe)
+		c = &fe->dtv_property_cache;
 
 	while (1) {
 		token = strsep(&ps, "\n ");

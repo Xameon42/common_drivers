@@ -35,7 +35,7 @@ static int tuner_attach(struct dvb_tuner *tuner, bool attach)
 		}
 
 		if (attach) {
-			if (!user_cfg || (user_cfg && !ops->dts_cfg)) {
+			if (!user_cfg || !ops->dts_cfg) {
 				fe = ops->module->attach(ops->module,
 						&ops->fe, &ops->cfg);
 				if (!IS_ERR_OR_NULL(fe))
