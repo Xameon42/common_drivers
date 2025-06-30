@@ -4059,19 +4059,10 @@ static void hdmitx_cedst_process(struct work_struct *work)
 	queue_delayed_work(tx_comm->cedst_wq, &tx_comm->work_cedst, HZ);
 }
 
-static void hdmitx_process_plugin(struct hdmitx_dev *hdev, bool set_audio)
+static void hdmitx_process_plugin(struct hdmitx_dev *hdev)
 {
-	struct vinfo_s *info = NULL;
-
 	/* step1: SW: EDID read/parse, notify client modules */
 	hdmitx_plugin_common_work(&hdev->tx_comm);
-
-	/* only bootup plugin will set audio mode, other plugin will not do that */
-	if (set_audio) {
-		info = hdmitx_get_current_vinfo(NULL);
-		if (info && info->mode == VMODE_HDMI)
-			hdmitx21_set_audio(hdev, &hdev->tx_comm.cur_audio_param);
-	}
 
 	/* step2: SW: notify client modules and update uevent state */
 	hdmitx_common_notify_hpd_status(&hdev->tx_comm, false);
@@ -4086,7 +4077,7 @@ static void hdmitx_process_plugin(struct hdmitx_dev *hdev, bool set_audio)
  */
 static void hdmitx_bootup_plugin_handler(struct hdmitx_dev *hdev)
 {
-	hdmitx_process_plugin(hdev, hdev->tx_comm.ready);
+	hdmitx_process_plugin(hdev);
 }
 
 static void hdmitx_hpd_plugin_irq_handler(struct work_struct *work)
@@ -4119,7 +4110,7 @@ static void hdmitx_hpd_plugin_irq_handler(struct work_struct *work)
 		return;
 	}
 	HDMITX_INFO(SYS "plugin\n");
-	hdmitx_process_plugin(hdev, false);
+	hdmitx_process_plugin(hdev);
 
 	mutex_unlock(&hdev->tx_comm.hdmimode_mutex);
 
@@ -4879,8 +4870,7 @@ static int amhdmitx_probe(struct platform_device *pdev)
 		audpara->size = SS_16BITS;
 		audpara->chs = 2 - 1;
 	}
-	/* TODO: to confirm: default audio clock is ON */
-	hdmitx21_audio_mute_op(1, 0);
+
 	if (!hdev->pxp_mode)
 		aout_register_client(&hdmitx_notifier_nb_a);
 #endif

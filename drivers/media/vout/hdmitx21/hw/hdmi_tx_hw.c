@@ -2538,7 +2538,7 @@ static void hdmitx_debug(struct hdmitx_hw_common *tx_hw, const char *buf)
 		if (strncmp(tmpbuf + 5, "off", 3) == 0)
 			hdmitx21_pbist_config(hdev, hdev->tx_comm.fmt_para.vic, 0);
 	} else if (strncmp(tmpbuf, "testaudio", 9) == 0) {
-		hdmitx_set_audmode(&hdev->tx_hw.base, NULL);
+		hdmitx_set_audmode(&hdev->tx_hw.base, &hdev->tx_comm.cur_audio_param);
 	} else if (strncmp(tmpbuf, "dumpintr", 8) == 0) {
 		hdmitx_dump_intr();
 	} else if (strncmp(tmpbuf, "chkfmt", 6) == 0) {

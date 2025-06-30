@@ -3189,19 +3189,10 @@ static void hdmitx_cedst_process(struct work_struct *work)
 	queue_delayed_work(tx_comm->cedst_wq, &tx_comm->work_cedst, HZ);
 }
 
-static void hdmitx_process_plugin(struct hdmitx_dev *hdev, bool set_audio)
+static void hdmitx_process_plugin(struct hdmitx_dev *hdev)
 {
-	struct vinfo_s *info = NULL;
-
 	/* step1: SW: EDID read/parse, notify client modules */
 	hdmitx_plugin_common_work(&hdev->tx_comm);
-
-	/* TODO: need remove/optimised, keep it temporarily */
-	if (set_audio) {
-		info = hdmitx_get_current_vinfo(NULL);
-		if (info && info->mode == VMODE_HDMI)
-			hdmitx_set_audio(hdev, &hdev->tx_comm.cur_audio_param);
-	}
 
 	/* step2: SW: notify client modules and update uevent state */
 	hdmitx_common_notify_hpd_status(&hdev->tx_comm, false);
@@ -3218,7 +3209,7 @@ static void hdmitx_bootup_plugin_handler(struct hdmitx_dev *hdev)
 {
 	if (hdev->tx_comm.fmt_para.tmds_clk_div40)
 		hdmitx_hw_cntl_ddc(&hdev->tx_hw.base, DDC_SCDC_DIV40_SCRAMB, 1);
-	hdmitx_process_plugin(hdev, hdev->tx_comm.ready);
+	hdmitx_process_plugin(hdev);
 }
 
 static void hdmitx_hpd_plugin_irq_handler(struct work_struct *work)
@@ -3250,7 +3241,7 @@ static void hdmitx_hpd_plugin_irq_handler(struct work_struct *work)
 		return;
 	}
 	HDMITX_INFO(SYS "plugin\n");
-	hdmitx_process_plugin(hdev, false);
+	hdmitx_process_plugin(hdev);
 
 	mutex_unlock(&hdev->tx_comm.hdmimode_mutex);
 
@@ -3919,8 +3910,7 @@ static int amhdmitx_probe(struct platform_device *pdev)
 		audpara->size = SS_16BITS;
 		audpara->chs = 2 - 1;
 	}
-	/* default audio clock is ON */
-	hdmitx20_audio_mute_op(1);
+
 	aout_register_client(&hdmitx_notifier_nb_a);
 #endif
 
