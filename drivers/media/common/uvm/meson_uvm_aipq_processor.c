@@ -261,6 +261,7 @@ int ge2d_vf_process(struct vframe_s *vf, struct ge2d_output_t *output)
 	int interlace_mode, src_format;
 	int input_width, input_height;
 	u32 output_canvas = get_canvas(3);
+	bool is_tvp = false;
 
 	if (!context) {
 		context = create_ge2d_work_queue();
@@ -340,6 +341,8 @@ int ge2d_vf_process(struct vframe_s *vf, struct ge2d_output_t *output)
 	}
 
 	ge2d_config->src_para.format = src_format;
+	if (vf->flag & VFRAME_FLAG_VIDEO_SECURE)
+		is_tvp = true;
 
 	if (vf->flag & VFRAME_FLAG_VIDEO_LINEAR)
 		ge2d_config->src_para.format |= GE2D_LITTLE_ENDIAN;
@@ -370,6 +373,7 @@ int ge2d_vf_process(struct vframe_s *vf, struct ge2d_output_t *output)
 	ge2d_config->src_para.height = input_height;
 	ge2d_config->alu_const_color = 0;
 	ge2d_config->bitmask_en = 0;
+	ge2d_config->mem_sec = is_tvp;
 	ge2d_config->src1_gb_alpha = 0;/* 0xff; */
 	ge2d_config->src2_para.mem_type = CANVAS_TYPE_INVALID;
 	ge2d_config->dst_para.canvas_index = output_canvas;
@@ -455,9 +459,20 @@ int attach_aipq_hook_mod_info(int shared_fd,
 		}
 		aipq_info->dw_height = vf->height;
 		aipq_info->dw_width = vf->width;
+		if (vf->flag & VFRAME_FLAG_VIDEO_SECURE) {
+			aipq_info->is_secure_source = 1;
+			if (aipq_info->nn_do_aipq_type == NN_USE_HARDWARE &&
+				aipq_info->is_support_secure_aipq) {
+				aipq_print(PRINT_OTHER, "support secure aipq.\n");
+				enable_aipq = true;
+			} else {
+				aipq_print(PRINT_OTHER, "not support secure aipq.\n");
+				aipq_info->need_do_aipq = 0;
+				enable_aipq = false;
+			}
+		}
 		if (vf->width > 3840 ||
 		    vf->height > 2160 ||
-		    vf->flag & VFRAME_FLAG_VIDEO_SECURE ||
 		    vf->canvas0_config[0].bit_depth & P010_MODE) {
 			aipq_print(PRINT_OTHER, "bypass %d %d\n",
 				vf->width, vf->height);
@@ -672,18 +687,26 @@ int aipq_getinfo(void *arg, char *buf)
 				return -ENOMEM;
 			}
 		}
+		aipq_info->frame_index = vf->frame_index;
 		memset(&output, 0, sizeof(struct ge2d_output_t));
 		output.width = aipq_info->nn_input_frame_width;
 		output.height = aipq_info->nn_input_frame_height;
 		output.format = GE2D_FORMAT_S24_BGR;
 		output.addr = (ulong)phy_addr;
+		if (vf->flag & VFRAME_FLAG_VIDEO_SECURE) {
+			aipq_info->is_secure_source = 1;
+			output.addr = (ulong)aipq_info->secure_buf_paddr;
+		} else {
+			aipq_info->is_secure_source = 0;
+			output.addr = (ulong)phy_addr;
+		}
+
 		do_gettimeofday(&begin_time);
 		ret = ge2d_vf_process(vf, &output);
 		if (ret < 0) {
 			aipq_print(PRINT_ERROR, "ge2d err\n");
 			return -EINVAL;
 		}
-		aipq_info->frame_index = vf->frame_index;
 		do_gettimeofday(&end_time);
 		cost_time = (1000000 * (end_time.tv_sec - begin_time.tv_sec)
 			+ (end_time.tv_usec - begin_time.tv_usec)) / 1000;
