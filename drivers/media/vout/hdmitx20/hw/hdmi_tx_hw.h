@@ -62,5 +62,7 @@ enum hpd_op {
 };
 
 int hdmitx_hpd_hw_op(enum hpd_op cmd);
+void hdmitx20_color_convert(u32 output_color_format);
+void hdmitx20_csc_update_avi_infoframe(u32 output_color_format);
 
 #endif

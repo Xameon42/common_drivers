@@ -20,6 +20,9 @@
 #include <linux/jiffies.h>
 #include <linux/amlogic/media/vout/dsc.h>
 
+/* this value must be >= 1 */
+#define CSC_DELAY_FRAME  2
+
 struct hdmitx_common_state {
 	struct hdmi_format_para para;
 	enum vmode_e mode;
@@ -171,6 +174,9 @@ struct hdmitx_common {
 	u32 max_refreshrate;
 	/*for color space conversion*/
 	bool config_csc_en;
+	u32 output_color_format;
+	bool csc_config_in_next_frame;
+	u8 csc_delay_frame;
 
 	/***** ced/rxsense related *****/
 	bool cedst_en;

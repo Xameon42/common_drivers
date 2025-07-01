@@ -40,6 +40,8 @@ struct hdmitx21_hw {
 };
 
 ssize_t _show21_clkmsr(char *buf);
+void hdmitx21_color_convert(u32 output_color_format);
+void hdmitx21_csc_update_avi_infoframe(u32 output_color_format);
 
 #define to_hdmitx21_hw(x)	container_of(x, struct hdmitx21_hw, base)
 

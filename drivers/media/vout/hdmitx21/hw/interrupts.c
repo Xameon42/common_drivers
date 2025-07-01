@@ -26,6 +26,7 @@
 #include <linux/gpio.h>
 #include <linux/amlogic/media/vout/hdmi_tx_ext.h>
 #include "common.h"
+#include "hdmi_tx_hw.h"
 
 static void intr2_sw_handler(struct intr_t *);
 static void intr5_sw_handler(struct intr_t *);
@@ -474,6 +475,21 @@ static irqreturn_t vsync_intr_handler(int irq, void *dev)
 		hdmitx_hw_cntl_misc(&hdev->tx_hw.base,
 			MISC_TMDS_PHY_OP, hdev->tx_comm.tx_hw->tmds_phy_op);
 		hdev->tx_comm.tx_hw->tmds_phy_op = TMDS_PHY_NONE;
+	}
+
+	if (hdev->tx_comm.csc_config_in_next_frame) {
+		/*
+		 * avi infoframe takes effect on the next frame, so it needs
+		 * to be updated one frame in advance
+		 */
+		if (hdev->tx_comm.csc_delay_frame == CSC_DELAY_FRAME - 1)
+			hdmitx21_csc_update_avi_infoframe(hdev->tx_comm.output_color_format);
+		/* after csc is configured, the frame takes effect */
+		if (hdev->tx_comm.csc_delay_frame == CSC_DELAY_FRAME) {
+			hdev->tx_comm.csc_config_in_next_frame = false;
+			hdmitx21_color_convert(hdev->tx_comm.output_color_format);
+		}
+		hdev->tx_comm.csc_delay_frame += 1;
 	}
 
 	return IRQ_HANDLED;

@@ -77,7 +77,6 @@ static void pkt_send_position_change(u32 enable_mask, u8 mov_val);
 static void hdmitx_set_div40(u32 div40);
 static void vpu_hdmi_fmt_config(struct hdmitx_dev *hdev);
 static void vpu_hdmi_setting_config(struct hdmitx_dev *hdev);
-static void hdmitx21_color_convert(struct hdmitx_dev *hdev, u32 output_color_format);
 
 #define EDID_RAM_ADDR_SIZE	 (8)
 
@@ -3203,9 +3202,14 @@ static int hdmitx_cntl_config(struct hdmitx_hw_common *tx_hw, u32 cmd,
 			hdev->tx_comm.config_csc_en = false;
 		break;
 	case CONFIG_CSC:
-		if (!hdev->tx_comm.config_csc_en)
+		if (!hdev->tx_comm.config_csc_en) {
+			hdev->tx_comm.csc_config_in_next_frame = false;
 			break;
-		hdmitx21_color_convert(hdev, argv);
+		}
+		/* the csc process is executed in the vsync interrupt */
+		hdev->tx_comm.csc_config_in_next_frame = true;
+		hdev->tx_comm.csc_delay_frame = 0;
+		hdev->tx_comm.output_color_format = argv;
 		break;
 	default:
 		break;
@@ -4816,9 +4820,10 @@ static void vpu_hdmi_setting_config(struct hdmitx_dev *hdev)
 		hd21_set_reg_bits(VPU_HDMI_SETTING, !!hdev->dsc_en, 31, 1);
 }
 
-static void hdmitx21_color_convert(struct hdmitx_dev *hdev, u32 output_color_format)
+void hdmitx21_color_convert(u32 output_color_format)
 {
 	u32 data32 = 0;
+	struct hdmitx_dev *hdev = get_hdmitx21_device();
 	struct hdmi_format_para *para = &hdev->tx_comm.fmt_para;
 
 	/* Y422,12bit to Y444,8bit */
@@ -4837,9 +4842,6 @@ static void hdmitx21_color_convert(struct hdmitx_dev *hdev, u32 output_color_for
 		hd21_write_reg(VPU_HDMI_DITH_CNTL, data32);
 		/* 3.vp config */
 		hdmitx21_vp_conf(COLORDEPTH_24B, HDMI_COLORSPACE_YUV444);
-		/* 4.avi cs */
-		if (output_color_format & CSC_UPDATE_AVI_CS)
-			hdmi_avi_infoframe_config(CONF_AVI_CS, HDMI_COLORSPACE_YUV444);
 		HDMITX_DEBUG("csc to Y444_8BIT\n");
 	} else if ((output_color_format & 0xF) == CSC_RGB_8BIT) {
 		/* Y422,12bit to RGB,8bit */
@@ -4905,9 +4907,6 @@ static void hdmitx21_color_convert(struct hdmitx_dev *hdev, u32 output_color_for
 		default:
 			break;
 		}
-		/* 5.avi cs */
-		if (output_color_format & CSC_UPDATE_AVI_CS)
-			hdmi_avi_infoframe_config(CONF_AVI_CS, HDMI_COLORSPACE_RGB);
 		HDMITX_DEBUG("csc to RGB_8BIT\n");
 	} else if ((output_color_format & 0xF) == CSC_Y422_12BIT) {
 		/* RGB/Y444,8bit to Y422,12bit */
@@ -4938,12 +4937,31 @@ static void hdmitx21_color_convert(struct hdmitx_dev *hdev, u32 output_color_for
 		default:
 			break;
 		}
-		/* 4.avi cs */
-		if (output_color_format & CSC_UPDATE_AVI_CS)
-			hdmi_avi_infoframe_config(CONF_AVI_CS, HDMI_COLORSPACE_YUV422);
 		HDMITX_DEBUG("csc to Y444_12BIT\n");
 	} else {
 		HDMITX_DEBUG("csc not support/implemented yet\n");
+	}
+}
+
+void hdmitx21_csc_update_avi_infoframe(u32 output_color_format)
+{
+	/* Y422,12bit to Y444,8bit */
+	if ((output_color_format & 0xF) == CSC_Y444_8BIT) {
+		/* 4.avi cs */
+		if (output_color_format & CSC_UPDATE_AVI_CS)
+			hdmi_avi_infoframe_config(CONF_AVI_CS, HDMI_COLORSPACE_YUV444);
+	} else if ((output_color_format & 0xF) == CSC_RGB_8BIT) {
+		/* Y422,12bit to RGB,8bit */
+		/* 5.avi cs */
+		if (output_color_format & CSC_UPDATE_AVI_CS)
+			hdmi_avi_infoframe_config(CONF_AVI_CS, HDMI_COLORSPACE_RGB);
+	} else if ((output_color_format & 0xF) == CSC_Y422_12BIT) {
+		/* RGB/Y444,8bit to Y422,12bit */
+		/* 4.avi cs */
+		if (output_color_format & CSC_UPDATE_AVI_CS)
+			hdmi_avi_infoframe_config(CONF_AVI_CS, HDMI_COLORSPACE_YUV422);
+	} else {
+		HDMITX_DEBUG("avi not support/implemented yet\n");
 	}
 }
 
