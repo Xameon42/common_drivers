@@ -7,6 +7,7 @@
 #define _wifi_dt_h_
 
 void extern_wifi_set_enable(int is_on);
+void extern_wifi_32k_set_enable(int is_on);
 int wifi_irq_num(void);
 void set_usb_bt_power(int is_power);
 void aml_wifi_chip(const char *type);

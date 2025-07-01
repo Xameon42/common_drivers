@@ -124,6 +124,10 @@ struct wifi_power_platform_data *pdata;
 static dev_t wifi_mac_devno;
 static struct cdev *wifi_mac_cdev;
 static struct device *wifi_mac_devp;
+static struct pwm_state pwm_channel0_state;
+static struct pwm_state pwm_channel1_state;
+static struct pwm_device *gpwm0;
+static struct pwm_device *gpwm1;
 
 static int usb_power;
 #define BT_BIT	0
@@ -920,6 +924,11 @@ static int wifi_dev_probe(struct platform_device *pdev)
 				else if (ret == -EPROBE_DEFER)
 					goto out;
 			}
+			gpwm0 = plat->ddata.pwms[0].pwm;
+			pwm_get_state(gpwm0, &pwm_channel0_state);
+
+			gpwm1 = plat->ddata.pwms[1].pwm;
+			pwm_get_state(gpwm1, &pwm_channel1_state);
 		}
 #endif
 		if (!of_property_read_u32(pdev->dev.of_node,
@@ -1190,3 +1199,17 @@ int wifi_irq_trigger_level(void)
 	return wifi_info.irq_trigger_type;
 }
 EXPORT_SYMBOL(wifi_irq_trigger_level);
+
+void extern_wifi_32k_set_enable(int is_on)
+{
+	if (is_on) {
+		pwm_channel0_state.enabled = true;
+		pwm_channel1_state.enabled = true;
+	} else {
+		pwm_channel0_state.enabled = false;
+		pwm_channel1_state.enabled = false;
+	}
+	pwm_apply_state(gpwm0, &pwm_channel0_state);
+	pwm_apply_state(gpwm1, &pwm_channel1_state);
+}
+EXPORT_SYMBOL(extern_wifi_32k_set_enable);
