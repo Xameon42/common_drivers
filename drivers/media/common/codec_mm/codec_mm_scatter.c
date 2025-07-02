@@ -2355,6 +2355,7 @@ static int codec_mm_scatter_info_dump_in(struct codec_mm_scatter_mgt *smgt,
 			pbuf += s; \
 		} while (0)
 
+	codec_mm_list_lock(smgt);
 	BUFPRINT("codec %s scattered memory info:\n",
 		 smgt->tvp_mode ? "TVP " : "");
 	BUFPRINT("\ttotal size:%dM, %d Bytes,pages:%d\n",
@@ -2436,6 +2437,7 @@ static int codec_mm_scatter_info_dump_in(struct codec_mm_scatter_mgt *smgt,
 			0 : (int)divider);
 		BUFPRINT("\tfree time average us:%d\n",	average_timeus);
 	}
+	codec_mm_list_unlock(smgt);
 
 #undef BUFPRINT
 	if (!buf)
