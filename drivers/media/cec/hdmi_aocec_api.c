@@ -2345,32 +2345,8 @@ void cec_save_mail_box(void)
 
 void cec_get_wakeup_reason(void)
 {
-	/* cec bootup earlier than gx_pm module,
-	 * need to use scpi interface instead
-	 * of gx_pm interface when powerup
-	 * for tm2, also need to use scpi interface
-	 * for resume reason
-	 */
-	if (IS_ERR_OR_NULL(cec_mbox_chan)) {
-		CEC_ERR("cec_mbox_chan is NULL\n");
-		return;
-	}
-	aml_mbox_transfer_data(cec_mbox_chan, MBOX_CMD_WAKEUP_REASON_GET,
-				NULL, 0, &cec_dev->wakeup_reason,
-				sizeof(cec_dev->wakeup_reason), MBOX_SYNC);
-	/* cec_dev->wakeup_reason = get_resume_reason(); */
+	cec_dev->wakeup_reason = get_resume_method();
 	CEC_ERR("wakeup_reason:0x%x\n", cec_dev->wakeup_reason);
-}
-
-void cec_clear_wakeup_reason(void)
-{
-	int ret;
-	int val;
-
-	ret = aml_mbox_transfer_data(cec_mbox_chan, MBOX_CMD_WAKEUP_REASON_CLR,
-			       NULL, 0, &val, sizeof(val), MBOX_SYNC);
-	if (ret < 0 || val != 0)
-		CEC_INFO("clr wakeup reason fail\n");
 }
 
 unsigned int cec_get_wk_port_id(unsigned int phy_addr)

@@ -102,7 +102,6 @@ unsigned int cec_get_cur_phy_addr(void);
 void cec_save_mail_box(void);
 void cec_get_wakeup_reason(void);
 unsigned int cec_get_wk_port_id(unsigned int phy_addr);
-void cec_clear_wakeup_reason(void);
 void cec_get_wakeup_data(void);
 int dump_cec_reg(char *b);
 int dump_cec_status(char *buf);

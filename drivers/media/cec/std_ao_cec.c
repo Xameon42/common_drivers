@@ -2964,7 +2964,6 @@ static void aml_cec_pm_complete(struct device *dev)
 	if (cec_dev->wakeup_reason == CEC_WAKEUP) {
 		if (input_event_en != 0)
 			cec_key_report(0);
-		cec_clear_wakeup_reason();
 		/* todo: when to notify linux/android platform
 		 * to read wakeup msg
 		 */
@@ -3067,8 +3066,12 @@ static int aml_cec_resume_noirq(struct device *dev)
 	/* cec_dev->msg_num = 0; */
 
 	#ifdef CEC_FREEZE_WAKE_UP
-	if (is_pm_s2idle_mode())
+	if (is_pm_s2idle_mode()) {
 		CEC_ERR("is freeze mode\n");
+		//no suspend flow on freeze mode
+		//so no need do resume hw reset
+		return ret;
+	}
 	else
 	#endif
 	{

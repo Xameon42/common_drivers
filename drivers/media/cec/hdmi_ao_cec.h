@@ -9,7 +9,7 @@
 #include <linux/clk.h>
 #include "hdmi_tx_cec_20.h"
 
-#define CEC_DRIVER_VERSION     "2025/06/26: remove rx msg uevent"
+#define CEC_DRIVER_VERSION     "2025/07/02: modify freeze&wakeup reason"
 
 #define CEC_DEV_NAME		"cec"
 
