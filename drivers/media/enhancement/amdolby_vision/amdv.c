@@ -9227,6 +9227,7 @@ int amdv_parse_metadata_v2_stb(struct vframe_s *vf,
 	enum signal_format_enum tmp_fmt = FORMAT_SDR;
 	enum signal_format_enum check_format;
 	enum signal_format_enum dst_format;
+	static enum signal_format_enum last_dst_format = FORMAT_INVALID;
 	int total_md_size = 0;
 	int total_comp_size = 0;
 	int vsem_size = 0;
@@ -10069,6 +10070,9 @@ int amdv_parse_metadata_v2_stb(struct vframe_s *vf,
 				if (src_format >= 0 && src_format <
 				    ARRAY_SIZE(dv_target_graphics_max_26))
 					tmp_fmt = src_format;
+				if (debug_dolby & 0x1000)
+					pr_dv_dbg("tmp_fmt %d,dolby_vision_flags 0x%x, ll_policy %d\n",
+					  tmp_fmt, dolby_vision_flags, dolby_vision_ll_policy);
 				if ((dolby_vision_flags & FLAG_FORCE_DV_LL) ||
 				    dolby_vision_ll_policy >= DOLBY_VISION_LL_YUV422) {
 					graphic_max =
@@ -10080,6 +10084,9 @@ int amdv_parse_metadata_v2_stb(struct vframe_s *vf,
 						[tmp_fmt][dst_format];
 				}
 			}
+			if (debug_dolby & 0x1000)
+				pr_dv_dbg("graphic_max %d,src_format %d,dst_format %d\n",
+				  graphic_max, src_format, dst_format);
 			/*NTS HDR-001-TC3 is conflict with SDK test*/
 			if (dv_graphic_blend_test && (dst_format == FORMAT_HDR10 ||
 				src_format == FORMAT_HDR10))
@@ -10106,10 +10113,16 @@ int amdv_parse_metadata_v2_stb(struct vframe_s *vf,
 				graphic_max = dv_HDR10_graphics_max;
 		}
 	}
-	/*if no video, keep graphic_max same as before,to avoid lum change a lot*/
-	if (!vf)
+	if (debug_dolby & 0x1000)
+		pr_dv_dbg("vd_path %d,graphic_max %d,%d, dst_fmt %d %d\n",
+				  vd_path, last_graphic_max, graphic_max,
+				  last_dst_format, dst_format);
+
+	/*if no video and dst no change, keep gmax same as before,to avoid lum change a lot*/
+	if (!vf && last_dst_format == dst_format)
 		graphic_max = last_graphic_max;
 	last_graphic_max = graphic_max;
+	last_dst_format = dst_format;
 
 	if (dolby_vision_flags & FLAG_USE_SINK_MIN_MAX) {
 		if (vinfo->vout_device->dv_info->ieeeoui == 0x00d046) {
@@ -10399,8 +10412,8 @@ int amdv_parse_metadata_v2_stb(struct vframe_s *vf,
 	g_dst_format = dst_format;
 
 	if (debug_dolby & 0x1000)
-		pr_dv_dbg("[inst%d]parse_metadata done, video %d_%d, %d\n",
-			     dv_id + 1, w, h, video_frame);
+		pr_dv_dbg("[inst%d]parse_metadata done,video %d_%d,%d,gmax %d\n",
+			     dv_id + 1, w, h, video_frame, graphic_max);
 
 	return 0;
 }
