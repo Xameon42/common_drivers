@@ -18,7 +18,7 @@
 #define MAX_CRYPTO_BUFFERS (32)
 
 struct session_op {
-	__u32   cipher;     /* aml_crypto_op_t */
+	__u32   crypto_op;     /* aml_crypto_op_t */
 	__u16   keylen;
 	__u16   kte;        /* key table entry */
 	__u32   ses;        /* session identifier */
@@ -61,11 +61,16 @@ enum aml_crypto_op_t {
 	CRYPTO_OP_SM4_ECB = 11,
 	CRYPTO_OP_SM4_CBC = 12,
 	CRYPTO_OP_SM4_CTR = 13,
+	/* HMAC */
+	CRYPTO_OP_HMAC_SHA1 = 14,
+	CRYPTO_OP_HMAC_SHA224 = 15,
+	CRYPTO_OP_HMAC_SHA256 = 16,
 	CRYPTO_OP_MAX
 };
 
 #define CREATE_SESSION     _IOWR('a', 0, struct session_op)
 #define CLOSE_SESSION      _IOW('a', 1, __u32)
 #define DO_CRYPTO          _IOWR('a', 2, struct crypt_op)
+#define DO_HMAC            _IOWR('a', 3, struct crypt_op)
 
 #endif
