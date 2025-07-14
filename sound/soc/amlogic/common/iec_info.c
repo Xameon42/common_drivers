@@ -547,16 +547,13 @@ void notify_hdmitx_to_prepare(void)
 	aout_notifier_call_chain(AOUT_EVENT_IEC_60958_PCM, &aud_param);
 }
 
-#ifdef CONFIG_AMLOGIC_HDMITX
-unsigned int aml_audio_hdmiout_mute_flag;
+#if defined(CONFIG_AMLOGIC_HDMITX) || defined(CONFIG_AMLOGIC_HDMITX21)
 /* call HDMITX API to enable/disable internal audio out */
 int aml_get_hdmi_out_audio(struct snd_kcontrol *kcontrol,
 			   struct snd_ctl_elem_value *ucontrol)
 {
 	ucontrol->value.integer.value[0] = !hdmitx_ext_get_audio_status();
 
-	aml_audio_hdmiout_mute_flag =
-			ucontrol->value.integer.value[0];
 	return 0;
 }
 
@@ -565,10 +562,8 @@ int aml_set_hdmi_out_audio(struct snd_kcontrol *kcontrol,
 {
 	bool mute = ucontrol->value.integer.value[0];
 
-	if (aml_audio_hdmiout_mute_flag != mute) {
-		hdmitx_ext_set_audio_output(!mute);
-		aml_audio_hdmiout_mute_flag = mute;
-	}
+	pr_info("hdmitx set mute: %d\n", mute);
+	hdmitx_ext_set_audio_output(!mute);
 	return 0;
 }
 #endif
