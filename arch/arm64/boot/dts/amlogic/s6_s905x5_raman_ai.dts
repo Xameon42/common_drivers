@@ -1631,13 +1631,28 @@
 /*exphy setting*/
 &ext_mdio {
 	status = "okay";
+	external_phy_maxio: ethernet_phy@1 {
+		reg = <0>;
+		max-speed = <1000>;
+
+		reset-assert-us = <20000>;
+		reset-deassert-us = <50000>;
+		reset-gpios = <&gpio GPIOZ_15 (GPIO_ACTIVE_LOW |
+					GPIO_OPEN_DRAIN)>;
+		compatible = "ethernet-phy-id7b74.4412",
+					"ethernet-phy-ieee802.3-c22";
+	};
+};
+
+&external_phy {
+	status = "disabled";
 };
 &ethmac {
 	pinctrl-0 = <&eth_pins>, <&eth_rgmii_pins>;
 	pinctrl-names = "default";
 	status = "okay";
 	phy-mode = "rgmii";
-	phy-handle = <&external_phy>;
+	phy-handle = <&external_phy_maxio>;
 	amlogic,tx-delay-ns = <2>;
 	internal_phy = <2>;
 	cali_val = <0x290000>;
