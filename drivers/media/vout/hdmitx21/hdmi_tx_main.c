@@ -4086,15 +4086,6 @@ static void hdmitx_process_plugin(struct hdmitx_dev *hdev, bool set_audio)
  */
 static void hdmitx_bootup_plugin_handler(struct hdmitx_dev *hdev)
 {
-	/* if current mode is TMDS/nonFRL, then resend_div40 */
-	/* can also use if (hdev->frl_rate == FRL_NONE) */
-	if (hdmitx_hw_cntl_misc(&hdev->tx_hw.base, MISC_GET_FRL_MODE, 0) == FRL_NONE) {
-		if (hdev->tx_comm.fmt_para.tmds_clk_div40)
-			hdmitx_hw_cntl_ddc(&hdev->tx_hw.base, DDC_SCDC_DIV40_SCRAMB, 1);
-	} else {
-		if (!is_frl_ready(hdev))
-			hdev->tx_comm.ready = 0;
-	}
 	hdmitx_process_plugin(hdev, hdev->tx_comm.ready);
 }
 
@@ -4971,6 +4962,18 @@ static int amhdmitx_probe(struct platform_device *pdev)
 		hdev->tx_comm.fmt_attr, sizeof(hdev->tx_comm.fmt_attr));
 	/* load init hdr state for HW info */
 	hdmitx_hdr_state_init(&hdev->tx_comm);
+
+	if (hpd_state) {
+		/* if current mode is TMDS/nonFRL, then resend_div40 */
+		/* can also use if (hdev->frl_rate == FRL_NONE) */
+		if (hdmitx_hw_cntl_misc(&hdev->tx_hw.base, MISC_GET_FRL_MODE, 0) == FRL_NONE) {
+			if (hdev->tx_comm.fmt_para.tmds_clk_div40)
+				hdmitx_hw_cntl_ddc(&hdev->tx_hw.base, DDC_SCDC_DIV40_SCRAMB, 1);
+		} else {
+			if (!is_frl_ready(hdev))
+				hdev->tx_comm.ready = 0;
+		}
+	}
 
 	/* after unlock, now can take actions of bottom half of hpd irq */
 	mutex_unlock(&hdev->tx_comm.hdmimode_mutex);
