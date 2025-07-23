@@ -2100,7 +2100,7 @@ static void set_vd_mif_linear(struct video_layer_s *layer,
 static void vd_set_blk_mode(struct video_layer_s *layer, u8 block_mode)
 {
 	struct hw_vd_reg_s *vd_mif_reg = &layer->vd_mif_reg;
-	u32 pic_32byte_aligned = 0;
+	u32 pic_32byte_aligned = 0, burst_len = 2;
 	u8 vpp_index;
 
 	if (cur_dev->display_module == S5_DISPLAY_MODULE) {
@@ -2109,12 +2109,14 @@ static void vd_set_blk_mode(struct video_layer_s *layer, u8 block_mode)
 	}
 
 	vpp_index = layer->vpp_index;
-	cur_dev->rdma_func[vpp_index].rdma_wr_bits(vd_mif_reg->vd_if0_gen_reg3,
-		block_mode, 12, 2);
-	cur_dev->rdma_func[vpp_index].rdma_wr_bits(vd_mif_reg->vd_if0_gen_reg3,
-		block_mode, 14, 2);
-	if (block_mode)
+	if (block_mode == 1 || block_mode == 2) {
+		burst_len = block_mode;
 		pic_32byte_aligned = 7;
+	}
+	cur_dev->rdma_func[vpp_index].rdma_wr_bits(vd_mif_reg->vd_if0_gen_reg3,
+		burst_len, 12, 2);
+	cur_dev->rdma_func[vpp_index].rdma_wr_bits(vd_mif_reg->vd_if0_gen_reg3,
+		burst_len, 14, 2);
 	cur_dev->rdma_func[vpp_index].rdma_wr_bits(vd_mif_reg->vd_if0_gen_reg3,
 		(pic_32byte_aligned << 6) |
 		(block_mode << 4) |
