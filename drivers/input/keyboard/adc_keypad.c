@@ -481,6 +481,7 @@ static ssize_t table_store(struct class *cls, struct class_attribute *attr,
 			kfree(key);
 		}
 	}
+	dkey->type = EV_KEY;
 	set_bit(dkey->code,  kp->input->keybit);
 	list_add_tail(&dkey->list, &kp->adckey_head);
 	dev_info(dev, "add newer key => %s:%d:%d:%d:%d\n", dkey->name,
