@@ -114,6 +114,13 @@
 			interrupts = <GIC_PPI 9 0xf04>;
 	};
 
+	irq_latch {
+		/* only for GICv3 */
+		status = "okay";
+		reg = <0x0 0xfe00a140 0x0 0x30>, /*mode*/
+			<0x0 0xfe00a1c0 0x0 0x30>; /*latch clear*/
+	};
+
 	psci {
 		compatible = "arm,psci-1.0";
 		method = "smc";
