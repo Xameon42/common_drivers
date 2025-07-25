@@ -171,12 +171,7 @@ static void phy_resolve_aneg_linkmode_maxio(struct phy_device *phydev)
 	else
 		phydev->duplex = DUPLEX_HALF;
 
-	if (phydev->duplex == DUPLEX_FULL) {
-		int lpa = PHY_READ(phydev, MII_LPA);
-
-		phydev->pause = (lpa & LPA_PAUSE_CAP) ? 1 : 0;
-		phydev->asym_pause = (lpa & LPA_PAUSE_ASYM) ? 1 : 0;
-	}
+	genphy_read_lpa(phydev);
 }
 
 static void phy_resolve_link_compatibility_maxio(struct phy_device *phydev)

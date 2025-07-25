@@ -44,3 +44,5 @@
   snd_timer_start
   snd_timer_stop
 
+# amlogic-maxio.ko
+  genphy_read_lpa
