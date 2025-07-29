@@ -1408,13 +1408,11 @@ bool amlogic_pcie_link_up(struct amlogic_pcie *amlogic)
 
 		if (PCIE_LINK_STATE_CHECK(val, LTSSM_L1_IDLE)) {
 			dev_info(dev, "ltssm state into L1_IDLE\n");
-			WARN_ON(1);
 			break;
 		}
 
 		if (PCIE_LINK_STATE_CHECK(val, LTSSM_L2_IDLE)) {
 			dev_info(dev, "ltssm state into L2_IDLE\n");
-			WARN_ON(1);
 			break;
 		}
 
