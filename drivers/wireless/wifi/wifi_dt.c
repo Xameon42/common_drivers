@@ -919,16 +919,17 @@ static int wifi_dev_probe(struct platform_device *pdev)
 			} else {
 				WIFI_INFO("use double channel\n");
 				ret = pwm_double_channel_conf_dt(plat);
-				if (!ret)
+				if (!ret) {
 					pwm_double_channel_conf(plat);
-				else if (ret == -EPROBE_DEFER)
+
+					gpwm0 = plat->ddata.pwms[0].pwm;
+					pwm_get_state(gpwm0, &pwm_channel0_state);
+
+					gpwm1 = plat->ddata.pwms[1].pwm;
+					pwm_get_state(gpwm1, &pwm_channel1_state);
+				} else if (ret == -EPROBE_DEFER)
 					goto out;
 			}
-			gpwm0 = plat->ddata.pwms[0].pwm;
-			pwm_get_state(gpwm0, &pwm_channel0_state);
-
-			gpwm1 = plat->ddata.pwms[1].pwm;
-			pwm_get_state(gpwm1, &pwm_channel1_state);
 		}
 #endif
 		if (!of_property_read_u32(pdev->dev.of_node,
@@ -1202,6 +1203,9 @@ EXPORT_SYMBOL(wifi_irq_trigger_level);
 
 void extern_wifi_32k_set_enable(int is_on)
 {
+	if (!gpwm0)
+		return;
+
 	if (is_on) {
 		pwm_channel0_state.enabled = true;
 		pwm_channel1_state.enabled = true;
