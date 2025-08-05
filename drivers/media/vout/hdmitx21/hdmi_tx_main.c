@@ -3880,7 +3880,7 @@ static bool is_frl_ready(struct hdmitx_dev *hdev)
 
 static int hdmitx21_enable_mode(struct hdmitx_common *tx_comm, struct hdmi_format_para *para)
 {
-	int ret;
+	int ret = 0;
 	struct hdmitx_dev *hdev = to_hdmitx21_dev(tx_comm);
 
 	ret = hdmitx21_set_display(hdev, para->vic);
@@ -3889,7 +3889,7 @@ static int hdmitx21_enable_mode(struct hdmitx_common *tx_comm, struct hdmi_forma
 		restore_mute();
 	hdmitx21_set_audio(hdev, &hdev->tx_comm.cur_audio_param);
 
-	return 0;
+	return ret;
 }
 
 static int hdmitx21_post_enable_mode(struct hdmitx_common *tx_comm, struct hdmi_format_para *para)

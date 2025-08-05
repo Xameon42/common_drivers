@@ -142,6 +142,12 @@ struct hdmitx_common {
 	/* 0.1% clock shift, 1080p60hz->59.94hz */
 	u32 frac_rate_policy;
 
+	/* when the mode setting fails, it is necessary to ensure
+	 * that vsync is enabled so that subsequent actions are not
+	 * blocked. Phy cannot be enabled to avoid affecting TV
+	 */
+	bool skip_phy_setting;
+
 	/* audio */
 	/* if switching from 48k pcm to 48k DD, the ACR/N parameter is same,
 	 * so there is no need to update ACR/N. but for mode change, different

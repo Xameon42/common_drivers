@@ -3098,7 +3098,7 @@ static DEVICE_ATTR_RO(clkmsr);
 
 static int hdmitx20_enable_mode(struct hdmitx_common *tx_comm, struct hdmi_format_para *para)
 {
-	int ret;
+	int ret = 0;
 	struct hdmitx_dev *hdev = to_hdmitx20_dev(tx_comm);
 
 	/* if vic is HDMI_UNKNOWN, hdmitx_set_display will disable HDMI */
@@ -3106,7 +3106,7 @@ static int hdmitx20_enable_mode(struct hdmitx_common *tx_comm, struct hdmi_forma
 
 	hdmitx_set_audio(hdev, &hdev->tx_comm.cur_audio_param);
 
-	return 0;
+	return ret;
 }
 
 static int hdmitx20_init_uboot_mode(enum vmode_e mode)

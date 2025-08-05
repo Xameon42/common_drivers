@@ -2343,7 +2343,7 @@ static int hdmitx_set_dispmode(struct hdmitx_hw_common *tx_hw)
 	struct hdmi_format_para *para;
 
 	if (!hdev) /* disable HDMI */
-		return 0;
+		return -1;
 	para = &hdev->tx_comm.fmt_para;
 
 	hdmitx_disable_venc();
@@ -2369,6 +2369,13 @@ static int hdmitx_set_dispmode(struct hdmitx_hw_common *tx_hw)
 		break;
 	}
 	HDMITX_DEBUG("adjust decouple fifo\n");
+	/* when the mode setting fails, it is necessary to ensure
+	 * that vsync is enabled so that subsequent actions are not
+	 * blocked. Phy cannot be enabled to avoid affecting TV
+	 */
+	if (hdev->tx_comm.skip_phy_setting)
+		return -1;
+
 	/* For 3D, enable phy by SystemControl at last step */
 	if (!hdev->flag_3dfp && !hdev->flag_3dtb && !hdev->flag_3dss)
 		hdmitx_set_phy(hdev);

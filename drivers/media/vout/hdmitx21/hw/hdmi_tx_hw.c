@@ -1531,7 +1531,12 @@ static int hdmitx_set_dispmode(struct hdmitx_hw_common *tx_hw)
 	} else {
 		hdmitx21_venc_en(1, 1);
 	}
-
+	/* when the mode setting fails, it is necessary to ensure
+	 * that vsync is enabled so that subsequent actions are not
+	 * blocked. Phy cannot be enabled to avoid affecting TV
+	 */
+	if (hdev->tx_comm.skip_phy_setting)
+		return -1;
 	hdmitx_set_phy_todig(hdev);
 	/*
 	 * when GCP phase is a fix value, here need check the phase is stable or not
