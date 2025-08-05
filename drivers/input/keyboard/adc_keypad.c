@@ -746,7 +746,6 @@ static int meson_adc_kp_remove(struct platform_device *pdev)
 	class_unregister(&kp->kp_class);
 	cancel_delayed_work_sync(&kp->work);
 	input_unregister_device(kp->input);
-	input_free_device(kp->input);
 	meson_adc_kp_list_free(kp);
 	kfree(kp);
 

@@ -508,8 +508,8 @@ static int meson_ir_get_wakeup_tables(struct device_node *node,
 	if (key_num > MAX_WAKEUP_KEY)
 		key_num = MAX_WAKEUP_KEY;
 
-	chip->wakeup_tab = devm_kzalloc(chip->dev, (key_num + 1) *
-					sizeof(*chip->wakeup_tab), GFP_KERNEL);
+	chip->wakeup_tab = kcalloc((key_num + 1), sizeof(*chip->wakeup_tab),
+				   GFP_KERNEL);
 	if (!chip->wakeup_tab)
 		return -ENOMEM;
 
@@ -820,6 +820,8 @@ static int meson_ir_input_device_init(struct device *parent)
 	const char *name;
 
 	match_id = kcalloc(chip->custom_num, sizeof(*match_id), GFP_KERNEL);
+	if (!match_id)
+		return -ENOMEM;
 
 	list_for_each_entry(ir_map, &chip->map_tab_head, list) {
 		for (i = 0; i < match_cnt; i++)
@@ -836,9 +838,11 @@ static int meson_ir_input_device_init(struct device *parent)
 
 	kfree(match_id);
 
-	r_dev->input_devs = devm_kzalloc(chip->dev,
-					 sizeof(struct input_dev *) * match_cnt,
-					 GFP_KERNEL);
+	r_dev->input_devs = kcalloc(match_cnt, sizeof(struct input_dev *),
+				    GFP_KERNEL);
+	if (!r_dev->input_devs)
+		return -ENOMEM;
+
 	r_dev->input_dev_num = 0;
 
 	list_for_each_entry(ir_map, &chip->map_tab_head, list) {
@@ -975,6 +979,7 @@ static int meson_ir_remove(struct platform_device *pdev)
 	for (i = 0; i < chip->r_dev->input_dev_num; i++)
 		input_unregister_device(chip->r_dev->input_devs[i]);
 	kfree(chip->r_dev->input_devs);
+	kfree(chip->wakeup_tab);
 
 	meson_ir_map_tab_list_free(chip);
 	irq_set_affinity_hint(chip->irqno[0], NULL);

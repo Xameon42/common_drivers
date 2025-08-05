@@ -76,6 +76,5 @@ int meson_ir_common_input_init(void)
 void meson_ir_common_input_exit(void)
 {
 	input_unregister_device(common_input_data.common_input);
-	input_free_device(common_input_data.common_input);
 }
 
