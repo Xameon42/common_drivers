@@ -91,15 +91,17 @@ static void polling_timer_handler(struct timer_list *t)
 		for (i = 0; i < keypad->key_size; i++) {
 			gpio_val = gpiod_get_value(keypad->key[i].desc);
 			gpio_val |= keypad->key[i].ignore;
-			if (gpio_val == 0) {
-				keypad->key[i].count++;
-				is_pressing = 1;
-			}
 
 			if (keypad->key[i].current_status != gpio_val) {
+				keypad->key[i].count++;
 				keypad->current_key = &keypad->key[i];
 				report_key_code(keypad, gpio_val);
+			} else {
+				keypad->key[i].count = 0;
 			}
+
+			if (gpio_val == 0 || keypad->key[i].current_status == 0)
+				is_pressing = 1;
 		}
 		if (is_pressing)
 			mod_timer(&keypad->polling_timer,
@@ -109,11 +111,12 @@ static void polling_timer_handler(struct timer_list *t)
 		for (i = 0; i < keypad->key_size; i++) {
 			gpio_val = gpiod_get_value(keypad->key[i].desc);
 			gpio_val |= keypad->key[i].ignore;
-			if (gpio_val == 0)
-				keypad->key[i].count++;
 			if (keypad->key[i].current_status != gpio_val) {
+				keypad->key[i].count++;
 				keypad->current_key = &keypad->key[i];
 				report_key_code(keypad, gpio_val);
+			} else {
+				keypad->key[i].count = 0;
 			}
 		}
 		mod_timer(&keypad->polling_timer,
