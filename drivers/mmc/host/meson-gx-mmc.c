@@ -886,8 +886,33 @@ static int meson_mmc_set_adjust(struct mmc_host *mmc, u32 value)
 	return 0;
 }
 
+static int aml_mmc_send_abort_tuning(struct mmc_host *mmc, u32 opcode)
+{
+	struct mmc_command cmd = {};
+
+	/*
+	 * eMMC specification specifies that CMD12 can be used to stop a tuning
+	 * command, but SD specification does not, so do nothing unless it is
+	 * eMMC.
+	 */
+	if (opcode != MMC_SEND_TUNING_BLOCK_HS200)
+		return 0;
+
+	cmd.opcode = MMC_STOP_TRANSMISSION;
+	cmd.flags = MMC_RSP_SPI_R1 | MMC_RSP_R1 | MMC_CMD_AC;
+
+	/*
+	 * For drivers that override R1 to R1b, set an arbitrary timeout based
+	 * on the tuning timeout i.e. 150ms.
+	 */
+	cmd.busy_timeout = 150;
+
+	return mmc_wait_for_cmd(mmc, &cmd, 0);
+}
+
 int meson_mmc_tuning_transfer(struct mmc_host *mmc, u32 opcode)
 {
+	struct meson_host *host = mmc_priv(mmc);
 	int tuning_err = 0;
 	int n, nmatch;
 	/* try ntries */
@@ -896,12 +921,14 @@ int meson_mmc_tuning_transfer(struct mmc_host *mmc, u32 opcode)
 		if (!tuning_err) {
 			nmatch++;
 		} else {
-		/* After the cmd21 command fails,
-		 * it takes a certain time for the emmc status to
-		 * switch from data back to transfer. Currently,
-		 * only this model has this problem.
-		 * by add usleep_range(20, 30);
-		 */
+			if (aml_card_type_mmc(host))
+				aml_mmc_send_abort_tuning(mmc, opcode);
+			/* After the cmd21 command fails,
+			 * it takes a certain time for the emmc status to
+			 * switch from data back to transfer. Currently,
+			 * only this model has this problem.
+			 * by add usleep_range(20, 30);
+			 */
 			usleep_range(20, 30);
 			break;
 		}
