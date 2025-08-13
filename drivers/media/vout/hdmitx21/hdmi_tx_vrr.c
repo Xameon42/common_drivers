@@ -878,7 +878,7 @@ static bool is_vrrconf_changed(struct vrr_conf_para *cur,
 
 const static u16 vsync_tfr_table[TFR_MAX] = {
 	[TFR_QMSVRR_INACTIVE] = 0,
-	[TFR_23P97] = 2397,
+	[TFR_23P97] = 2398,
 	[TFR_24] = 2400,
 	[TFR_25] = 2500,
 	[TFR_29P97] = 2997,
