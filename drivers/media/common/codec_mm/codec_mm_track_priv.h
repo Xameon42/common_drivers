@@ -22,5 +22,7 @@ void codec_mm_track_exit(void);
 
 int is_dma_buf_file_need(struct file *file);
 
+int codec_get_mem_list_count(void);
+
 #endif //_CODEC_MM_TRACKING_H
 

@@ -511,6 +511,23 @@ static struct codec_mm_mgt_s *get_mem_mgt(void)
 	return &mgt;
 };
 
+int codec_get_mem_list_count(void)
+{
+	struct codec_mm_mgt_s *mgt = get_mem_mgt();
+	struct codec_mm_s *mem = NULL;
+	unsigned long flags = 0;
+	int list_count = 0;
+
+	spin_lock_irqsave(&mgt->lock, flags);
+	if (!list_empty(&mgt->mem_list)) {
+		list_for_each_entry(mem, &mgt->mem_list, list) {
+			list_count++;
+		}
+	}
+	spin_unlock_irqrestore(&mgt->lock, flags);
+	return list_count;
+}
+
 static void *codec_mm_extpool_alloc(struct extpool_mgt_s *tvp_pool,
 				    void **from_pool, int size)
 {
