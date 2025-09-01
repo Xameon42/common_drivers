@@ -1247,8 +1247,6 @@ static void hdmitx_set_vsif_pkt(enum eotf_type type,
 		hdmi_drm_infoframe_set(NULL);
 	}
 
-	hdev->hdmi_current_eotf_type = type;
-	hdev->hdmi_current_tunnel_mode = tunnel_mode;
 	if (vic == HDMI_95_3840x2160p30_16x9 ||
 	    vic == HDMI_94_3840x2160p25_16x9 ||
 	    vic == HDMI_93_3840x2160p24_16x9 ||
