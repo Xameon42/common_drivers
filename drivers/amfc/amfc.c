@@ -1376,8 +1376,10 @@ static int __init amfc_probe(struct platform_device *pdev)
 	amfc->dev = &pdev->dev;
 
 	dma_set_mask(amfc->dev, DMA_BIT_MASK(36));
-	amfc->compress = kzalloc(sizeof(*amfc->compress), GFP_KERNEL);
-	amfc->decompress = kzalloc(sizeof(*amfc->decompress), GFP_KERNEL);
+	amfc->compress = kzalloc(sizeof(*amfc->compress) + 1, GFP_KERNEL);
+	amfc->decompress = kzalloc(sizeof(*amfc->decompress) + 1, GFP_KERNEL);
+	BUG_ON((unsigned long)amfc->compress & (CACHELINE_SIZE - 1));
+	BUG_ON((unsigned long)amfc->decompress & (CACHELINE_SIZE - 1));
 	if (!amfc->compress || !amfc->decompress) {
 		r = -ENOMEM;
 		goto err;
