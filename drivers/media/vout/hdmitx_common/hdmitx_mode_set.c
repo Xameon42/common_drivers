@@ -219,8 +219,7 @@ static int hdmitx_common_pre_enable_mode(struct hdmitx_common *tx_comm,
 static int hdmitx_common_enable_mode(struct hdmitx_common *tx_comm,
 				     struct hdmi_format_para *para)
 {
-	tx_comm->ctrl_ops->enable_mode(tx_comm, para);
-	return 0;
+	return tx_comm->ctrl_ops->enable_mode(tx_comm, para);
 }
 
 static int hdmitx_common_post_enable_mode(struct hdmitx_common *tx_comm,
