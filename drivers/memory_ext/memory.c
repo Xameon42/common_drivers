@@ -86,7 +86,6 @@ void *aml_slub_alloc_large(size_t size, gfp_t flags, int order)
 		int i;
 
 		/* record how many pages in first page*/
-		__SetPageHead(page);
 		SetPageOwnerPriv1(page);	/* special flag */
 
 	#if IS_BUILTIN(CONFIG_AMLOGIC_PAGE_TRACE)
@@ -95,7 +94,6 @@ void *aml_slub_alloc_large(size_t size, gfp_t flags, int order)
 
 		for (i = 1; i < used_pages; i++) {
 			p = page + i;
-			set_compound_head(p, page);
 		#if IS_BUILTIN(CONFIG_AMLOGIC_PAGE_TRACE)
 			set_page_trace(page, 0, flags, (void *)fun);
 		#endif
@@ -122,7 +120,6 @@ static void aml_slub_free_large(struct page *page, const void *obj)
 	unsigned int nr_pages, i;
 
 	if (page) {
-		__ClearPageHead(page);
 		ClearPageOwnerPriv1(page);
 		nr_pages = page->index;
 		pr_debug("%s, page:%p, pages:%d, obj:%p\n",
