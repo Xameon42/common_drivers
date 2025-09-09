@@ -216,3 +216,10 @@ config AMLOGIC_KHEADERS_OPT
 		some project to remove the kheaders, reduce the
 		kernel image size.
 
+config AMLOGIC_SWAPD_OPT
+	bool "filecache reclaim optimization"
+	default n
+	help
+		for filecache with many references, do not
+		recycle them to reduce memory thrashing.
+

@@ -1,4 +1,4 @@
-From 008c15deb9880395af513da6b34933552d6fc09d Mon Sep 17 00:00:00 2001
+From dfb9981733b37837fcee0aa95bb8d4ec4810e975 Mon Sep 17 00:00:00 2001
 From: Jianxiong Pan <jianxiong.pan@amlogic.com>
 Date: Thu, 24 Feb 2022 19:30:46 +0800
 Subject: [PATCH] mm: add memory extend support. [2/2]
@@ -37,11 +37,11 @@ Signed-off-by: Jianxiong Pan <jianxiong.pan@amlogic.com>
  kernel/dma/contiguous.c             |  4 ++
  mm/page_alloc.c                     | 69 +++++++++++++++++++++++++++++
  mm/slab_common.c                    | 25 +++++++++++
- mm/vmscan.c                         | 17 +++++++
- 11 files changed, 171 insertions(+)
+ mm/vmscan.c                         | 20 +++++++++
+ 11 files changed, 174 insertions(+)
 
 diff --git a/arch/arm64/include/asm/cache.h b/arch/arm64/include/asm/cache.h
-index b61289b98309..374ee4c5dc60 100644
+index b61289b983091..374ee4c5dc608 100644
 --- a/arch/arm64/include/asm/cache.h
 +++ b/arch/arm64/include/asm/cache.h
 @@ -23,7 +23,11 @@
@@ -57,7 +57,7 @@ index b61289b98309..374ee4c5dc60 100644
  #ifdef CONFIG_KASAN_SW_TAGS
  #define ARCH_SLAB_MINALIGN	(1ULL << KASAN_SHADOW_SCALE_SHIFT)
 diff --git a/drivers/dma-buf/heaps/system_heap.c b/drivers/dma-buf/heaps/system_heap.c
-index b7e78e497493..538b31663179 100644
+index b7e78e4974933..538b316631794 100644
 --- a/drivers/dma-buf/heaps/system_heap.c
 +++ b/drivers/dma-buf/heaps/system_heap.c
 @@ -52,6 +52,13 @@ struct dma_heap_attachment {
@@ -83,7 +83,7 @@ index b7e78e497493..538b31663179 100644
  struct dmabuf_page_pool *pools[NUM_ORDERS];
  
 diff --git a/drivers/of/fdt.c b/drivers/of/fdt.c
-index 8d9f6f0771cf..28895dd1b282 100644
+index 8d9f6f0771cfa..28895dd1b2828 100644
 --- a/drivers/of/fdt.c
 +++ b/drivers/of/fdt.c
 @@ -6,7 +6,9 @@
@@ -114,7 +114,7 @@ index 8d9f6f0771cf..28895dd1b282 100644
  			pr_info("Reserved memory: failed to reserve memory for node '%s': base %pa, size %lu MiB\n",
  				uname, &base, (unsigned long)(size / SZ_1M));
 diff --git a/drivers/of/of_reserved_mem.c b/drivers/of/of_reserved_mem.c
-index 22c186cc0af8..561c81a3e490 100644
+index baea283eb1b61..d248f9c1ab375 100644
 --- a/drivers/of/of_reserved_mem.c
 +++ b/drivers/of/of_reserved_mem.c
 @@ -9,7 +9,9 @@
@@ -127,7 +127,7 @@ index 22c186cc0af8..561c81a3e490 100644
  
  #include <linux/err.h>
  #include <linux/of.h>
-@@ -191,8 +193,16 @@ static int __init __reserved_mem_init_node(struct reserved_mem *rmem)
+@@ -188,8 +190,16 @@ static int __init __reserved_mem_init_node(struct reserved_mem *rmem)
  
  		ret = initfn(rmem);
  		if (ret == 0) {
@@ -144,7 +144,7 @@ index 22c186cc0af8..561c81a3e490 100644
  			break;
  		}
  	}
-@@ -296,6 +306,11 @@ void __init fdt_init_reserved_mem(void)
+@@ -293,6 +303,11 @@ void __init fdt_init_reserved_mem(void)
  					nomap ? "nomap" : "map",
  					reusable ? "reusable" : "non-reusable",
  					rmem->name ? rmem->name : "unknown");
@@ -157,10 +157,10 @@ index 22c186cc0af8..561c81a3e490 100644
  		}
  	}
 diff --git a/fs/dcache.c b/fs/dcache.c
-index 75897359b754..c4314ae30814 100644
+index fb0834792ec71..9a55301ade5be 100644
 --- a/fs/dcache.c
 +++ b/fs/dcache.c
-@@ -3184,7 +3184,11 @@ void d_tmpfile(struct dentry *dentry, struct inode *inode)
+@@ -3187,7 +3187,11 @@ void d_tmpfile(struct dentry *dentry, struct inode *inode)
  }
  EXPORT_SYMBOL(d_tmpfile);
  
@@ -173,10 +173,10 @@ index 75897359b754..c4314ae30814 100644
  {
  	if (!str)
 diff --git a/fs/inode.c b/fs/inode.c
-index dc3c911d4b92..c7f8465a0493 100644
+index e03adcd555032..c94477d77e5f7 100644
 --- a/fs/inode.c
 +++ b/fs/inode.c
-@@ -2077,7 +2077,11 @@ static void __wait_on_freeing_inode(struct inode *inode)
+@@ -2116,7 +2116,11 @@ static void __wait_on_freeing_inode(struct inode *inode)
  	spin_lock(&inode_hash_lock);
  }
  
@@ -189,7 +189,7 @@ index dc3c911d4b92..c7f8465a0493 100644
  {
  	if (!str)
 diff --git a/include/linux/mmzone.h b/include/linux/mmzone.h
-index 05b0c68a7920..c3d7fb190982 100644
+index 05b0c68a79209..c3d7fb190982b 100644
 --- a/include/linux/mmzone.h
 +++ b/include/linux/mmzone.h
 @@ -107,8 +107,19 @@ extern int page_group_by_mobility_disabled;
@@ -213,10 +213,10 @@ index 05b0c68a7920..c3d7fb190982 100644
  					    int migratetype)
  {
 diff --git a/kernel/dma/contiguous.c b/kernel/dma/contiguous.c
-index da70a24d1b7a..349996aa9f13 100644
+index 3ebbec4f9e338..e49a60689ed06 100644
 --- a/kernel/dma/contiguous.c
 +++ b/kernel/dma/contiguous.c
-@@ -426,7 +426,9 @@ static int __init rmem_cma_setup(struct reserved_mem *rmem)
+@@ -424,7 +424,9 @@ static int __init rmem_cma_setup(struct reserved_mem *rmem)
  
  	err = cma_init_reserved_mem(rmem->base, rmem->size, 0, rmem->name, &cma);
  	if (err) {
@@ -226,7 +226,7 @@ index da70a24d1b7a..349996aa9f13 100644
  		return err;
  	}
  	/* Architecture specific contiguous memory fixup. */
-@@ -438,8 +440,10 @@ static int __init rmem_cma_setup(struct reserved_mem *rmem)
+@@ -436,8 +438,10 @@ static int __init rmem_cma_setup(struct reserved_mem *rmem)
  	rmem->ops = &rmem_cma_ops;
  	rmem->priv = cma;
  
@@ -238,7 +238,7 @@ index da70a24d1b7a..349996aa9f13 100644
  	return 0;
  }
 diff --git a/mm/page_alloc.c b/mm/page_alloc.c
-index ae261c0c3ac0..0daab2968168 100644
+index c3b04d5daa803..85793bcafeff9 100644
 --- a/mm/page_alloc.c
 +++ b/mm/page_alloc.c
 @@ -89,6 +89,10 @@
@@ -295,7 +295,7 @@ index ae261c0c3ac0..0daab2968168 100644
  }
  
  /*
-@@ -5805,6 +5824,9 @@ struct page *__alloc_pages(gfp_t gfp, unsigned int order, int preferred_nid,
+@@ -5807,6 +5826,9 @@ struct page *__alloc_pages(gfp_t gfp, unsigned int order, int preferred_nid,
  	 */
  	alloc_flags |= alloc_flags_nofragment(ac.preferred_zoneref->zone, gfp);
  
@@ -305,7 +305,7 @@ index ae261c0c3ac0..0daab2968168 100644
  	/* First allocation attempt */
  	page = get_page_from_freelist(alloc_gfp, order, alloc_flags, &ac);
  	if (likely(page))
-@@ -6484,6 +6506,9 @@ void show_free_areas(unsigned int filter, nodemask_t *nodemask)
+@@ -6486,6 +6508,9 @@ void show_free_areas(unsigned int filter, nodemask_t *nodemask)
  		unsigned int order;
  		unsigned long nr[MAX_ORDER], flags, total = 0;
  		unsigned char types[MAX_ORDER];
@@ -315,7 +315,7 @@ index ae261c0c3ac0..0daab2968168 100644
  
  		if (show_mem_node_skip(filter, zone_to_nid(zone), nodemask))
  			continue;
-@@ -6500,6 +6525,9 @@ void show_free_areas(unsigned int filter, nodemask_t *nodemask)
+@@ -6502,6 +6527,9 @@ void show_free_areas(unsigned int filter, nodemask_t *nodemask)
  
  			types[order] = 0;
  			for (type = 0; type < MIGRATE_TYPES; type++) {
@@ -325,7 +325,7 @@ index ae261c0c3ac0..0daab2968168 100644
  				if (!free_area_empty(area, type))
  					types[order] |= 1 << type;
  			}
-@@ -6512,6 +6540,12 @@ void show_free_areas(unsigned int filter, nodemask_t *nodemask)
+@@ -6514,6 +6542,12 @@ void show_free_areas(unsigned int filter, nodemask_t *nodemask)
  				show_migration_types(types[order]);
  		}
  		printk(KERN_CONT "= %lukB\n", K(total));
@@ -338,7 +338,7 @@ index ae261c0c3ac0..0daab2968168 100644
  	}
  
  	hugetlb_show_meminfo();
-@@ -9976,6 +10010,41 @@ bool take_page_off_buddy(struct page *page)
+@@ -9978,6 +10012,41 @@ bool take_page_off_buddy(struct page *page)
  }
  #endif
  
@@ -381,7 +381,7 @@ index ae261c0c3ac0..0daab2968168 100644
  bool has_managed_dma(void)
  {
 diff --git a/mm/slab_common.c b/mm/slab_common.c
-index 8cf667b3065e..f578c80c3666 100644
+index e7670d46828b8..acb219ba98030 100644
 --- a/mm/slab_common.c
 +++ b/mm/slab_common.c
 @@ -1052,12 +1052,21 @@ static void print_slabinfo_header(struct seq_file *m)
@@ -442,7 +442,7 @@ index 8cf667b3065e..f578c80c3666 100644
  	trace_android_vh_cache_show(m, &sinfo, s);
  	seq_putc(m, '\n');
 diff --git a/mm/vmscan.c b/mm/vmscan.c
-index 3f2523533e88..635bd6abb625 100644
+index 577758242984f..b22a724ba0d2e 100644
 --- a/mm/vmscan.c
 +++ b/mm/vmscan.c
 @@ -1404,6 +1404,17 @@ static unsigned int demote_page_list(struct list_head *demote_pages,
@@ -463,19 +463,23 @@ index 3f2523533e88..635bd6abb625 100644
  /*
   * shrink_page_list() returns the number of reclaimed pages
   */
-@@ -1450,7 +1461,11 @@ static unsigned int shrink_page_list(struct list_head *page_list,
- 		if (unlikely(!page_evictable(page)))
- 			goto activate_locked;
+@@ -2028,8 +2039,15 @@ static unsigned long isolate_lru_pages(unsigned long nr_to_scan,
  
+ 		if (!PageLRU(page))
+ 			goto move;
 +	#ifdef CONFIG_AMLOGIC_SWAPD_OPT
-+		if (!can_unmap_files(sc, page))
++		if (is_active_lru(lru) && !sc->may_unmap && page_mapped(page))
++			goto move;
++		if (!is_active_lru(lru) && !can_unmap_files(sc, page))
++			goto move;
 +	#else
  		if (!sc->may_unmap && page_mapped(page))
+ 			goto move;
 +	#endif
- 			goto keep_locked;
  
- 		/* page_update_gen() tried to promote this page? */
-@@ -2156,8 +2171,10 @@ static int too_many_isolated(struct pglist_data *pgdat, int file,
+ 		/*
+ 		 * Be careful not to clear PageLRU until after we're
+@@ -2156,8 +2174,10 @@ static int too_many_isolated(struct pglist_data *pgdat, int file,
  	 * won't get blocked by normal direct-reclaimers, forming a circular
  	 * deadlock.
  	 */
@@ -487,5 +491,5 @@ index 3f2523533e88..635bd6abb625 100644
  #ifdef CONFIG_AMLOGIC_CMA
  	check_cma_isolated(&isolated, inactive, inactive);
 -- 
-2.42.0
+2.50.1
 
