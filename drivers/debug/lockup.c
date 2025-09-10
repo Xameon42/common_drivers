@@ -70,7 +70,7 @@
 static unsigned long long isr_long_thr = LONG_ISR;
 module_param(isr_long_thr, ullong, 0644);
 
-static unsigned long isr_ratio_thr = 50;
+static unsigned long isr_ratio_thr = 35;
 module_param(isr_ratio_thr, ulong, 0644);
 
 static unsigned long long idle_thr = LONG_IDLE;
@@ -256,6 +256,18 @@ static void __maybe_unused isr_in_hook(void *data, int irq, struct irqaction *ac
 	}
 }
 
+static bool is_high_frequency_irq(struct isr_check_info *isr_info, struct irqaction *action)
+{
+	if (strstr(action->name, "dmc_monitor") && isr_info->cnt < 150000)
+		return true;
+
+	if ((strstr(action->name, "xhci-hcd:usb") || strstr(action->name, "ttyS")) &&
+	    isr_info->cnt < 30000)
+		return true;
+
+	return false;
+}
+
 static void __maybe_unused isr_out_hook(void *data, int irq, struct irqaction *action, int ret)
 {
 	struct lockup_info *info;
@@ -303,15 +315,21 @@ static void __maybe_unused isr_out_hook(void *data, int irq, struct irqaction *a
 
 	if (isr_info->exec_sum_time * 100 >= isr_ratio_thr * this_period_time ||
 	    isr_info->cnt > CCCNT_WARN) {
-		pr_err("IRQRatio___ERR.irq:%d/%s action=%ps ratio:%llu\n",
-		       irq, action->name, action->handler,
-		       div_u64(isr_info->exec_sum_time * 100, this_period_time));
+		char *irqratio_tag;
 
-		pr_err("period_time:%llums isr_sum_time:%llums, cnt:%d, last_exec_time:%lluus\n",
-		       div_u64(this_period_time, ns2ms),
-		       div_u64(isr_info->exec_sum_time, ns2ms),
-		       isr_info->cnt,
-		       div_u64(delta, ns2us));
+		if (isr_info->exec_sum_time * 100 < isr_ratio_thr * this_period_time &&
+		    is_high_frequency_irq(isr_info, action))
+			irqratio_tag = "IRQRatio___NOTICE";
+		else
+			irqratio_tag = "IRQRatio___ERR";
+
+		pr_err("%s.irq:%d/%s action=%ps ratio:%llu period_time:%llums isr_sum_time:%llums, cnt:%d, last_exec_time:%lluus\n",
+			irqratio_tag, irq, action->name, action->handler,
+			div_u64(isr_info->exec_sum_time * 100, this_period_time),
+			div_u64(this_period_time, ns2ms),
+			div_u64(isr_info->exec_sum_time, ns2ms),
+			isr_info->cnt,
+			div_u64(delta, ns2us));
 	}
 
 	isr_info->period_start_time = now;
