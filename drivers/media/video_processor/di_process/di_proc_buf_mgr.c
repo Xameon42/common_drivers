@@ -786,9 +786,8 @@ int buf_mgr_free_checkin(struct dp_buf_mgr_t *buf_mgr, struct file *file)
 	return 0;
 }
 
-static struct dp_buf_mgr_t *get_di_mgr_data(struct file *file)
+struct dp_buf_mgr_t *get_buf_mgr(struct file *file)
 {
-	struct uvm_hook_mod *uhmod;
 	struct uvm_di_mgr_t *uvm_di_mgr = NULL;
 
 	if (!file) {
@@ -796,19 +795,11 @@ static struct dp_buf_mgr_t *get_di_mgr_data(struct file *file)
 		return NULL;
 	}
 
-	uhmod = uvm_get_hook_mod((struct dma_buf *)(file->private_data), PROCESS_DI_MGR);
-	if (!uhmod) {
-		pr_err("%s fail uhmod is NULL\n", __func__);
+	uvm_di_mgr = get_uvm_di_mgr(file);
+	if (!uvm_di_mgr) {
+		pr_err("%s: get uvm_di_mgr failed.\n", __func__);
 		return NULL;
 	}
-
-	if (IS_ERR_VALUE(uhmod) || !uhmod->arg) {
-		pr_err("%s fail file_private_data is NULL\n", __func__);
-		return NULL;
-	}
-	uvm_di_mgr = uhmod->arg;
-	uvm_put_hook_mod((struct dma_buf *)(file->private_data),
-			 PROCESS_DI_MGR);
 
 	return uvm_di_mgr->buf_mgr;
 }
@@ -830,7 +821,7 @@ int di_processed_checkin(struct file *file)
 	struct dp_buf_mgr_t *buf_mgr = NULL;
 	int need_dec_two = false;
 
-	buf_mgr = get_di_mgr_data(file);
+	buf_mgr = get_buf_mgr(file);
 	if (!buf_mgr) {
 		pr_err("%s get buf_mgr fail\n", __func__);
 		return -1;
@@ -912,7 +903,7 @@ int di_get_ref_vf(struct file *file, struct vframe_s **vf_1, struct vframe_s **v
 	*file_1 = NULL;
 	*file_2 = NULL;
 
-	buf_mgr = get_di_mgr_data(file);
+	buf_mgr = get_buf_mgr(file);
 	if (!buf_mgr) {
 		pr_err("%s get buf_mgr fail\n", __func__);
 		return -1;

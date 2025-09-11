@@ -97,6 +97,7 @@ struct di_process_dev {
 	DECLARE_KFIFO(file_free_q, struct dma_buf *, DIPR_POOL_SIZE);
 	DECLARE_KFIFO(file_wait_q, struct dma_buf *, DIPR_POOL_SIZE);
 	struct file *last_file;
+	struct dp_buf_mgr_t *last_buf_mgr;
 	struct dma_buf *last_dmabuf;
 	struct dma_buf *out_dmabuf[DIPR_POOL_SIZE];
 	unsigned long long fence_creat_count;
