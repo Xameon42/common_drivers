@@ -71,10 +71,15 @@ static int force_tsn_source;
 
 int is_security_dmx;
 
-static void demux_config_pipeline(int cfg_demod_tsn, int cfg_tsn_out)
+static void demux_config_pipeline(int cfg_demod_tsn, int cfg_tsn_out, int tee_compat)
 {
 	u32 value = 0;
 	int ret = 0;
+
+	if (tee_compat) {
+		tee_demux_config_pipeline(cfg_demod_tsn, cfg_tsn_out);
+		return;
+	}
 
 	value = cfg_demod_tsn;
 	value += cfg_tsn_out << 1;
@@ -339,7 +344,7 @@ ssize_t tsn_source_store(struct class *class,
 //	pr_dbg("tsn_in:%d, tsn_out:%d\n", tsn_in_reg, tsn_out);
 	advb->dsc_pipeline = tsn_in_reg;
 	//set demod/local
-	demux_config_pipeline(tsn_in_reg, tsn_out);
+	demux_config_pipeline(tsn_in_reg, tsn_out, advb->tee_compat);
 
 	mutex_unlock(&advb->mutex);
 	return count;
@@ -348,6 +353,7 @@ ssize_t tsn_source_store(struct class *class,
 int tsn_set_double_out(int flag)
 {
 	int tsn_in_reg = 0;
+	struct aml_dvb *advb = aml_get_dvb_device();
 
 	if (tsn_out == flag)
 		return 0;
@@ -357,7 +363,7 @@ int tsn_set_double_out(int flag)
 	if (tsn_in == INPUT_DEMOD)
 		tsn_in_reg = 1;
 
-	demux_config_pipeline(tsn_in_reg, tsn_out);
+	demux_config_pipeline(tsn_in_reg, tsn_out, advb->tee_compat);
 	return 0;
 }
 
@@ -376,7 +382,7 @@ int tsn_source_force_set(int source)
 	tsn_in = source;
 	advb->dsc_pipeline = tsn_in_reg;
 
-	demux_config_pipeline(tsn_in_reg, 0);
+	demux_config_pipeline(tsn_in_reg, 0, advb->tee_compat);
 	force_tsn_source = 1;
 	return 0;
 }
@@ -685,6 +691,21 @@ int dmx_get_tsn_flag(struct platform_device *pdev, int *tsn_in, int *tsn_out)
 	return 0;
 }
 
+u32 dmx_get_tee_compat_flag(struct platform_device *pdev)
+{
+	char buf[32];
+	u32 tee_compat = 0;
+	int ret = 0;
+
+	memset(buf, 0, sizeof(buf));
+	snprintf(buf, sizeof(buf), "tee_compat");
+	ret = of_property_read_u32(pdev->dev.of_node, buf, &tee_compat);
+	if (!ret)
+		dprint_i("%s:%d\n", buf, tee_compat);
+
+	return tee_compat;
+}
+
 struct aml_dvb *aml_get_dvb_device(void)
 {
 	return &aml_dvb_device;
@@ -850,8 +871,9 @@ static int aml_dvb_probe(struct platform_device *pdev)
 
 	pr_dbg("tsn_in:%d, tsn_out:%d\n", tsn_in_reg, tsn_out);
 	advb->dsc_pipeline = tsn_in_reg;
+	advb->tee_compat = dmx_get_tee_compat_flag(pdev);
 	//set demod/local
-	demux_config_pipeline(tsn_in_reg, tsn_out);
+	demux_config_pipeline(tsn_in_reg, tsn_out, advb->tee_compat);
 
 	dmx_init_hw();
 
