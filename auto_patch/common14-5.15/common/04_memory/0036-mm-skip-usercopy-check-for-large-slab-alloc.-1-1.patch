@@ -1,0 +1,40 @@
+From 52be0c99261e9d740885bf06db1be456ae93c863 Mon Sep 17 00:00:00 2001
+From: tuan zhang <tuan.zhang@amlogic.com>
+Date: Thu, 16 Oct 2025 08:38:20 +0000
+Subject: [PATCH] mm: skip usercopy check for large slab alloc. [1/1]
+
+PD#SWPL-186095
+
+Problem:
+large slab optimization can not pass usercopy check.
+
+Solution:
+skip usercopy check for large slab alloc.
+
+Verify:
+t6d
+
+Change-Id: I2e523ae05e6149345876005edb65fe20bec395c0
+Signed-off-by: tuan zhang <tuan.zhang@amlogic.com>
+---
+ mm/usercopy.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/mm/usercopy.c b/mm/usercopy.c
+index 540968b481e7..711ff57ef493 100644
+--- a/mm/usercopy.c
++++ b/mm/usercopy.c
+@@ -236,8 +236,10 @@ static inline void check_heap_object(const void *ptr, unsigned long n,
+ 	page = compound_head(kmap_to_page((void *)ptr));
+ 
+ 	if (PageSlab(page)) {
++#ifndef CONFIG_AMLOGIC_MEMORY_EXTEND
+ 		/* Check slab allocator for flags and size. */
+ 		__check_heap_object(ptr, n, page, to_user);
++#endif
+ 	} else {
+ 		/* Verify object does not incorrectly span multiple pages. */
+ 		check_page_span(ptr, n, page, to_user);
+-- 
+2.46.0
+
