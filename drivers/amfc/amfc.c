@@ -532,6 +532,9 @@ int amfc_decompress(void *src, void *dst, ssize_t src_size, ssize_t dst_size, in
 	if (!src || !dst || !src_size || !dst_size)
 		return -EINVAL;
 
+	if (atomic_read(&amfc->in_suspend))
+		return -ENODEV;
+
 	if (amfc->log > 1)
 		pr_info("%s, src:%px, dst:%px, src size:%d, dst size:%d\n",
 			__func__, src, dst, (int)src_size, (int)dst_size);
@@ -624,6 +627,10 @@ again:
 				amfc_hw_init();
 				goto again;
 			}
+			if (atomic_read(&amfc->in_suspend)) {
+				ret = -ENODEV;
+				goto out;
+			}
 		}
 		ret = 0;
 	}
@@ -649,40 +656,46 @@ out:
 		__free_pages(src_table, src_order);
 	if (!IS_ERR_OR_NULL(dst_table) && dst_table != amfc->pages[TABLE_DST_DECOMPRESS])
 		__free_pages(dst_table, dst_order);
+	if (atomic_read(&amfc->in_suspend)) /* check again */
+		ret = -ENODEV;
 	if (ret < 0) {
-		amfc->in_dec_err = 1;
-		if ((ret == -AMFC_DEC_DST_SIZE_OVF || ret == -AMFC_DEC_DST_PAGE_ERR) && stream) {
-			while (amfc_hw_read(AMFC_WR_MIF_STATUS))
-				;
-			if (amfc->log)
-				pr_info("decompress acl:%px, src:%px, dst:%px, src size:%5d, dstsize:%5d result size:%5d:%5d, tick:%d\n",
-					acl, src, dst, (int)src_size, (int)dst_size, ret,
-					acl->result_size, clks);
+		if (ret == -ENODEV) {
+			pr_err("%s, decompress failed caused by suspend\n", __func__);
 		} else {
-			pr_err("acl:%px, decompress failed, src:%px, dst:%px, ssize:%d, dsize:%d, ret:%d, status:%x\n",
-				acl, src, dst, (int)src_size, (int)dst_size,
-				ret, amfc_hw_read(AMFC_GL_CMD1_STATUS));
-			show_regs(NULL);
-			show_acl(acl);
-			if (!IS_ERR_OR_NULL(src_table))
-				dump_addr(page_address(src_table), 128);
-			if (!IS_ERR_OR_NULL(dst_table))
-				dump_addr(page_address(dst_table), 128);
-			dump_addr(src, src_size);
-			dump_addr(dst, dst_size);
-			need_copy = 0;	// decompress real failed
-		}
-		/* sw reset */
-		while (!spin_trylock(&amfc->com_lock)) {
-			if (amfc->in_enc_err) {
-				amfc_hw_write(0x80000000, AMFC_GL_CMD1_CONTROL);
-				goto error_handled;
+			amfc->in_dec_err = 1;
+			if ((ret == -AMFC_DEC_DST_SIZE_OVF || ret == -AMFC_DEC_DST_PAGE_ERR) && stream) {
+				while (amfc_hw_read(AMFC_WR_MIF_STATUS))
+					;
+				if (amfc->log)
+					pr_info("decompress acl:%px, src:%px, dst:%px, src size:%5d, dstsize:%5d result size:%5d:%5d, tick:%d\n",
+						acl, src, dst, (int)src_size, (int)dst_size, ret,
+						acl->result_size, clks);
+			} else {
+				pr_err("acl:%px, decompress failed, src:%px, dst:%px, ssize:%d, dsize:%d, ret:%d, status:%x\n",
+					acl, src, dst, (int)src_size, (int)dst_size,
+					ret, amfc_hw_read(AMFC_GL_CMD1_STATUS));
+				show_regs(NULL);
+				show_acl(acl);
+				if (!IS_ERR_OR_NULL(src_table))
+					dump_addr(page_address(src_table), 128);
+				if (!IS_ERR_OR_NULL(dst_table))
+					dump_addr(page_address(dst_table), 128);
+				dump_addr(src, src_size);
+				dump_addr(dst, dst_size);
+				need_copy = 0;	// decompress real failed
 			}
-		}
-		amfc_hw_write(0x80000000, AMFC_GL_CMD1_CONTROL);
-		spin_unlock(&amfc->com_lock);
+			/* sw reset */
+			while (!spin_trylock(&amfc->com_lock)) {
+				if (amfc->in_enc_err) {
+					amfc_hw_write(0x80000000, AMFC_GL_CMD1_CONTROL);
+					goto error_handled;
+				}
+			}
+			amfc_hw_write(0x80000000, AMFC_GL_CMD1_CONTROL);
+			spin_unlock(&amfc->com_lock);
 error_handled:
-		amfc->in_dec_err = 0;
+			amfc->in_dec_err = 0;
+		}
 	} else {
 		amfc->din += src_size;
 		if (stream) {  // separate for EROFS and ZRAM
@@ -741,6 +754,9 @@ int amfc_compress(void *src, void *dst, ssize_t src_size, ssize_t dst_size)
 
 	if (!src || !dst || !src_size || !dst_size)
 		return -EINVAL;
+
+	if (atomic_read(&amfc->in_suspend))
+		return -ENODEV;
 
 	if (amfc->log > 1)
 		pr_info("%s, src:%px, dst:%px, src size:%d, dst size:%d\n",
@@ -826,6 +842,10 @@ again:
 				amfc_hw_init();
 				goto again;
 			}
+			if (atomic_read(&amfc->in_suspend)) {
+				ret = -ENODEV;
+				goto out;
+			}
 		}
 		ret = 0;
 	}
@@ -850,25 +870,31 @@ out:
 		__free_pages(src_table, src_order);
 	if (!IS_ERR_OR_NULL(dst_table) && dst_table != amfc->pages[TABLE_DST_COMPRESS])
 		__free_pages(dst_table, dst_order);
+	if (atomic_read(&amfc->in_suspend)) /* check again */
+		ret = -ENODEV;
 	if (ret < 0) {
-		amfc->in_enc_err = 1;
-		if (((status & AMFC_ERR_MASK) >> 8) != AMFC_ENC_DST_SIZE_OVF) {
-			pr_err("acl:%px, compress failed, src:%px, dst:%px, ssize:%d, dsize:%d, ret:%d, status:%x\n",
-				acl, src, dst, (int)src_size, (int)dst_size,
-				ret, amfc_hw_read(AMFC_GL_CMD0_STATUS));
-			show_regs(NULL);
-			show_acl(acl);
-		}
-		while (!spin_trylock(&amfc->dec_lock)) {
-			if (amfc->in_dec_err) {
-				amfc_hw_write(0x80000000, AMFC_GL_CMD0_CONTROL);
-				goto error_handled;
+		if (ret == -ENODEV) {
+			pr_err("%s compress failed caused by suspend\n", __func__);
+		} else {
+			amfc->in_enc_err = 1;
+			if (((status & AMFC_ERR_MASK) >> 8) != AMFC_ENC_DST_SIZE_OVF) {
+				pr_err("acl:%px, compress failed, src:%px, dst:%px, ssize:%d, dsize:%d, ret:%d, status:%x\n",
+					acl, src, dst, (int)src_size, (int)dst_size,
+					ret, amfc_hw_read(AMFC_GL_CMD0_STATUS));
+				show_regs(NULL);
+				show_acl(acl);
 			}
-		}
-		amfc_hw_write(0x80000000, AMFC_GL_CMD0_CONTROL);
-		spin_unlock(&amfc->dec_lock);
+			while (!spin_trylock(&amfc->dec_lock)) {
+				if (amfc->in_dec_err) {
+					amfc_hw_write(0x80000000, AMFC_GL_CMD0_CONTROL);
+					goto error_handled;
+				}
+			}
+			amfc_hw_write(0x80000000, AMFC_GL_CMD0_CONTROL);
+			spin_unlock(&amfc->dec_lock);
 error_handled:
-		amfc->in_enc_err = 0;
+			amfc->in_enc_err = 0;
+		}
 	} else {
 		amfc->cin         += src_size;
 		amfc->cout        += ret;
@@ -1465,6 +1491,7 @@ static int __init amfc_probe(struct platform_device *pdev)
 	init_completion(&amfc->dcomp);
 	spin_lock_init(&amfc->com_lock);
 	spin_lock_init(&amfc->dec_lock);
+	atomic_set(&amfc->in_suspend, 0);
 	amfc_hw_init();
 #ifdef CONFIG_AMFC_DEBUG
 	amfc->log = 1;
@@ -1511,6 +1538,7 @@ err:
 
 static int amfc_suspend(struct device *dev)
 {
+	atomic_inc(&amfc->in_suspend);
 	clk_disable_unprepare(amfc->clk);
 	return 0;
 }
@@ -1519,6 +1547,7 @@ static int amfc_resume(struct device *dev)
 {
 	clk_prepare_enable(amfc->clk);
 	amfc_hw_init();
+	atomic_dec(&amfc->in_suspend);
 	return 0;
 }
 

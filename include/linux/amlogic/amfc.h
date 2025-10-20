@@ -172,6 +172,7 @@ struct amfc {
 	struct clk *clk;
 	int in_dec_err;
 	int in_enc_err;
+	atomic_t in_suspend;
 	unsigned char chip;
 	unsigned char work_mode;		/* 0: irq mode, 1: poll mode  */
 	unsigned char log;
