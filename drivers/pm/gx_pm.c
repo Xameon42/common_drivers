@@ -650,6 +650,7 @@ static int meson_pm_probe(struct platform_device *pdev)
 	exit_reg = of_iomap(pdev->dev.of_node, 1);
 	if (!exit_reg)
 		return -ENOMEM;
+	set_resume_method(get_resume_reason());
 
 	err = class_register(&meson_pm_class);
 	if (unlikely(err))
