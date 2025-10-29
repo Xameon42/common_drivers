@@ -1,4 +1,4 @@
-From f7c5762bff2825fc2714cc4f7aa92992e389ec40 Mon Sep 17 00:00:00 2001
+From 3508179922ffc3d66ebc9631c33dfb19d721d73d Mon Sep 17 00:00:00 2001
 From: "qiankun.wang" <qiankun.wang@amlogic.com>
 Date: Fri, 19 May 2023 15:26:35 +0800
 Subject: [PATCH] sched: vts: vts_kernel_proc_file_api_test [2/2]
@@ -25,10 +25,10 @@ Signed-off-by: qiankun.wang <qiankun.wang@amlogic.com>
  3 files changed, 79 insertions(+)
 
 diff --git a/include/linux/sched/sysctl.h b/include/linux/sched/sysctl.h
-index d5ebdb6b79de..9b6ff6ac0e64 100644
+index 75ded91f86013..be3ce132ed891 100644
 --- a/include/linux/sched/sysctl.h
 +++ b/include/linux/sched/sysctl.h
-@@ -26,6 +26,11 @@ int proc_dohung_task_timeout_secs(struct ctl_table *table, int write,
+@@ -14,6 +14,11 @@ extern unsigned long sysctl_hung_task_timeout_secs;
  enum { sysctl_hung_task_timeout_secs = 0 };
  #endif
  
@@ -40,7 +40,7 @@ index d5ebdb6b79de..9b6ff6ac0e64 100644
  extern unsigned int sysctl_sched_child_runs_first;
  
  enum sched_tunable_scaling {
-@@ -35,6 +40,13 @@ enum sched_tunable_scaling {
+@@ -23,6 +28,13 @@ enum sched_tunable_scaling {
  	SCHED_TUNABLESCALING_END,
  };
  
@@ -55,10 +55,10 @@ index d5ebdb6b79de..9b6ff6ac0e64 100644
   *  control realtime throttling:
   *
 diff --git a/kernel/sched/fair.c b/kernel/sched/fair.c
-index 87b1c7ecec3b..8297bd52e8f0 100644
+index bed7582eb2bd4..70c2f1ec8f203 100644
 --- a/kernel/sched/fair.c
 +++ b/kernel/sched/fair.c
-@@ -643,6 +643,31 @@ int sched_update_scaling(void)
+@@ -644,6 +644,31 @@ int sched_update_scaling(void)
  
  	return 0;
  }
@@ -91,10 +91,10 @@ index 87b1c7ecec3b..8297bd52e8f0 100644
  
  /*
 diff --git a/kernel/sysctl.c b/kernel/sysctl.c
-index be0caa71509d..bf3cb6803f61 100644
+index 2ae8fb98c1538..603e46fc64ec8 100644
 --- a/kernel/sysctl.c
 +++ b/kernel/sysctl.c
-@@ -183,6 +183,17 @@ static enum sysctl_writes_mode sysctl_writes_strict = SYSCTL_WRITES_STRICT;
+@@ -172,6 +172,17 @@ static enum sysctl_writes_mode sysctl_writes_strict = SYSCTL_WRITES_STRICT;
  int sysctl_legacy_va_layout;
  #endif
  
@@ -110,9 +110,9 @@ index be0caa71509d..bf3cb6803f61 100644
 +#endif
 +
  #ifdef CONFIG_COMPACTION
- static int min_extfrag_threshold;
- static int max_extfrag_threshold = 1000;
-@@ -1850,7 +1861,38 @@ static struct ctl_table kern_table[] = {
+ static const int min_extfrag_threshold;
+ static const int max_extfrag_threshold = 1000;
+@@ -1843,7 +1854,38 @@ static struct ctl_table kern_table[] = {
  		.mode		= 0644,
  		.proc_handler	= sched_rr_handler,
  	},
@@ -152,5 +152,5 @@ index be0caa71509d..bf3cb6803f61 100644
  		.procname	= "sched_pelt_multiplier",
  		.data		= &sysctl_sched_pelt_multiplier,
 -- 
-2.25.1
+2.51.0
 

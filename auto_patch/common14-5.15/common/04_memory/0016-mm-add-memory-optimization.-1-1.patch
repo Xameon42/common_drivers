@@ -1,4 +1,4 @@
-From 8a09ee012fb3ce98d03f7d6f3ee9f9303b32a94e Mon Sep 17 00:00:00 2001
+From bbc282a233a9b769c40f533173261668d6f3820c Mon Sep 17 00:00:00 2001
 From: Jianxiong Pan <jianxiong.pan@amlogic.com>
 Date: Tue, 20 Jun 2023 19:32:11 +0800
 Subject: [PATCH] mm: add memory optimization. [1/1]
@@ -19,7 +19,7 @@ Signed-off-by: Jianxiong Pan <jianxiong.pan@amlogic.com>
 ---
  drivers/base/core.c            |  2 ++
  drivers/of/base.c              |  5 ++++-
- include/linux/android_kabi.h   |  5 ++++-
+ include/linux/android_kabi.h   |  4 ++++
  include/linux/android_vendor.h | 10 ++++++++++
  include/linux/printk.h         |  4 ++++
  include/linux/scs.h            |  4 ++++
@@ -30,13 +30,13 @@ Signed-off-by: Jianxiong Pan <jianxiong.pan@amlogic.com>
  kernel/printk/printk.c         |  5 +++++
  kernel/scs.c                   | 17 +++++++++++++++++
  mm/slab_common.c               |  4 ++++
- 13 files changed, 74 insertions(+), 2 deletions(-)
+ 13 files changed, 74 insertions(+), 1 deletion(-)
 
 diff --git a/drivers/base/core.c b/drivers/base/core.c
-index 741d7c3bcba5..de133a6c7820 100644
+index 2339a35435428..22662baa023ae 100644
 --- a/drivers/base/core.c
 +++ b/drivers/base/core.c
-@@ -3105,8 +3105,10 @@ static int device_add_class_symlinks(struct device *dev)
+@@ -3123,8 +3123,10 @@ static int device_add_class_symlinks(struct device *dev)
  
  	if (of_node) {
  		error = sysfs_create_link(&dev->kobj, of_node_kobj(of_node), "of_node");
@@ -48,7 +48,7 @@ index 741d7c3bcba5..de133a6c7820 100644
  	}
  
 diff --git a/drivers/of/base.c b/drivers/of/base.c
-index bc5abe650c5c..e46a0750c827 100644
+index 2dc6450398263..14c219b5746fc 100644
 --- a/drivers/of/base.c
 +++ b/drivers/of/base.c
 @@ -166,8 +166,9 @@ void __of_phandle_cache_inv_entry(phandle handle)
@@ -77,10 +77,10 @@ index bc5abe650c5c..e46a0750c827 100644
  
  	/* Symlink in /proc as required by userspace ABI */
 diff --git a/include/linux/android_kabi.h b/include/linux/android_kabi.h
-index 1fa329ee4d73..1671fc1e1cc2 100644
+index 02ba25dbfdbfa..ed69c2fcf5956 100644
 --- a/include/linux/android_kabi.h
 +++ b/include/linux/android_kabi.h
-@@ -84,12 +84,15 @@
+@@ -84,11 +84,15 @@
   *   number: the "number" of the padding variable in the structure.  Start with
   *   1 and go up.
   */
@@ -92,13 +92,12 @@ index 1fa329ee4d73..1671fc1e1cc2 100644
  #else
  #define ANDROID_KABI_RESERVE(number)
  #endif
--
 +#endif /* CONFIG_AMLOGIC_OPT */
  
  /*
-  * Macros to use _after_ the ABI is frozen
+  * ANDROID_KABI_BACKPORT_OK
 diff --git a/include/linux/android_vendor.h b/include/linux/android_vendor.h
-index af3014ccc82e..f5bce42c8d0d 100644
+index af3014ccc82eb..f5bce42c8d0d0 100644
 --- a/include/linux/android_vendor.h
 +++ b/include/linux/android_vendor.h
 @@ -26,6 +26,15 @@
@@ -125,7 +124,7 @@ index af3014ccc82e..f5bce42c8d0d 100644
  
  #endif /* _ANDROID_VENDOR_H */
 diff --git a/include/linux/printk.h b/include/linux/printk.h
-index 9497f6b98339..83e8cfd192e8 100644
+index c4fb84822111d..639b360275f34 100644
 --- a/include/linux/printk.h
 +++ b/include/linux/printk.h
 @@ -336,6 +336,10 @@ extern int kptr_restrict;
@@ -140,7 +139,7 @@ index 9497f6b98339..83e8cfd192e8 100644
  #define pr_fmt(fmt) fmt
  #endif
 diff --git a/include/linux/scs.h b/include/linux/scs.h
-index 4ab5bdc898cf..3bd8f1c3019c 100644
+index 4ab5bdc898cfe..3bd8f1c3019c3 100644
 --- a/include/linux/scs.h
 +++ b/include/linux/scs.h
 @@ -16,7 +16,11 @@
@@ -156,7 +155,7 @@ index 4ab5bdc898cf..3bd8f1c3019c 100644
  
  /* An illegal pointer value to mark the end of the shadow stack. */
 diff --git a/init/init_task.c b/init/init_task.c
-index 559eff84a620..dfe427268949 100644
+index 559eff84a620f..dfe427268949c 100644
 --- a/init/init_task.c
 +++ b/init/init_task.c
 @@ -214,10 +214,12 @@ struct task_struct init_task
@@ -173,7 +172,7 @@ index 559eff84a620..dfe427268949 100644
  EXPORT_SYMBOL(init_task);
  
 diff --git a/kernel/Makefile b/kernel/Makefile
-index 2e0dac3da346..a19d231f0fba 100644
+index 2e0dac3da3464..a19d231f0fba1 100644
 --- a/kernel/Makefile
 +++ b/kernel/Makefile
 @@ -81,7 +81,9 @@ obj-$(CONFIG_UTS_NS) += utsname.o
@@ -204,10 +203,10 @@ index 2e0dac3da346..a19d231f0fba 100644
  $(obj)/kheaders.o: $(obj)/kheaders_data.tar.xz
  
 diff --git a/kernel/fork.c b/kernel/fork.c
-index d8b26077824c..993e24f06f1d 100644
+index 03e3bc1fe40c7..a62f60132a099 100644
 --- a/kernel/fork.c
 +++ b/kernel/fork.c
-@@ -1045,9 +1045,11 @@ static struct task_struct *dup_task_struct(struct task_struct *orig, int node)
+@@ -1046,9 +1046,11 @@ static struct task_struct *dup_task_struct(struct task_struct *orig, int node)
  #ifdef CONFIG_MEMCG
  	tsk->active_memcg = NULL;
  #endif
@@ -220,7 +219,7 @@ index d8b26077824c..993e24f06f1d 100644
  	trace_android_vh_dup_task_struct(tsk, orig);
  	return tsk;
 diff --git a/kernel/module.c b/kernel/module.c
-index 658571891a10..37bdb9ebec50 100644
+index 658571891a101..37bdb9ebec50c 100644
 --- a/kernel/module.c
 +++ b/kernel/module.c
 @@ -2743,15 +2743,21 @@ static bool is_core_symbol(const Elf_Sym *src, const Elf_Shdr *sechdrs,
@@ -246,7 +245,7 @@ index 658571891a10..37bdb9ebec50 100644
  	    || (sec->sh_entsize & INIT_OFFSET_MASK))
  		return false;
 diff --git a/kernel/printk/printk.c b/kernel/printk/printk.c
-index 41b7b07afcf5..443561532c76 100644
+index 15b8bbab3c806..a8987d3ca14e6 100644
 --- a/kernel/printk/printk.c
 +++ b/kernel/printk/printk.c
 @@ -421,8 +421,13 @@ static u32 log_buf_len = __LOG_BUF_LEN;
@@ -264,7 +263,7 @@ index 41b7b07afcf5..443561532c76 100644
  static struct printk_ringbuffer printk_rb_dynamic;
  
 diff --git a/kernel/scs.c b/kernel/scs.c
-index d7809affe740..aa4135c3c43e 100644
+index d7809affe7404..aa4135c3c43eb 100644
 --- a/kernel/scs.c
 +++ b/kernel/scs.c
 @@ -11,6 +11,9 @@
@@ -326,7 +325,7 @@ index d7809affe740..aa4135c3c43e 100644
  	}
  
 diff --git a/mm/slab_common.c b/mm/slab_common.c
-index 9fad291c443c..2d727cb4c5c3 100644
+index bd058ace2f7d8..85a06bf0d1550 100644
 --- a/mm/slab_common.c
 +++ b/mm/slab_common.c
 @@ -67,7 +67,11 @@ static DECLARE_WORK(slab_caches_to_rcu_destroy_work,
@@ -342,5 +341,5 @@ index 9fad291c443c..2d727cb4c5c3 100644
  static int __init setup_slab_nomerge(char *str)
  {
 -- 
-2.42.0
+2.51.0
 

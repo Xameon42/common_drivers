@@ -61,7 +61,7 @@ function auto_patch()
 		local dir_name1=${resFile//#/\/};     #echo dir_name $dir_name
 		local dir_name=${dir_name1%/*};       #echo dir_name $dir_name
 		local dir=${common_path}/$dir_name;   #echo $dir
-
+		[[ ! -d ${dir}/.git ]] && continue
 		local compare_change_id=$(cd ${dir} && git log -n 400 |grep "Change-Id:" | awk '{print $2}')
 		am_patch ${file} ${dir} "${compare_change_id[@]}"
 	done

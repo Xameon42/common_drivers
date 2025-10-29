@@ -1,4 +1,4 @@
-From 846612027552570f604ee206a001deb603adce78 Mon Sep 17 00:00:00 2001
+From be78e500749309b0f9e59aec6982020fe8025eb4 Mon Sep 17 00:00:00 2001
 From: Lei Zhang <lei.zhang@amlogic.com>
 Date: Wed, 28 Sep 2022 11:29:44 +0800
 Subject: [PATCH] riscv: dump register and pfn [2/3]
@@ -72,20 +72,20 @@ index 1dea5b26f77e8..ed7bcb7b333a5 100644
  void show_regs(struct pt_regs *regs)
  {
 diff --git a/arch/riscv/kernel/traps.c b/arch/riscv/kernel/traps.c
-index 4f38b3c47e6d5..53511c16d0743 100644
+index 8b234a14d17f9..34803dbf55c71 100644
 --- a/arch/riscv/kernel/traps.c
 +++ b/arch/riscv/kernel/traps.c
-@@ -25,6 +25,10 @@
- #include <asm/ptrace.h>
- #include <asm/thread_info.h>
+@@ -27,6 +27,10 @@
+ 
+ int show_unhandled_signals = 1;
  
 +#ifdef CONFIG_AMLOGIC_USER_FAULT
 +#include <linux/amlogic/user_fault.h>
 +#endif
 +
- int show_unhandled_signals = 1;
+ static DEFINE_RAW_SPINLOCK(die_lock);
  
- static DEFINE_SPINLOCK(die_lock);
+ void die(struct pt_regs *regs, const char *str)
 @@ -77,6 +81,9 @@ void do_trap(struct pt_regs *regs, int signo, int code, unsigned long addr)
  		print_vma_addr(KERN_CONT " in ", instruction_pointer(regs));
  		pr_cont("\n");
@@ -122,5 +122,5 @@ index c30cc3ac93a72..8f52ce535e490 100644
  }
  
 -- 
-2.42.0
+2.51.0
 
