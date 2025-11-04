@@ -208,6 +208,29 @@ static struct ts_out_task ts_out_task_tmp;
 static struct ts_out_task es_out_task_tmp;
 static int timer_wake_up;
 static int timer_es_wake_up;
+static int s_cas_check_sync;
+
+struct cas_dsc {
+	u8 dmx_id;
+	unsigned int dsc_ch_id;
+	int key_ready;
+	int pid;
+	struct list_head node;
+};
+
+/*cas dsc link*/
+struct list_head cas_dsc_head;
+
+struct cas_filter {
+	u8 dmx_id;
+	int pid;
+	int enable;
+	struct out_elem *pout;
+	struct list_head node;
+};
+
+/*cas filter link*/
+struct list_head cas_filter_head;
 
 #define dprint(fmt, args...) \
 	dprintk(LOG_ERROR, debug_ts_output, "ts_output:" fmt, ## args)
@@ -217,6 +240,8 @@ static int timer_es_wake_up;
 	dprintk(LOG_DBG, debug_ts_output, "ts_output:" fmt, ## args)
 #define pr_sec_dbg(fmt, args...) \
 	dprintk(LOG_DBG, debug_section, "ts_output:" fmt, ## args)
+#define pr_cas_dbg(fmt, args...) \
+	dprintk(LOG_DBG, debug_ts_output, "ts_output:" fmt, ## args)
 
 MODULE_PARM_DESC(debug_ts_output, "\n\t\t Enable demux debug information");
 static int debug_ts_output;
@@ -272,6 +297,11 @@ static int start_aucpu_non_es(struct out_elem *pout);
 static int aucpu_bufferid_read(struct out_elem *pout,
 			       char **pread, unsigned int len, int is_pts);
 static void enforce_flush_cache(char *addr, unsigned int len);
+static int _cas_dsc_ready(int dmx_id, int pid);
+static int _cas_filter_enable(int dmx_id, int pid, int enable);
+static int _cas_filter_add(int dmx_id, int pid,
+	struct out_elem *pout_elem, struct pid_entry *pid_slot);
+static int _cas_filter_remove(int dmx_id, int pid);
 
 struct out_elem *_find_free_elem(void)
 {
@@ -2640,6 +2670,9 @@ int ts_output_init(void)
 	if (!es_out_task_tmp.out_task)
 		dprint("create es_out_task fail\n");
 
+	INIT_LIST_HEAD(&cas_dsc_head);
+	INIT_LIST_HEAD(&cas_filter_head);
+
 	return 0;
 }
 
@@ -3352,9 +3385,12 @@ int ts_output_add_pid(struct out_elem *pout, int pid, int pid_mask, int dmx_id,
 				return -1;
 			}
 		}
-
-		tsout_config_es_table(es_pes->buff_id, es_pes->pid,
+		if (s_cas_check_sync && pout->pchan->sec_level) {
+			_cas_filter_add(dmx_id, pid, pout, NULL);
+		} else {
+			tsout_config_es_table(es_pes->buff_id, es_pes->pid,
 				      pout->sid, 1, !drop_dup, pout->format);
+		}
 		switch (pout->format) {
 		case ES_FORMAT:
 		case PES_FORMAT:
@@ -3461,8 +3497,12 @@ int ts_output_add_pid(struct out_elem *pout, int pid, int pid_mask, int dmx_id,
 		pout->pid_list = pid_slot;
 		pr_dbg("sid:%d, pid:0x%0x, mask:0x%0x\n",
 				pout->sid, pid_slot->pid, pid_slot->pid_mask);
-		tsout_config_ts_table(pid_slot->pid, pid_slot->pid_mask,
+		if (s_cas_check_sync && pout->pchan->sec_level) {
+			_cas_filter_add(dmx_id, pid, pout, pid_slot);
+		} else {
+			tsout_config_ts_table(pid_slot->pid, pid_slot->pid_mask,
 				pid_slot->id, pout->pchan->id, pout->sid, pout->pchan->sec_level);
+		}
 	}
 	pout->enable = 1;
 	return 0;
@@ -3492,6 +3532,8 @@ int ts_output_remove_pid(struct out_elem *pout, int pid)
 			tsout_config_es_table(pout->es_pes->buff_id, -1,
 					pout->sid, 1, !drop_dup, pout->format);
 			_free_es_entry_slot(pout->es_pes);
+			if (s_cas_check_sync && pout->pchan->sec_level)
+				_cas_filter_remove(pout->dmx_id, pid);
 //          pout->es_pes = NULL;
 		} else {
 			return 0;
@@ -3521,6 +3563,8 @@ int ts_output_remove_pid(struct out_elem *pout, int pid)
 					      cur_pid->id, pout->pchan->id,
 					      pout->sid, pout->pchan->sec_level);
 			_free_pid_entry_slot(cur_pid);
+			if (s_cas_check_sync && pout->pchan->sec_level)
+				_cas_filter_remove(pout->dmx_id, pid);
 		}
 		if (pout->pid_list)
 			return 0;
@@ -4636,6 +4680,269 @@ int ts_output_dump_clone_info(char *buf)
 
 			count++;
 		}
+	}
+	return total;
+}
+
+int _cas_dsc_ready(int dmx_id, int pid)
+{
+	struct cas_dsc *entry = NULL;
+	struct cas_dsc *tmp = NULL;
+	int ready = 0;
+
+	list_for_each_entry_safe(entry, tmp, &cas_dsc_head, node) {
+		if (entry->dmx_id == dmx_id &&
+			entry->pid == pid &&
+			entry->dsc_ch_id != -1 &&
+			entry->key_ready == 1) {
+			ready = 1;
+			break;
+		}
+	}
+	pr_cas_dbg("%s dmx:%d pid:0x%0x ready:%d\n",
+		__func__, dmx_id, pid, ready);
+	return ready;
+}
+
+int _cas_filter_enable(int dmx_id, int pid, int enable)
+{
+	struct cas_filter *entry = NULL;
+	struct cas_filter *tmp = NULL;
+	int found = 0;
+	struct out_elem *pout_elem = NULL;
+
+	pr_cas_dbg("%s dmx:%d, pid:0x%0x, enable:%d\n", __func__, dmx_id, pid, enable);
+	list_for_each_entry_safe(entry, tmp, &cas_filter_head, node) {
+		if (entry->dmx_id == dmx_id &&
+			entry->pid == pid) {
+			found = 1;
+			if (entry->pout)
+				pout_elem = entry->pout;
+			break;
+		}
+	}
+	pr_cas_dbg("%s found:%d pout:%p\n", __func__, found, pout_elem);
+	if (found && pout_elem) {
+		/*it can start to get data*/
+		if (pout_elem->format == DVR_FORMAT) {
+			struct pid_entry *pid_slot = NULL;
+
+			pid_slot = pout_elem->pid_list;
+			while (pid_slot) {
+				if (pid_slot->pid == pid)
+					break;
+				pid_slot = pid_slot->pnext;
+			}
+			if (!pid_slot) {
+				dprint("%s error, can't find pid slot\n", __func__);
+				return -1;
+			}
+			entry->enable = enable;
+			if (enable)
+				tsout_config_ts_table(pid_slot->pid, pid_slot->pid_mask,
+					pid_slot->id, pout_elem->pchan->id, pout_elem->sid,
+					pout_elem->pchan->sec_level);
+			else
+				tsout_config_ts_table(-1, pid_slot->pid_mask,
+					  pid_slot->id, pout_elem->pchan->id,
+					  pout_elem->sid, pout_elem->pchan->sec_level);
+		} else {
+			entry->enable = enable;
+			if (enable) {
+				pr_cas_dbg("%s enable buff_id:%d, pid:0x%0x, sid:%d\n", __func__,
+					pout_elem->es_pes->buff_id, pid, pout_elem->sid);
+				tsout_config_es_table(pout_elem->es_pes->buff_id, pid,
+					  pout_elem->sid, 1, !drop_dup, pout_elem->format);
+			} else {
+				pr_cas_dbg("%s disable buff_id:%d, pid:0x%0x, sid:%d\n", __func__,
+					pout_elem->es_pes->buff_id, pid, pout_elem->sid);
+				tsout_config_es_table(pout_elem->es_pes->buff_id, -1,
+					pout_elem->sid, 1, !drop_dup, pout_elem->format);
+			}
+		}
+	}
+	return 0;
+}
+
+int _cas_filter_add(int dmx_id, int pid, struct out_elem *pout_elem, struct pid_entry *pid_slot)
+{
+	struct cas_filter *node1 = NULL;
+	int ready = 0;
+	struct aml_dvb *advb = aml_get_dvb_device();
+	struct aml_dmx *pdmx;
+
+	if (s_cas_check_sync == 0)
+		return 0;
+
+	pdmx = advb->dmx[dmx_id];
+	if (pdmx->source == INPUT_LOCAL_SEC) {
+		if (pout_elem->format == DVR_FORMAT && pid_slot)
+			tsout_config_ts_table(pid_slot->pid, pid_slot->pid_mask,
+				pid_slot->id, pout_elem->pchan->id,
+				pout_elem->sid, pout_elem->pchan->sec_level);
+		else
+			tsout_config_es_table(pout_elem->es_pes->buff_id, pid,
+				pout_elem->sid, 1, !drop_dup, pout_elem->format);
+		return 0;
+	}
+	node1 = kmalloc(sizeof(*node1), GFP_KERNEL);
+	if (!node1) {
+		dprint("%s kmalloc fail\n", __func__);
+		return -ENOMEM;
+	}
+	memset(node1, 0, sizeof(struct cas_filter));
+	node1->dmx_id = dmx_id;
+	node1->pid = pid;
+	node1->pout = pout_elem;
+	INIT_LIST_HEAD(&node1->node);
+	list_add_tail(&node1->node, &cas_filter_head);
+
+	ready = _cas_dsc_ready(dmx_id, pid);
+	if (ready) {
+		node1->enable = 1;
+		if (pout_elem->format == DVR_FORMAT && pid_slot)
+			tsout_config_ts_table(pid_slot->pid, pid_slot->pid_mask,
+				pid_slot->id, pout_elem->pchan->id,
+				pout_elem->sid, pout_elem->pchan->sec_level);
+		else
+			tsout_config_es_table(pout_elem->es_pes->buff_id, pid,
+				pout_elem->sid, 1, !drop_dup, pout_elem->format);
+	} else {
+		pr_cas_dbg("%s dmx:%d, pid:0x%0x disable\n", __func__, dmx_id, pid);
+	}
+	return 0;
+}
+
+int _cas_filter_remove(int dmx_id, int pid)
+{
+	struct cas_filter *entry = NULL;
+	struct cas_filter *tmp = NULL;
+
+	if (s_cas_check_sync == 0)
+		return 0;
+
+	pr_cas_dbg("%s dmx:%d, pid:0x%0x\n", __func__, dmx_id, pid);
+	list_for_each_entry_safe(entry, tmp, &cas_filter_head, node) {
+		if (entry->dmx_id == dmx_id &&
+			entry->pid == pid) {
+			list_del(&entry->node);
+			kfree(entry);
+			break;
+		}
+	}
+	return 0;
+}
+
+int ts_output_cas_sync_enable(int enable)
+{
+	s_cas_check_sync = enable;
+	return 0;
+}
+
+int ts_output_cas_dsc_add(int dmx_id, unsigned int dsc_ch_id, int pid, int key_ready)
+{
+	struct cas_dsc *entry = NULL;
+	struct cas_dsc *tmp = NULL;
+	struct cas_dsc *node1 = NULL;
+	int found = 0;
+
+	if (s_cas_check_sync == 0)
+		return 0;
+
+	pr_cas_dbg("%s dmx_id:%0x, dsc_id:%d, pid:%d, key_ready:%d\n", __func__,
+		dmx_id, dsc_ch_id, pid, key_ready);
+	if (key_ready == -1) {
+		list_for_each_entry_safe(entry, tmp, &cas_dsc_head, node) {
+			if (entry->dmx_id == dmx_id &&
+				entry->dsc_ch_id == dsc_ch_id &&
+				entry->pid == pid) {
+				pr_cas_dbg("found same, return\n");
+				return 0;
+			}
+		}
+	}
+	list_for_each_entry_safe(entry, tmp, &cas_dsc_head, node) {
+		if (entry->dmx_id == dmx_id &&
+			entry->dsc_ch_id == dsc_ch_id) {
+			if (key_ready == 1) {
+				entry->key_ready = key_ready;
+				pid = entry->pid;
+			} else {
+				entry->pid = pid;
+			}
+			found = 1;
+			break;
+		}
+	}
+	pr_cas_dbg("found:%d\n", found);
+	if (!found) {
+		node1 = kmalloc(sizeof(*node1), GFP_KERNEL);
+		if (!node1) {
+			dprint("%s kmalloc fail\n", __func__);
+			return -ENOMEM;
+		}
+		memset(node1, 0, sizeof(struct cas_dsc));
+		node1->dmx_id = dmx_id;
+		node1->dsc_ch_id = dsc_ch_id;
+		node1->key_ready = key_ready;
+		node1->pid = pid;
+		INIT_LIST_HEAD(&node1->node);
+		list_add_tail(&node1->node, &cas_dsc_head);
+	} else {
+		_cas_filter_enable(dmx_id, pid, 1);
+	}
+	return 0;
+}
+
+int ts_output_cas_dsc_remove(int dmx_id, unsigned int dsc_ch_id, int pid)
+{
+	struct cas_dsc *entry = NULL;
+	struct cas_dsc *tmp = NULL;
+
+	if (s_cas_check_sync == 0)
+		return 0;
+
+	pr_cas_dbg("%s dmx:%d dsc:%d pid:0x%0x\n",
+		__func__, dmx_id, dsc_ch_id, pid);
+	list_for_each_entry_safe(entry, tmp, &cas_dsc_head, node) {
+		if (entry->dmx_id == dmx_id &&
+			entry->dsc_ch_id == dsc_ch_id) {
+			list_del(&entry->node);
+			kfree(entry);
+		}
+	}
+
+	_cas_filter_enable(dmx_id, pid, 0);
+	return 0;
+}
+
+int ts_output_dump_cas_sync(char *buf)
+{
+	int r, total = 0;
+	struct cas_dsc *entry = NULL;
+	struct cas_dsc *tmp = NULL;
+	struct cas_filter *entry1 = NULL;
+	struct cas_filter *tmp1 = NULL;
+
+	r = sprintf(buf, "********cas_chn ********\n");
+	buf += r;
+	total += r;
+
+	list_for_each_entry_safe(entry, tmp, &cas_dsc_head, node) {
+		r = sprintf(buf, "dmx:%d pid:0x%0x dsc_id:%d, key_ready:%d\n",
+				entry->dmx_id, entry->pid, entry->dsc_ch_id, entry->key_ready);
+		buf += r;
+		total += r;
+	}
+	r = sprintf(buf, "********cas_filter ********\n");
+	buf += r;
+	total += r;
+
+	list_for_each_entry_safe(entry1, tmp1, &cas_filter_head, node) {
+		r = sprintf(buf, "dmx:%d pid:0x%0x pout:%p enable:%d\n",
+				entry1->dmx_id, entry1->pid, entry1->pout, entry1->enable);
+		buf += r;
+		total += r;
 	}
 	return total;
 }

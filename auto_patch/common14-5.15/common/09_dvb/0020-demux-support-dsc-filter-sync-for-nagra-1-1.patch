@@ -1,0 +1,38 @@
+From 4e5f57a5e054d3f119496d77e4e9374f0ba5ee72 Mon Sep 17 00:00:00 2001
+From: "chuangcheng.peng" <chuangcheng.peng@amlogic.com>
+Date: Tue, 4 Nov 2025 09:26:26 +0800
+Subject: [PATCH] demux: support dsc & filter sync for nagra [1/1]
+
+PD#SWPL-235063
+
+Problem:
+data with secure level not match with memory secure level will cause
+demux hang
+
+Solution:
+dsc include pipeline and key ready, then start get data.
+
+Verify:
+verified at C5
+
+Change-Id: Ic57868a07d848841694e202f6e7c2effa0986cce
+Signed-off-by: chuangcheng.peng <chuangcheng.peng@amlogic.com>
+---
+ include/uapi/linux/dvb/aml_dmx_ext.h | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/include/uapi/linux/dvb/aml_dmx_ext.h b/include/uapi/linux/dvb/aml_dmx_ext.h
+index 200e6d5de9818..c561eaec42b18 100644
+--- a/include/uapi/linux/dvb/aml_dmx_ext.h
++++ b/include/uapi/linux/dvb/aml_dmx_ext.h
+@@ -198,6 +198,7 @@ struct decoder_mem_info {
+ /*for set command to dmx*/
+ #define DMX_CLEAR_CACHE		0
+ #define DMX_FILTER_HW_MEM_SIZE		1
++#define DMX_FILTER_KEY_READY        2
+ /*format*/
+ enum dmx_filter_format {
+ 	FORMAT_ES = 1,
+-- 
+2.47.0
+

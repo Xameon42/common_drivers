@@ -164,6 +164,7 @@ static int timer_cache_clear_wake_up;
 static wait_queue_head_t cache_clear_wait_queue;
 static struct timer_list cache_timer;
 static struct task_struct *cache_clear_task;
+static int cas_check_sync_enable;
 
 static int out_ts_elem_cb(struct out_elem *pout,
 			  char *buf, int count, void *udata,
@@ -2548,6 +2549,7 @@ static int _dmx_set_command(struct dmx_demux *dmx, void *v_info)
 	int format;
 	int pid;
 	int mem_size;
+	unsigned int chan_id;
 
 	if (mutex_lock_interruptible(demux->pmutex))
 		return -ERESTARTSYS;
@@ -2572,6 +2574,9 @@ static int _dmx_set_command(struct dmx_demux *dmx, void *v_info)
 		}
 		pr_dbg("%s dmx%d HW_MEM_SIZE, pid:%d, mem size:0x%0x ret:%d\n",
 			__func__, demux->id, pid, mem_size, ret);
+	} else if (info->command == DMX_FILTER_KEY_READY) {
+		chan_id = info->reserved0;
+		ts_output_cas_dsc_add(demux->id, chan_id, -1, 1);
 	} else {
 		pr_dbg("%s dmx%d fail\n",
 			__func__, demux->id);
@@ -3748,6 +3753,40 @@ static ssize_t adjust_mem_store(struct class *class,
 	return size;
 }
 
+static ssize_t cas_check_sync_show(struct class *class,
+				struct class_attribute *attr, char *buf)
+{
+	int ret = 0;
+	int size = 0;
+	struct aml_dvb *advb = aml_get_dvb_device();
+
+	if (mutex_lock_interruptible(&advb->mutex))
+		return -ERESTARTSYS;
+	ret = sprintf(buf, "cas_check_sync %d\n", cas_check_sync_enable);
+	size = ts_output_dump_cas_sync(buf + ret);
+	mutex_unlock(&advb->mutex);
+	return ret + size;
+}
+
+static ssize_t cas_check_sync_store(struct class *class,
+				 struct class_attribute *attr,
+				 const char *buf, size_t size)
+{
+	struct aml_dvb *advb = aml_get_dvb_device();
+
+	if (kstrtoint(buf, 0, &cas_check_sync_enable)) {
+		dprint_i("cas_check_sync_enable set error\n");
+		cas_check_sync_enable = 0;
+		return size;
+	}
+	dprint("cas_check_sync_enable is %d\n", cas_check_sync_enable);
+	if (mutex_lock_interruptible(&advb->mutex))
+		return -ERESTARTSYS;
+	ts_output_cas_sync_enable(cas_check_sync_enable);
+	mutex_unlock(&advb->mutex);
+	return size;
+}
+
 #ifdef OPEN_REGISTER_NODE
 static CLASS_ATTR_RW(register_addr);
 static CLASS_ATTR_RW(register_value);
@@ -3761,6 +3800,7 @@ static CLASS_ATTR_RW(ts_clone);
 static CLASS_ATTR_RW(dump_ringbuffer);
 static CLASS_ATTR_RW(adjust_mem);
 static CLASS_ATTR_RW(alp_tlv);
+static CLASS_ATTR_RW(cas_check_sync);
 
 static struct attribute *aml_dmx_class_attrs[] = {
 #ifdef OPEN_REGISTER_NODE
@@ -3776,6 +3816,7 @@ static struct attribute *aml_dmx_class_attrs[] = {
 	&class_attr_dump_ringbuffer.attr,
 	&class_attr_adjust_mem.attr,
 	&class_attr_alp_tlv.attr,
+	&class_attr_cas_check_sync.attr,
 	NULL
 };
 

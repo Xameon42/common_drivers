@@ -333,6 +333,7 @@ static void _dsc_chan_free(struct dsc_channel *ch, struct file *file)
 		pr_dbg("not same file, don't operate\n");
 		return;
 	}
+	ts_output_cas_dsc_remove(dsc->id, ch->id, ch->pid);
 	_remove_chan_from_list(dsc, ch);
 
 	_free_dsc_table_index(ch->index, ch->dsc_type);
@@ -687,7 +688,6 @@ static int handle_desc_ext(struct aml_dsc *dsc, struct file *file, struct ca_sc2
 						 d->params.free_params.ca_index);
 			if (ch)
 				_dsc_chan_free(ch, NULL);
-
 			ret = 0;
 		}
 		break;
@@ -706,6 +706,7 @@ static int handle_desc_ext(struct aml_dsc *dsc, struct file *file, struct ca_sc2
 				ret = _dsc_chan_set_key(ch,
 							d->params.key_params.parity,
 							d->params.key_params.key_index);
+				ts_output_cas_dsc_add(dsc->id, ch->id, ch->pid, -1);
 			}
 		}
 		break;

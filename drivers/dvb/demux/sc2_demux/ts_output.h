@@ -208,4 +208,9 @@ int ts_output_get_wp(struct out_elem *pout, unsigned int *wp);
 int ts_output_get_meminfo(struct out_elem *pout, unsigned int *size,
 	unsigned long *mem, unsigned long *mem_phy);
 int ts_output_dump_clone_info(char *buf);
+/*just for cas dsc channel & filter sync*/
+int ts_output_cas_sync_enable(int enable);
+int ts_output_cas_dsc_add(int dmx_id, unsigned int dsc_ch_id, int pid, int key_ready);
+int ts_output_cas_dsc_remove(int dmx_id, unsigned int dsc_ch_id, int pid);
+int ts_output_dump_cas_sync(char *buf);
 #endif
