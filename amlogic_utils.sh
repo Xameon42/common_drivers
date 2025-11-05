@@ -1880,6 +1880,7 @@ function set_default_parameters_for_32bit () {
 	tool_args+=("DEPMOD=depmod")
 	tool_args+=("KCONFIG_EXT_MODULES_PREFIX=${KCONFIG_EXT_MODULES_PREFIX}")
 	tool_args+=("KCONFIG_EXT_PREFIX=${KCONFIG_EXT_PREFIX}")
+	tool_args+=("KCFLAGS=-D__ANDROID_COMMON_KERNEL__")
 	TOOL_ARGS="${tool_args[@]}"
 
 	mkdir -p ${OUT_DIR}
