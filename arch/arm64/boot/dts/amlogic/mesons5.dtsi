@@ -66,7 +66,11 @@
 				"dsu_clk",
 				"dsu_pre_parent",
 				"dsu_pre_parent2";
-			operating-points-v2 = <&a55_opp_table0>;
+			multi_tables_available;
+			operating-points-v2 = <&a55_opp_table0>,
+				<&a55_opp_table1>,
+				<&a55_opp_table2>,
+				<&a55_opp_table3>;
 			voltage-tolerance = <0>;
 			clock-latency = <50000>;
 			capacity-dmips-mhz = <512>;
