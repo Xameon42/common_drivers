@@ -33,6 +33,26 @@
 #include "sc2_control.h"
 #include "../dmx_log.h"
 
+/*
+ *Bit 0        cfg_ts_mpeg                    RW       default = 'h0
+ *Bit 1        cfg_ts_like                    RW       default = 'h0
+ *Bit 2        cfg_ts_null                    RW       default = 'h1
+ *Bit 3:7      rsvd_0                         RW       default = 'h0
+ *Bit 8:20     cfg_ts_like_pid                RW       default = 'h2d
+ *Bit 21:31    rsvd_1                         RW       default = 'h0
+ */
+union ALP_CFG_FIELD {
+	unsigned int data;
+	struct {
+		unsigned int cfg_ts_mpeg:1;
+		unsigned int cfg_ts_like:1;
+		unsigned int cfg_ts_null:1;
+		unsigned int rsvd_0:5;
+		unsigned int cfg_ts_like_pid:13;
+		unsigned int rsvd_1:11;
+	} b;
+};
+
 #define TSIN_NUM		4
 
 #define dprint_i(fmt, args...)  \
@@ -208,7 +228,9 @@ static void set_dvb_ts(struct platform_device *pdev,
 		enable_tsinb_clk = 1;
 	}
 
-	if (i == 3 && get_cpu_type() == MESON_CPU_MAJOR_ID_T3X)
+	if (i == 3 &&
+		(get_cpu_type() == MESON_CPU_MAJOR_ID_T3X ||
+		get_cpu_type() == MESON_CPU_MAJOR_ID_S6))
 		demod_config_tsin_clk(3, 0);
 
 	if (IS_ERR_OR_NULL(advb->ts[i].pinctrl))
@@ -351,4 +373,116 @@ int frontend_control_tsin_clk(int state)
 			demod_config_tsinb_clk(0);
 	}
 	return 0;
+}
+
+int alp_tlv_probe(struct platform_device *pdev)
+{
+	char buf[32];
+	int ret;
+	u32 used = 0;
+	union ALP_CFG_FIELD data;
+	int i;
+
+	if (get_dmx_version() < 6)
+		return 0;
+
+	for (i = 0; i < TSIN_NUM; i++) {
+		memset(buf, 0, 32);
+		used = 0;
+		snprintf(buf, sizeof(buf), "alp_tlv%d", i);
+		ret = of_property_read_u32(pdev->dev.of_node, buf, &used);
+		if (!ret && used == 0) {
+			continue;
+		} else {
+			if (i == 0 || i == 2) {
+				pr_dbg("alp_tlv not support\n");
+				return 0;
+			}
+			if (i == 1)
+				dprint("alp_tlv enable at tsinB\n");
+			else
+				dprint("alp_tlv enable at tsinD\n");
+			data.data = alp_tlv_get_config(i);
+			data.b.cfg_ts_like = 1;
+			alp_tlv_set_config(i, data.data);
+		}
+	}
+	return 0;
+}
+
+ssize_t alp_tlv_show(struct class *class,
+			struct class_attribute *attr, char *buf)
+{
+	int r, total = 0;
+	union ALP_CFG_FIELD data;
+
+	if (get_dmx_version() < 6) {
+		r = sprintf(buf, "this chip not support alp/tlv\n");
+		buf += r;
+		total += r;
+		return total;
+	}
+	/*APL1*/
+	data.data = 0;
+	data.data = alp_tlv_get_config(1);
+	r = sprintf(buf, "tsinb pid:0x%0x ts null:%d ",
+		data.b.cfg_ts_like_pid, data.b.cfg_ts_null);
+	buf += r;
+	total += r;
+	r = sprintf(buf, "ts like:%d ts mpeg:%d\n",
+		data.b.cfg_ts_like, data.b.cfg_ts_mpeg);
+	buf += r;
+	total += r;
+
+	/*APL3*/
+	data.data = 0;
+	data.data = alp_tlv_get_config(3);
+	r = sprintf(buf, "tsind pid:0x%0x ts null:%d ",
+		data.b.cfg_ts_like_pid, data.b.cfg_ts_null);
+	buf += r;
+	total += r;
+	r = sprintf(buf, "ts like:%d ts mpeg:%d\n",
+		data.b.cfg_ts_like, data.b.cfg_ts_mpeg);
+	buf += r;
+	total += r;
+
+	return total;
+}
+
+ssize_t alp_tlv_store(struct class *class,
+			 struct class_attribute *attr,
+			 const char *buf, size_t count)
+{
+	int id, ctrl, r;
+	char mname[32];
+	union ALP_CFG_FIELD data;
+
+	r = sscanf(buf, "%d %s %x", &id, mname, &ctrl);
+	if (r != 3)
+		goto error_hint;
+
+	if (id == 0 || id == 2)
+		goto error_hint;
+
+	data.data = 0;
+	data.data = alp_tlv_get_config(id);
+	if (strcmp(mname, "pid") == 0)
+		data.b.cfg_ts_like_pid = ctrl;
+	else if (strcmp(mname, "ts_null") == 0)
+		data.b.cfg_ts_null = ctrl;
+	else if (strcmp(mname, "ts_like") == 0)
+		data.b.cfg_ts_like = ctrl;
+	else if (strcmp(mname, "ts_mpeg") == 0)
+		data.b.cfg_ts_mpeg = ctrl;
+	else
+		goto error_hint;
+
+	alp_tlv_set_config(id, data.data);
+	return count;
+error_hint:
+	dprint("1/3 pid xx\n");
+	dprint("1/3 ts_null xx\n");
+	dprint("1/3 ts_like xx\n");
+	dprint("1/3 ts_mpeg xx\n");
+	return -EINVAL;
 }

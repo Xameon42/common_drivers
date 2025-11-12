@@ -1,0 +1,85 @@
+From 469d5b2155686eca9bea020fae20538fbdef3c0b Mon Sep 17 00:00:00 2001
+From: "chuangcheng.peng" <chuangcheng.peng@amlogic.com>
+Date: Fri, 17 May 2024 15:16:11 +0800
+Subject: [PATCH] demux: provide ioctl to clear dmx cache [2/2]
+
+PD#SWPL-169716
+
+Problem:
+provide ioctl to clear dmx cache
+
+Solution:
+provide ioctl to clear dmx cache
+
+Verify:
+verified at T5W
+
+Change-Id: I3968204db100248664c2944ed893c959bef4618a
+Signed-off-by: chuangcheng.peng <chuangcheng.peng@amlogic.com>
+---
+ drivers/media/dvb-core/dmxdev.c      | 7 +++++++
+ include/media/aml_demux_ext.h        | 2 ++
+ include/uapi/linux/dvb/aml_dmx_ext.h | 9 +++++++++
+ 3 files changed, 18 insertions(+)
+
+diff --git a/drivers/media/dvb-core/dmxdev.c b/drivers/media/dvb-core/dmxdev.c
+index db09405b3581..8b09fba8ea5e 100644
+--- a/drivers/media/dvb-core/dmxdev.c
++++ b/drivers/media/dvb-core/dmxdev.c
+@@ -1225,6 +1225,13 @@ static int dvb_demux_do_ioctl(struct file *file,
+ 		}
+ 		ret = dmx_ext->decode_info(dmxdev->demux, parg);
+ 		break;
++	case DMX_SET_COMMAND:
++		if (!dmx_ext->dmx_set_command) {
++			ret = -EINVAL;
++			break;
++		}
++		ret = dmx_ext->dmx_set_command(dmxdev->demux, parg);
++		break;
+ #endif
+ 
+ 	case DMX_ADD_PID:
+diff --git a/include/media/aml_demux_ext.h b/include/media/aml_demux_ext.h
+index 971d61e11324..85c7bd8ceec9 100644
+--- a/include/media/aml_demux_ext.h
++++ b/include/media/aml_demux_ext.h
+@@ -30,6 +30,8 @@ struct dmx_demux_ext {
+ 			u16 pids[2]);
+ 	int (*decode_info)(struct dmx_demux *demux,
+ 		void *info);
++	int (*dmx_set_command)(struct dmx_demux *demux,
++		void *info);
+ };
+ 
+ #endif
+diff --git a/include/uapi/linux/dvb/aml_dmx_ext.h b/include/uapi/linux/dvb/aml_dmx_ext.h
+index 9f32428478ab..f78e1caa7641 100644
+--- a/include/uapi/linux/dvb/aml_dmx_ext.h
++++ b/include/uapi/linux/dvb/aml_dmx_ext.h
+@@ -197,6 +197,14 @@ struct decoder_mem_info {
+ 	__u32 rp_phy;
+ };
+ 
++/*for set command to dmx*/
++#define DMX_CLEAR_CACHE		0
++
++struct dmx_set_command_info {
++	__u32 command;
++	__u32 reserved0;
++	__u32 reserved1;
++};
+ /* amlogic define end */
+ 
+ /* amlogic define */
+@@ -210,6 +218,7 @@ struct decoder_mem_info {
+ #define DMX_GET_DVR_MEM			_IOR('o', 86, struct dvr_mem_info)
+ #define DMX_REMAP_PID			_IOR('o', 87, __u16[2])
+ #define DMX_SET_DECODE_INFO     _IOW('o', 88, struct decoder_mem_info)
++#define DMX_SET_COMMAND			_IOW('o', 89, struct dmx_set_command_info)
+ /* amlogic define end */
+ 
+ #endif
+-- 
+2.43.2
+

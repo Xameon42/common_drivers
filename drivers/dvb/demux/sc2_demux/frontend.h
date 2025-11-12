@@ -17,5 +17,11 @@ ssize_t ts_setting_show(struct class *class,
 ssize_t ts_setting_store(struct class *class,
 			 struct class_attribute *attr,
 			 const char *buf, size_t count);
-
+/*add alp/tlv interface*/
+int alp_tlv_probe(struct platform_device *pdev);
+ssize_t alp_tlv_show(struct class *class,
+			struct class_attribute *attr, char *buf);
+ssize_t alp_tlv_store(struct class *class,
+			 struct class_attribute *attr,
+			 const char *buf, size_t count);
 #endif

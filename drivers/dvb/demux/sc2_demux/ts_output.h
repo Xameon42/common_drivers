@@ -83,6 +83,7 @@ int ts_output_set_pcr(int sid, int pcrpid, int pcr_num);
 int ts_output_get_pcr(int pcr_num, uint64_t *pcr);
 
 struct out_elem *ts_output_find_same_section_pid(int sid, int pid);
+struct out_elem *ts_output_find_same_pes_pid(int sid, int pid);
 
 /**
  * open one output pipeline
@@ -97,7 +98,7 @@ struct out_elem *ts_output_find_same_section_pid(int sid, int pid);
  */
 struct out_elem *ts_output_open(int sid, u8 dmx_id, u8 format,
 				enum content_type type, int media_type,
-				int output_mode);
+				int output_mode, int support_64bits);
 
 /**
  * close openned index
@@ -142,11 +143,11 @@ int ts_output_set_mem(struct out_elem *pout, int memsize,
 	int sec_level, int pts_memsize, int pts_level);
 
 int ts_output_set_sec_mem(struct out_elem *pout,
-	unsigned int buf, unsigned int size);
+	__u64 buf, unsigned int size);
 
 int ts_output_get_mem_info(struct out_elem *pout,
 			   unsigned int *total_size,
-			   unsigned int *buf_phy_start,
+			   __u64 *buf_phy_start,
 			   unsigned int *free_size, unsigned int *wp_offset,
 			   __u64 *newest_pts);
 
@@ -192,7 +193,7 @@ int ts_output_sid_debug(void);
 int ts_output_dump_info(char *buf);
 int ts_output_update_filter(int dmx_no, int sid);
 
-int ts_output_set_decode_info(int sid, struct decoder_mem_info *info);
+int ts_output_set_decode_info(int sid, struct decoder_mem_info_64bits *info);
 int ts_output_check_flow_control(int sid, int percentage);
 int ts_output_add_temi_pid(struct out_elem *pout, int pid, int dmx_id,
 						int *cb_id, int *index, int type);

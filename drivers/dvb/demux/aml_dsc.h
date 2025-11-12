@@ -23,7 +23,7 @@ struct aml_dsc {
 
 	struct dsc_channel *dsc_channels;
 	/*protect many user operate*/
-	struct mutex mutex;
+	struct mutex *pmutex;
 //	spinlock_t slock;
 };
 

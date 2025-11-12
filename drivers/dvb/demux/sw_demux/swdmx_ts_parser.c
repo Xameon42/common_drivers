@@ -11,7 +11,8 @@ struct swdmx_ts_parser *swdmx_ts_parser_new(void)
 
 	tsp = swdmx_malloc(sizeof(struct swdmx_ts_parser));
 	SWDMX_ASSERT(tsp);
-
+	if (!tsp)
+		return NULL;
 	tsp->packet_size = 188;
 
 	swdmx_list_init(&tsp->cb_list);
@@ -22,7 +23,8 @@ struct swdmx_ts_parser *swdmx_ts_parser_new(void)
 int swdmx_ts_parser_set_packet_size(struct swdmx_ts_parser *tsp, int size)
 {
 	SWDMX_ASSERT(tsp);
-
+	if (!tsp)
+		return SWDMX_ERR;
 	if (size < 188) {
 		swdmx_log("packet size should >= 188");
 		return SWDMX_ERR;
@@ -38,7 +40,8 @@ swdmx_ts_parser_add_ts_packet_cb(struct swdmx_ts_parser *tsp,
 				 swdmx_tspacket_cb cb, void *data)
 {
 	SWDMX_ASSERT(tsp && cb);
-
+	if (!(tsp && cb))
+		return SWDMX_ERR;
 	swdmx_cb_list_add(&tsp->cb_list, cb, data);
 
 	return SWDMX_OK;
@@ -49,6 +52,8 @@ swdmx_ts_parser_remove_ts_packet_cb(struct swdmx_ts_parser *tsp,
 				    swdmx_tspacket_cb cb, void *data)
 {
 	SWDMX_ASSERT(tsp && cb);
+	if (!(tsp && cb))
+		return SWDMX_ERR;
 
 	swdmx_cb_list_remove(&tsp->cb_list, cb, data);
 
@@ -121,6 +126,8 @@ int swdmx_ts_parser_run(struct swdmx_ts_parser *tsp, u8 *data, int len)
 	int left = len;
 
 	SWDMX_ASSERT(tsp && data);
+	if (!(tsp && data))
+		return 0;
 
 	while (left >= tsp->packet_size) {
 		if (*p == 0x47) {
@@ -140,7 +147,8 @@ int swdmx_ts_parser_run(struct swdmx_ts_parser *tsp, u8 *data, int len)
 void swdmx_ts_parser_free(struct swdmx_ts_parser *tsp)
 {
 	SWDMX_ASSERT(tsp);
-
+	if (!tsp)
+		return;
 	swdmx_cb_list_clear(&tsp->cb_list);
 	swdmx_free(tsp);
 }

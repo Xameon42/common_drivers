@@ -23,6 +23,7 @@
 #include <linux/spinlock.h>
 #include <linux/string.h>
 #include <linux/of.h>
+#include <linux/pinctrl/consumer.h>
 #include <linux/amlogic/tee.h>
 #include <linux/amlogic/tee_demux.h>
 #include <linux/amlogic/cpu_version.h>
@@ -201,8 +202,15 @@ unsigned int get_dmx_version(void)
 {
 	unsigned int value;
 
-	value = (unsigned int)aml_read_self(0x2c04);
-	return value >> 16;
+	// set demux version to 6
+	if (get_cpu_type() == MESON_CPU_MAJOR_ID_S6) {
+		value = 6;
+	} else {
+		value = (unsigned int)aml_read_self(0x2c04);
+		value = value >> 16;
+	}
+
+	return value;
 }
 
 static ssize_t get_chip_version(char *buf)
@@ -226,7 +234,6 @@ static ssize_t get_chip_version(char *buf)
 		total = sprintf(buf, "chip:%x-%x, dmx:%d\n", cpu_type, minor_type, version);
 
 	pr_dbg("version:%s", buf);
-
 	return total;
 }
 
@@ -892,7 +899,7 @@ static int aml_dvb_probe(struct platform_device *pdev)
 		if (ret)
 			goto INIT_ERR;
 
-		advb->dsc[i]->mutex = advb->mutex;
+		advb->dsc[i]->pmutex = &advb->mutex;
 //              advb->dsc[i].slock = advb->slock;
 		advb->dsc[i]->id = i;
 		advb->dsc[i]->sid = advb->dmx[i]->sid;
@@ -903,9 +910,11 @@ static int aml_dvb_probe(struct platform_device *pdev)
 	}
 	frontend_config_ts_sid();
 
-	class_register(&aml_stb_class);
+	if (class_register(&aml_stb_class) < 0)
+		goto INIT_ERR;
 	dmx_regist_dmx_class();
 	ts_clone_probe(pdev);
+	alp_tlv_probe(pdev);
 #ifdef CONFIG_AMLOGIC_MEDIA_FRAME_SYNC
 	register_tsync_callbackfunc(TSYNC_AMLDMX_PCR_GET, demux_get_pcr);
 #endif
@@ -986,6 +995,60 @@ static void aml_dvb_shutdown(struct platform_device *dev)
 	frontend_control_tsin_clk(0);
 }
 
+#ifdef CONFIG_HIBERNATION
+static int aml_dvb_restore(struct platform_device *pdev)
+{
+	int tsn_in_reg = 0;
+	int times = 0;
+	struct aml_dvb *advb = aml_get_dvb_device();
+
+	pr_dbg("restore amlogic dvb driver [%s].\n", DVB_VERSION);
+	do {
+	} while (!tsout_get_ready() && times++ < 20);
+
+	frontend_probe(pdev);
+	if (tsn_in == INPUT_DEMOD)
+		tsn_in_reg = 1;
+
+	//set demod/local
+	demux_config_pipeline(tsn_in_reg, tsn_out);
+	frontend_config_ts_sid();
+	if (advb->ts_clone) {
+		if (cpu_type == MESON_CPU_MAJOR_ID_SC2) {
+			if (minor_type == 0xd)
+				tsn_source_force_set(INPUT_LOCAL);
+		} else {
+			tsn_source_force_set(INPUT_DEMOD);
+		}
+	}
+	pr_dbg("restore dvb done\n");
+	return 0;
+}
+
+static int aml_dvb_platform_freeze(struct device *dev)
+{
+	struct pinctrl *pin;
+
+	pin = devm_pinctrl_get_select(dev, "sleep");
+	dprint("dvb freeze\n");
+	return 0;
+}
+
+static int aml_dvb_platform_restore(struct device *dev)
+{
+	struct platform_device *pdev = to_platform_device(dev);
+
+	aml_dvb_restore(pdev);
+	dprint("dvb restore\n");
+	return 0;
+}
+
+static const struct dev_pm_ops aml_dvb_pm_ops = {
+	.freeze = aml_dvb_platform_freeze,
+	.restore = aml_dvb_platform_restore,
+};
+#endif
+
 struct platform_driver aml_dvb_driver = {
 	.probe = aml_dvb_probe,
 	.remove = aml_dvb_remove,
@@ -997,6 +1060,9 @@ struct platform_driver aml_dvb_driver = {
 		   .owner = THIS_MODULE,
 #ifdef CONFIG_OF
 		   .of_match_table = aml_dvb_dt_match,
+#endif
+#ifdef CONFIG_HIBERNATION
+		.pm = &aml_dvb_pm_ops,
 #endif
 	}
 };

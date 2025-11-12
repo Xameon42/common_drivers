@@ -109,6 +109,9 @@ struct in_elem *ts_input_open(int id)
  */
 int ts_input_close(struct in_elem *elem)
 {
+	if (!elem)
+		return -1;
+
 	pr_dbg("%s id:%d\n", __func__, elem->id);
 	if (elem && elem->pchan)
 		SC2_bufferid_dealloc(elem->pchan);

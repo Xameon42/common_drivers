@@ -10,9 +10,12 @@ void swdmx_cb_list_add(struct swdmx_list *l, void *cb, void *data)
 	struct swdmx_cb_entry *ent;
 
 	SWDMX_ASSERT(l && cb);
-
+	if (!(l && cb))
+		return;
 	ent = swdmx_malloc(sizeof(struct swdmx_cb_entry));
 	SWDMX_ASSERT(ent);
+	if (!ent)
+		return;
 
 	ent->cb = cb;
 	ent->data = data;

@@ -84,6 +84,7 @@ void tsout_config_pcr_table(u32 pcr_entry, u32 pcr_pid, u32 sid);
 void tsout_config_temi_table(u32 temi_entry, u32 pcr_pid, u32 sid, u32 buffer_id, u32 status);
 int tsout_config_get_pcr(u32 pcr_entry, u64 *pcr);
 void tsout_config_remap_table(u32 pid_entry, u32 sid, int pid, int pid_new);
+int tsout_read_es_table(u32 es_entry, u32 *preset);
 
 /*****************************************************/
 /*****************************************************/
@@ -161,4 +162,6 @@ void demod_config_tsinb_clk(u8 v);
 /*****************************************************/
 /*****************************************************/
 void sc2_dump_register(void);
+unsigned int alp_tlv_get_config(int tsin);
+void alp_tlv_set_config(int tsin, unsigned int value);
 #endif

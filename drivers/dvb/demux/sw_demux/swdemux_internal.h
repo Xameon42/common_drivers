@@ -109,7 +109,8 @@ struct swdmx_secfilter {
 	struct swdmx_list             cb_list;    /**< Callback list.*/
 };
 
-#define SWDMX_ASSERT(a)   do {} while (!(a))
+//#define SWDMX_ASSERT(a)   do {} while (!(a))
+#define SWDMX_ASSERT(a)   do {} while (0)
 #define SWDMX_PTR2SIZE(p) ((size_t)(p))
 #define SWDMX_SIZE2PTR(s) ((void *)(size_t)(s))
 #define SWDMX_OFFSETOF(s, m)\

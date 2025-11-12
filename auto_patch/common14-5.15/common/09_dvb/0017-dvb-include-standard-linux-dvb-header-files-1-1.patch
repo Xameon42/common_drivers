@@ -1,0 +1,75 @@
+From 968799b45aa94c969dd436f8cfab164fb87a0977 Mon Sep 17 00:00:00 2001
+From: "jing.li1" <jing.li1@amlogic.com>
+Date: Tue, 27 May 2025 15:45:45 +0800
+Subject: [PATCH] dvb: include standard linux dvb header files [1/1]
+
+PD#SWPL-215766
+
+Problem:
+not support standard linux dvb header files
+
+Solution:
+include standard linux dvb header files
+
+Verify:
+t6w
+
+Change-Id: Iec2f9ed3c170008b7b03c978e1b4a3978e39fe0e
+Signed-off-by: jing.li1 <jing.li1@amlogic.com>
+---
+ include/uapi/linux/dvb/aml_ca_ext.h  | 4 ----
+ include/uapi/linux/dvb/aml_dmx_ext.h | 4 ----
+ include/uapi/linux/dvb/aml_fe_ext.h  | 4 ----
+ 3 files changed, 12 deletions(-)
+
+diff --git a/include/uapi/linux/dvb/aml_ca_ext.h b/include/uapi/linux/dvb/aml_ca_ext.h
+index 9940f717bd90..2c8a99d9d92e 100644
+--- a/include/uapi/linux/dvb/aml_ca_ext.h
++++ b/include/uapi/linux/dvb/aml_ca_ext.h
+@@ -7,11 +7,7 @@
+ #ifndef _AML_CA_EXIT_H_
+ #define _AML_CA_EXIT_H_
+ 
+-#ifdef __KERNEL__
+ #include <linux/dvb/ca.h>
+-#else
+-#include "ca.h"
+-#endif
+ 
+ /* amlogic define */
+ /* CW type. */
+diff --git a/include/uapi/linux/dvb/aml_dmx_ext.h b/include/uapi/linux/dvb/aml_dmx_ext.h
+index 7487416289e0..465622c3bdb9 100644
+--- a/include/uapi/linux/dvb/aml_dmx_ext.h
++++ b/include/uapi/linux/dvb/aml_dmx_ext.h
+@@ -6,11 +6,7 @@
+ #ifndef _UAPI_AML_DVBDMX_EXT_H_
+ #define _UAPI_AML_DVBDMX_EXT_H_
+ 
+-#ifdef __KERNEL__
+ #include <linux/dvb/dmx.h>
+-#else
+-#include "dmx.h"
+-#endif
+ 
+ /* amlogic define */
+ #define DMX_USE_SWFILTER    0x100
+diff --git a/include/uapi/linux/dvb/aml_fe_ext.h b/include/uapi/linux/dvb/aml_fe_ext.h
+index 5c91181afb4b..99de749de313 100644
+--- a/include/uapi/linux/dvb/aml_fe_ext.h
++++ b/include/uapi/linux/dvb/aml_fe_ext.h
+@@ -10,11 +10,7 @@
+ 
+ #include <linux/videodev2.h>
+ 
+-#ifdef __KERNEL__
+ #include <linux/dvb/frontend.h>
+-#else
+-#include "frontend.h"
+-#endif
+ 
+ #define FE_ANALOG		(FE_ATSC + 1)
+ #define FE_DTMB			(FE_ANALOG + 1)
+-- 
+2.47.0
+

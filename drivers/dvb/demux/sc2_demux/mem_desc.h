@@ -43,7 +43,7 @@ struct chan_id {
 	unsigned int last_w_addr;
 
 	/*just for DVR sec direct mem*/
-	unsigned int sec_mem;
+	u64 sec_mem;
 	unsigned int sec_size;
 	int format;
 };
@@ -109,7 +109,7 @@ int SC2_bufferid_set_mem(struct chan_id *pchan,
  * \retval -1:fail.
  */
 int SC2_bufferid_set_sec_mem(struct chan_id *pchan,
-			 unsigned int sec_mem, unsigned int sec_size);
+			 u64 sec_mem, unsigned int sec_size);
 
 /**
  * set enable

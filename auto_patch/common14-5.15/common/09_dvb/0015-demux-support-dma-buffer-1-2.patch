@@ -1,0 +1,116 @@
+From 0d622d84be4e501f37bb4d1587f67b74c6cc2441 Mon Sep 17 00:00:00 2001
+From: "jing.li1" <jing.li1@amlogic.com>
+Date: Mon, 2 Sep 2024 15:54:53 +0800
+Subject: [PATCH] Demux: Demux support dma buffer [1/2]
+
+PD#SWPL-177903
+
+Problem:
+Demux driver needs to manage secure es data with dma buffer
+
+Solution:
+Update demux driver to support dma buffer
+
+Verify:
+Verified on bl201
+
+Change-Id: I9e721bb33fc4ea08598e62fe124e8af4ca2074f0
+Signed-off-by: jing.li1 <jing.li1@amlogic.com>
+---
+ drivers/media/dvb-core/dmxdev.c      | 14 +++++++++++++
+ include/media/aml_demux_ext.h        |  4 ++++
+ include/uapi/linux/dvb/aml_dmx_ext.h | 30 +++++++++++++++++++++++++++-
+ 3 files changed, 47 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/media/dvb-core/dmxdev.c b/drivers/media/dvb-core/dmxdev.c
+index 8b09fba8ea5e..0708c70e0baa 100644
+--- a/drivers/media/dvb-core/dmxdev.c
++++ b/drivers/media/dvb-core/dmxdev.c
+@@ -1232,6 +1232,20 @@ static int dvb_demux_do_ioctl(struct file *file,
+ 		}
+ 		ret = dmx_ext->dmx_set_command(dmxdev->demux, parg);
+ 		break;
++	case DMX_GET_DMA_BUF_FD:
++		if (!dmx_ext->get_dma_buf_fd) {
++			ret = -EINVAL;
++			break;
++		}
++		ret = dmx_ext->get_dma_buf_fd(dmxdev->demux, parg);
++		break;
++	case DMX_GET_DMA_BUF_INFO:
++		if (!dmx_ext->get_dma_buf_info) {
++			ret = -EINVAL;
++			break;
++		}
++		ret = dmx_ext->get_dma_buf_info(dmxdev->demux, parg);
++		break;
+ #endif
+ 
+ 	case DMX_ADD_PID:
+diff --git a/include/media/aml_demux_ext.h b/include/media/aml_demux_ext.h
+index 8198245e50f6..d5c8b3e28907 100644
+--- a/include/media/aml_demux_ext.h
++++ b/include/media/aml_demux_ext.h
+@@ -36,6 +36,10 @@ struct dmx_demux_ext {
+ 		void *info);
+ 	int (*dmx_set_command)(struct dmx_demux *demux,
+ 		void *info);
++	int (*get_dma_buf_fd)(struct dmx_demux *demux,
++		void *info);
++	int (*get_dma_buf_info)(struct dmx_demux *demux,
++		void *info);
+ };
+ 
+ #endif
+diff --git a/include/uapi/linux/dvb/aml_dmx_ext.h b/include/uapi/linux/dvb/aml_dmx_ext.h
+index f78e1caa7641..7487416289e0 100644
+--- a/include/uapi/linux/dvb/aml_dmx_ext.h
++++ b/include/uapi/linux/dvb/aml_dmx_ext.h
+@@ -205,6 +205,31 @@ struct dmx_set_command_info {
+ 	__u32 reserved0;
+ 	__u32 reserved1;
+ };
++
++/*for dma buf*/
++struct dmx_dma_buf_sec_es_data {
++	__u32 magic_num;
++	__u8 pts_dts_flag;
++	__u64 video_pts;
++	__u64 video_dts;
++	__u64 buf_start;
++	__u64 buf_end;
++	__u64 data_start;
++	__u64 data_end;
++	__u64 buf_rp;
++	__u64 av_handle;
++	__u32 token;
++	__u64 extend_addr;
++	__u32 extend_size;
++};
++
++struct dmx_dma_buf_info {
++	__u64 paddr;
++	__u32 size;
++	__u32 handle;
++	__u32 fd;
++	struct dmx_dma_buf_sec_es_data dmxes;
++};
+ /* amlogic define end */
+ 
+ /* amlogic define */
+@@ -217,8 +242,11 @@ struct dmx_set_command_info {
+ #define DMX_SET_SEC_MEM			_IOW('o', 85, struct dmx_sec_mem)
+ #define DMX_GET_DVR_MEM			_IOR('o', 86, struct dvr_mem_info)
+ #define DMX_REMAP_PID			_IOR('o', 87, __u16[2])
+-#define DMX_SET_DECODE_INFO     _IOW('o', 88, struct decoder_mem_info)
++#define DMX_SET_DECODE_INFO		_IOW('o', 88, struct decoder_mem_info)
+ #define DMX_SET_COMMAND			_IOW('o', 89, struct dmx_set_command_info)
++/*for dma buf*/
++#define DMX_GET_DMA_BUF_FD		_IOWR('o', 90, struct dmx_dma_buf_info)
++#define DMX_GET_DMA_BUF_INFO		_IOWR('o', 91, struct dmx_dma_buf_info)
+ /* amlogic define end */
+ 
+ #endif
+-- 
+2.43.2
+

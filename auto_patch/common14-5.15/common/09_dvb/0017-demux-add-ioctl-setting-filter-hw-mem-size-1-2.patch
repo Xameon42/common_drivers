@@ -1,0 +1,52 @@
+From e069e83ab5ebeacf4b39d66fe7deda28ab26992b Mon Sep 17 00:00:00 2001
+From: "chuangcheng.peng" <chuangcheng.peng@amlogic.com>
+Date: Tue, 3 Jun 2025 13:49:08 +0800
+Subject: [PATCH] demux: add ioctl setting filter hw mem size [1/2]
+
+PD#SWPL-214489
+
+Problem:
+add ioctl setting filter hw mem size
+
+Solution:
+add ioctl setting filter hw mem size
+
+Verify:
+verified at sc2
+
+Change-Id: I0153f95eec163cf189934fea92035c9a33debd7a
+Signed-off-by: chuangcheng.peng <chuangcheng.peng@amlogic.com>
+---
+ include/uapi/linux/dvb/aml_dmx_ext.h | 15 +++++++++++++++
+ 1 file changed, 15 insertions(+)
+
+diff --git a/include/uapi/linux/dvb/aml_dmx_ext.h b/include/uapi/linux/dvb/aml_dmx_ext.h
+index 7487416289e06..bdf10f01689d5 100644
+--- a/include/uapi/linux/dvb/aml_dmx_ext.h
++++ b/include/uapi/linux/dvb/aml_dmx_ext.h
+@@ -199,7 +199,22 @@ struct decoder_mem_info {
+ 
+ /*for set command to dmx*/
+ #define DMX_CLEAR_CACHE		0
++#define DMX_FILTER_HW_MEM_SIZE		1
++/*format*/
++enum dmx_filter_format {
++	FORMAT_ES = 1,
++	FORMAT_PES,
++	FORMAT_SECTION,
++	FORMAT_DVR,
++};
+ 
++/*reserved0 is made of format + pid*/
++/*DVR_FORMAT don't need set pid*/
++/*reserved0 =  format << 16 | pid*/
++/*reserved1 is memory_size
++ *if memory_size equal 0, then release format/pid filter
++ *last time memory_size, then filter use the default size.
++ */
+ struct dmx_set_command_info {
+ 	__u32 command;
+ 	__u32 reserved0;
+-- 
+2.47.0
+

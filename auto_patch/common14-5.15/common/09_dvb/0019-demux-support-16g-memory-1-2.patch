@@ -1,0 +1,213 @@
+From f7c498f949f00a62fee930cb3127c4518b31f170 Mon Sep 17 00:00:00 2001
+From: "jing.li1" <jing.li1@amlogic.com>
+Date: Tue, 8 Jul 2025 17:06:10 +0800
+Subject: [PATCH] Demux: Demux driver supports 16G memory [1/2]
+
+PD#SWPL-176906
+
+Problem:
+Demux driver need to support 16G memory
+
+Solution:
+Update demux driver to support 16G memory
+
+Verify:
+Verified on bq201
+
+Change-Id: I56a320787c174ada4cfa90c31ac47202690b538b
+Signed-off-by: jing.li1 <jing.li1@amlogic.com>
+---
+ drivers/media/dvb-core/dmxdev.c      | 67 ++++++++++++++++++++++++++++
+ include/media/aml_demux_ext.h        | 12 +++++
+ include/uapi/linux/dvb/aml_dmx_ext.h | 57 ++++++++++++++++++++++-
+ 3 files changed, 135 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/media/dvb-core/dmxdev.c b/drivers/media/dvb-core/dmxdev.c
+index 5533615e2669..d9ae510da790 100644
+--- a/drivers/media/dvb-core/dmxdev.c
++++ b/drivers/media/dvb-core/dmxdev.c
+@@ -1250,6 +1250,73 @@ static int dvb_demux_do_ioctl(struct file *file,
+ 		}
+ 		ret = dmx_ext->get_dma_buf_info(dmxdev->demux, parg);
+ 		break;
++	case DMX_GET_MEM_INFO_64BITS:
++		if (dmxdevfilter->state < DMXDEV_STATE_GO) {
++			ret = -EINVAL;
++			break;
++		}
++		if (mutex_lock_interruptible(&dmxdevfilter->mutex)) {
++			mutex_unlock(&dmxdev->mutex);
++			return -ERESTARTSYS;
++		}
++		{
++			struct dmx_mem_info_64bits *info = parg;
++
++			info->dvb_core_total_size = dmxdevfilter->buffer.size;
++			info->dvb_core_free_size =
++			    dvb_ringbuffer_free(&dmxdevfilter->buffer);
++
++			if (dmxdevfilter->type == DMXDEV_TYPE_SEC) {
++				if (dmx_ext->get_sec_mem_info_64bits) {
++					struct dmx_section_feed *sec_feed =
++					    dmxdevfilter->feed.sec;
++
++					ret =
++					    dmx_ext->get_sec_mem_info_64bits(dmxdev->demux,
++								sec_feed, info);
++				}
++			} else if (dmxdevfilter->type == DMXDEV_TYPE_PES) {
++				if (dmx_ext->get_ts_mem_info_64bits) {
++					struct dmxdev_feed *feed;
++
++					list_for_each_entry(feed, &dmxdevfilter->feed.ts, next) {
++						ret =
++						    dmx_ext->get_ts_mem_info_64bits(dmxdev->demux,
++									feed->ts, info);
++						break;
++					}
++				}
++			}
++		}
++		mutex_unlock(&dmxdevfilter->mutex);
++		break;
++	case DMX_GET_FILTER_MEM_INFO_64BITS:
++		if (mutex_lock_interruptible(&dmxdevfilter->mutex)) {
++			mutex_unlock(&dmxdev->mutex);
++			return -ERESTARTSYS;
++		}
++		{
++			struct dmx_filter_mem_info_64bits *info = parg;
++
++			if (dmx_ext->get_dmx_mem_info_64bits)
++				ret = dmx_ext->get_dmx_mem_info_64bits(dmxdev->demux, info);
++		}
++		mutex_unlock(&dmxdevfilter->mutex);
++		break;
++	case DMX_SET_SEC_MEM_64BITS:
++		if (!dmx_ext->set_sec_mem_64bits) {
++			ret = -EINVAL;
++			break;
++		}
++		ret = dmx_ext->set_sec_mem_64bits(dmxdev->demux, parg);
++		break;
++	case DMX_SET_DECODE_INFO_64BITS:
++		if (!dmx_ext->decode_info_64bits) {
++			ret = -EINVAL;
++			break;
++		}
++		ret = dmx_ext->decode_info_64bits(dmxdev->demux, parg);
++		break;
+ #endif
+ 
+ 	case DMX_ADD_PID:
+diff --git a/include/media/aml_demux_ext.h b/include/media/aml_demux_ext.h
+index d5c8b3e28907..fa878d28a9cc 100644
+--- a/include/media/aml_demux_ext.h
++++ b/include/media/aml_demux_ext.h
+@@ -40,6 +40,18 @@ struct dmx_demux_ext {
+ 		void *info);
+ 	int (*get_dma_buf_info)(struct dmx_demux *demux,
+ 		void *info);
++	int (*get_ts_mem_info_64bits)(struct dmx_demux *demux,
++			void *feed,
++			void *info);
++	int (*get_sec_mem_info_64bits)(struct dmx_demux *demux,
++			void *feed,
++			void *info);
++	int (*get_dmx_mem_info_64bits)(struct dmx_demux *demux,
++			void *info);
++	int (*set_sec_mem_64bits)(struct dmx_demux *demux,
++			void *sec_mem);
++	int (*decode_info_64bits)(struct dmx_demux *demux,
++		void *info);
+ };
+ 
+ #endif
+diff --git a/include/uapi/linux/dvb/aml_dmx_ext.h b/include/uapi/linux/dvb/aml_dmx_ext.h
+index c73504d38669..200e6d5de981 100644
+--- a/include/uapi/linux/dvb/aml_dmx_ext.h
++++ b/include/uapi/linux/dvb/aml_dmx_ext.h
+@@ -120,10 +120,12 @@ struct dmx_sec_mem {
+ /*bit 16~23 for output */
+ #define DMX_ES_OUTPUT        (1 << 16)
+ /*set raw mode, it will send the struct dmx_sec_es_data, not es data*/
+-#define DMX_OUTPUT_RAW_MODE	 (1 << 17)
++#define DMX_OUTPUT_RAW_MODE  (1 << 17)
+ 
+ #define DMX_TEMI_FLAGS       (1 << 18)
+ 
++#define DMX_SUPPORT_64BITS   (1 << 19)
++
+ /*24~31 one byte for audio type, dmx_audio_format_t*/
+ #define DMX_AUDIO_FORMAT_BIT 24
+ 
+@@ -241,6 +243,54 @@ struct dmx_dma_buf_info {
+ 	__u32 fd;
+ 	struct dmx_dma_buf_sec_es_data dmxes;
+ };
++
++/*for 64bits address*/
++struct dmx_sec_es_data_64bits {
++	__u8 pts_dts_flag;
++	__u64 pts;
++	__u64 dts;
++	__u64 buf_start;
++	__u64 buf_end;
++	__u64 data_start;
++	__u64 data_end;
++};
++
++struct dmx_sec_ts_data_64bits {
++	__u64 buf_start;
++	__u64 buf_end;
++	__u64 data_start;
++	__u64 data_end;
++};
++
++struct dmx_mem_info_64bits {
++	__u32 dmx_total_size;
++	__u64 dmx_buf_phy_start;
++	__u32 dmx_free_size;
++	__u32 dvb_core_total_size;
++	__u32 dvb_core_free_size;
++	__u32 wp_offset;
++	__u64 newest_pts;
++};
++
++struct filter_mem_info_64bits {
++	__u32 type;
++	__u32 pid;
++	struct dmx_mem_info_64bits filter_info;
++};
++
++struct dmx_filter_mem_info_64bits {
++	__u32 filter_num;
++	struct filter_mem_info_64bits info[40];
++};
++
++struct dmx_sec_mem_64bits {
++	__u64 buff;
++	__u32 size;
++};
++
++struct decoder_mem_info_64bits {
++	__u64 rp_phy;
++};
+ /* amlogic define end */
+ 
+ /* amlogic define */
+@@ -258,6 +308,11 @@ struct dmx_dma_buf_info {
+ /*for dma buf*/
+ #define DMX_GET_DMA_BUF_FD		_IOWR('o', 90, struct dmx_dma_buf_info)
+ #define DMX_GET_DMA_BUF_INFO		_IOWR('o', 91, struct dmx_dma_buf_info)
++/*for 64bits address*/
++#define DMX_GET_MEM_INFO_64BITS		_IOR('o', 92, struct dmx_mem_info_64bits)
++#define DMX_GET_FILTER_MEM_INFO_64BITS	_IOR('o', 93, struct dmx_filter_mem_info_64bits)
++#define DMX_SET_SEC_MEM_64BITS		_IOW('o', 94, struct dmx_sec_mem_64bits)
++#define DMX_SET_DECODE_INFO_64BITS	_IOW('o', 95, struct decoder_mem_info_64bits)
+ /* amlogic define end */
+ 
+ #endif
+-- 
+2.47.0
+

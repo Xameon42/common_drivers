@@ -158,6 +158,7 @@ struct out_elem {
 	struct mutex pts_mutex;
 	u8 ts_dump;
 	int temi_index;
+	int support_64bits;
 };
 
 struct sid_entry {
@@ -262,7 +263,8 @@ module_param(debug_es_len, int, 0644);
 #define READ_CACHE_SIZE      (188)
 #define INVALID_DECODE_RP	(0xFFFFFFFF)
 
-static int out_flush_time = 10;
+/*for get data quickly, refer to SWPL-225792*/
+static int out_flush_time = 3;
 static int out_es_flush_time = 10;
 
 static int _handle_es(struct out_elem *pout, struct es_params_t *es_params);
@@ -490,6 +492,20 @@ static int out_ts_cb_list(struct out_elem *pout, char *buf, int size,
 	return w_size;
 }
 
+static void print_section_ts(char *pstart, int len)
+{
+	int count = len / 188;
+	int i = 0;
+	int j = 0;
+
+	for (i = 0; i < count; i++) {
+		dprint("%d ts packet:\n", i + 1);
+		for (j = 0; j < 30; j++)
+			dprint("0x%0x ", *(pstart + i * 188 + j));
+		dprint("\n");
+	}
+}
+
 static int section_process(struct out_elem *pout)
 {
 	int ret = 0;
@@ -509,8 +525,10 @@ static int section_process(struct out_elem *pout)
 		if (pout->cb_sec_list) {
 			w_size = out_sec_cb_list(pout, pread, ret);
 			ATRACE_COUNTER(pout->name, w_size);
-			pr_sec_dbg("%s send:%d, w:%d wwwwww\n", __func__,
-			       ret, w_size);
+			pr_sec_dbg("%s sid:%d pid:%d send:%d, w:%d wwwwww\n", __func__,
+					pout->sid, pout->es_pes->pid, ret, w_size);
+			if (w_size >= 188 && debug_section)
+				print_section_ts(pread, ret);
 			remain_len = ret - w_size;
 			if (dump_other_cb)
 				dump_other_cb(pout->sid, pout->es_pes->pid,
@@ -534,15 +552,24 @@ static int section_process(struct out_elem *pout)
 
 static void write_sec_ts_data(struct out_elem *pout, char *buf, int size)
 {
-	struct dmx_sec_ts_data sec_ts_data;
+	struct dmx_sec_ts_data_64bits sec_ts_data;
+	struct dmx_sec_ts_data sec_ts_data_32bits;
 
 	sec_ts_data.buf_start = pout->pchan->mem_phy;
 	sec_ts_data.buf_end = sec_ts_data.buf_start + pout->pchan->mem_size;
 	sec_ts_data.data_start = (unsigned long)buf;
 	sec_ts_data.data_end = (unsigned long)buf + size;
 
-	out_ts_cb_list(pout, (char *)&sec_ts_data,
-		       sizeof(struct dmx_sec_ts_data), 0, 0);
+	if (pout->support_64bits) {
+		out_ts_cb_list(pout, (char *)&sec_ts_data, sizeof(sec_ts_data), 0, 0);
+	} else {
+		sec_ts_data_32bits.buf_start = (u32)sec_ts_data.buf_start;
+		sec_ts_data_32bits.buf_end = (u32)sec_ts_data.buf_end;
+		sec_ts_data_32bits.data_start = (u32)sec_ts_data.data_start;
+		sec_ts_data_32bits.data_end = (u32)sec_ts_data.data_end;
+		out_ts_cb_list(pout, (char *)&sec_ts_data_32bits,
+				sizeof(sec_ts_data_32bits), 0, 0);
+	}
 }
 
 static int dvr_process(struct out_elem *pout)
@@ -1512,6 +1539,8 @@ static int aucpu_bufferid_read_newest_pts(struct out_elem *pout,
 		if (r_offset != w_offset)
 			return aucpu_read_process(pout,
 					w_offset, pread, 16, 2);
+		else if (w_offset != pout->aucpu_pts_r_offset)
+			return -1;
 	}
 	return 0;
 }
@@ -1644,7 +1673,8 @@ static int write_aucpu_sec_es_data(struct out_elem *pout,
 				   struct es_params_t *es_params)
 {
 	unsigned int len = es_params->header.len;
-	struct dmx_sec_es_data sec_es_data;
+	struct dmx_sec_es_data_64bits sec_es_data;
+	struct dmx_sec_es_data sec_es_data_32bits;
 	char *ptmp;
 	int ret;
 
@@ -1689,7 +1719,7 @@ static int write_aucpu_sec_es_data(struct out_elem *pout,
 		return 0;
 	}
 
-	memset(&sec_es_data, 0, sizeof(struct dmx_sec_es_data));
+	memset(&sec_es_data, 0, sizeof(sec_es_data));
 	if (es_params->has_splice == 0) {
 		sec_es_data.pts_dts_flag = es_params->header.pts_dts_flag;
 		sec_es_data.dts = es_params->header.dts;
@@ -1727,8 +1757,19 @@ static int write_aucpu_sec_es_data(struct out_elem *pout,
 	       (unsigned long)sec_es_data.dts,
 	       (unsigned long)(sec_es_data.data_start - sec_es_data.buf_start));
 
-	out_ts_cb_list(pout, (char *)&sec_es_data,
-		       sizeof(struct dmx_sec_es_data), 0, 0);
+	if (pout->support_64bits) {
+		out_ts_cb_list(pout, (char *)&sec_es_data, sizeof(sec_es_data), 0, 0);
+	} else {
+		sec_es_data_32bits.pts_dts_flag = sec_es_data.pts_dts_flag;
+		sec_es_data_32bits.dts = sec_es_data.dts;
+		sec_es_data_32bits.pts = sec_es_data.pts;
+		sec_es_data_32bits.buf_start = (u32)sec_es_data.buf_start;
+		sec_es_data_32bits.buf_end = (u32)sec_es_data.buf_end;
+		sec_es_data_32bits.data_start = (u32)sec_es_data.data_start;
+		sec_es_data_32bits.data_end = (u32)sec_es_data.data_end;
+		out_ts_cb_list(pout, (char *)&sec_es_data_32bits,
+				sizeof(sec_es_data_32bits), 0, 0);
+	}
 
 	es_params->data_start = 0;
 	es_params->data_len = 0;
@@ -1816,7 +1857,8 @@ static int write_sec_video_es_data(struct out_elem *pout,
 				   struct es_params_t *es_params)
 {
 	unsigned int len = es_params->header.len;
-	struct dmx_sec_es_data sec_es_data;
+	struct dmx_sec_es_data_64bits sec_es_data;
+	struct dmx_sec_es_data sec_es_data_32bits;
 	char *ptmp;
 	int ret;
 	int flag = 0;
@@ -1882,7 +1924,7 @@ static int write_sec_video_es_data(struct out_elem *pout,
 				es_params->header.len, es_params->data_len);
 		}
 	}
-	memset(&sec_es_data, 0, sizeof(struct dmx_sec_es_data));
+	memset(&sec_es_data, 0, sizeof(sec_es_data));
 	if (es_params->has_splice == 0) {
 		sec_es_data.pts_dts_flag = es_params->header.pts_dts_flag;
 		sec_es_data.dts = es_params->header.dts;
@@ -1946,8 +1988,20 @@ static int write_sec_video_es_data(struct out_elem *pout,
 			(unsigned long)(sec_es_data.data_start -
 				sec_es_data.buf_start));
 	}
-	out_ts_cb_list(pout, (char *)&sec_es_data,
-			sizeof(struct dmx_sec_es_data), 0, 0);
+
+	if (pout->support_64bits) {
+		out_ts_cb_list(pout, (char *)&sec_es_data, sizeof(sec_es_data), 0, 0);
+	} else {
+		sec_es_data_32bits.pts_dts_flag = sec_es_data.pts_dts_flag;
+		sec_es_data_32bits.dts = sec_es_data.dts;
+		sec_es_data_32bits.pts = sec_es_data.pts;
+		sec_es_data_32bits.buf_start = (u32)sec_es_data.buf_start;
+		sec_es_data_32bits.buf_end = (u32)sec_es_data.buf_end;
+		sec_es_data_32bits.data_start = (u32)sec_es_data.data_start;
+		sec_es_data_32bits.data_end = (u32)sec_es_data.data_end;
+		out_ts_cb_list(pout, (char *)&sec_es_data_32bits,
+				sizeof(sec_es_data_32bits), 0, 0);
+	}
 
 	es_params->data_start = 0;
 	es_params->data_len = 0;
@@ -2008,7 +2062,8 @@ static int _handle_es_splice(struct out_elem *pout, struct es_params_t *es_param
 	unsigned int len = 0;
 	unsigned int d_len = 0;
 	unsigned int h_len = 0;
-	struct dmx_sec_es_data sec_es_data;
+	struct dmx_sec_es_data_64bits sec_es_data;
+	struct dmx_sec_es_data sec_es_data_32bits;
 	char *ptmp;
 	int ret;
 	int flag = 0;
@@ -2091,7 +2146,7 @@ static int _handle_es_splice(struct out_elem *pout, struct es_params_t *es_param
 	len = ret;
 
 	if (pout->output_mode) {
-		memset(&sec_es_data, 0, sizeof(struct dmx_sec_es_data));
+		memset(&sec_es_data, 0, sizeof(sec_es_data));
 		if (es_params->have_sent_len == 0) {
 			transfer_header(pheader, plast_header);
 
@@ -2131,8 +2186,20 @@ static int _handle_es_splice(struct out_elem *pout, struct es_params_t *es_param
 		(unsigned long)(sec_es_data.data_start -
 			sec_es_data.buf_start));
 
-		out_ts_cb_list(pout, (char *)&sec_es_data,
-				sizeof(struct dmx_sec_es_data), 0, 0);
+		if (pout->support_64bits) {
+			out_ts_cb_list(pout, (char *)&sec_es_data, sizeof(sec_es_data), 0, 0);
+		} else {
+			sec_es_data_32bits.pts_dts_flag = sec_es_data.pts_dts_flag;
+			sec_es_data_32bits.dts = sec_es_data.dts;
+			sec_es_data_32bits.pts = sec_es_data.pts;
+			sec_es_data_32bits.buf_start = (u32)sec_es_data.buf_start;
+			sec_es_data_32bits.buf_end = (u32)sec_es_data.buf_end;
+			sec_es_data_32bits.data_start = (u32)sec_es_data.data_start;
+			sec_es_data_32bits.data_end = (u32)sec_es_data.data_end;
+			out_ts_cb_list(pout, (char *)&sec_es_data_32bits,
+					sizeof(sec_es_data_32bits), 0, 0);
+		}
+
 		return 0;
 	}
 	h_len = sizeof(struct dmx_non_sec_es_header);
@@ -2165,6 +2232,22 @@ static int _handle_es_splice(struct out_elem *pout, struct es_params_t *es_param
 	return 0;
 }
 
+static void output_sec_es_data(struct out_elem *pout, u8 pts_dts_flag)
+{
+	struct dmx_sec_es_data_64bits sec_es_data;
+	struct dmx_sec_es_data sec_es_data_32bits;
+
+	memset(&sec_es_data, 0, sizeof(sec_es_data));
+	sec_es_data.pts_dts_flag = pts_dts_flag;
+	if (pout->support_64bits) {
+		out_ts_cb_list(pout, (char *)&sec_es_data, sizeof(sec_es_data), 0, 0);
+	} else {
+		memset(&sec_es_data_32bits, 0, sizeof(sec_es_data_32bits));
+		sec_es_data_32bits.pts_dts_flag = sec_es_data.pts_dts_flag;
+		out_ts_cb_list(pout, (char *)&sec_es_data_32bits, sizeof(sec_es_data_32bits), 0, 0);
+	}
+}
+
 static void notify_encrypt_for_t5w(struct out_elem *pout, struct es_params_t *es_params)
 {
 	s64 now_time_ms;
@@ -2182,13 +2265,7 @@ static void notify_encrypt_for_t5w(struct out_elem *pout, struct es_params_t *es
 				SC2_bufferid_get_wp_offset(pout->pchan1)) {
 				if (pout->output_mode) {
 					if (pout->type == VIDEO_TYPE || pout->type == AUDIO_TYPE) {
-						struct dmx_sec_es_data sec_es_data;
-
-						memset(&sec_es_data, 0,
-							sizeof(struct dmx_sec_es_data));
-						sec_es_data.pts_dts_flag = 0xC;
-						out_ts_cb_list(pout, (char *)&sec_es_data,
-							sizeof(struct dmx_sec_es_data), 0, 0);
+						output_sec_es_data(pout, 0xC);
 						pr_dbg("notify sec mode encrypt type:%d\n",
 							pout->type);
 					}
@@ -2300,14 +2377,10 @@ static int _handle_es(struct out_elem *pout, struct es_params_t *es_params)
 
 				if (pout->output_mode) {
 					if (pout->type == VIDEO_TYPE || pout->type == AUDIO_TYPE) {
-						struct dmx_sec_es_data sec_es_data;
-
-						memset(&sec_es_data, 0,
-							sizeof(struct dmx_sec_es_data));
-						sec_es_data.pts_dts_flag =
-							es_params->header.pts_dts_flag & 0xC;
-						out_ts_cb_list(pout, (char *)&sec_es_data,
-							sizeof(struct dmx_sec_es_data), 0, 0);
+						output_sec_es_data(pout,
+							es_params->header.pts_dts_flag & 0xC);
+						pr_dbg("notify sec mode encrypt type:%d\n",
+							pout->type);
 					}
 				} else {
 					if (pout->type == VIDEO_TYPE || pout->type == AUDIO_TYPE) {
@@ -2785,6 +2858,23 @@ struct out_elem *ts_output_find_same_section_pid(int sid, int pid)
 	return NULL;
 }
 
+struct out_elem *ts_output_find_same_pes_pid(int sid, int pid)
+{
+	int i = 0;
+
+	for (i = 0; i < MAX_OUT_ELEM_NUM; i++) {
+		struct out_elem *pout = &out_elem_table[i];
+
+		if (pout->used &&
+			pout->sid == sid &&
+			pout->format == PES_FORMAT &&
+			pout->es_pes &&
+			pout->es_pes->pid == pid)
+			return pout;
+	}
+	return NULL;
+}
+
 struct out_elem *ts_output_find_dvr(int sid, int sec_level)
 {
 	int i = 0;
@@ -2813,7 +2903,7 @@ struct out_elem *ts_output_find_dvr(int sid, int sec_level)
  */
 struct out_elem *ts_output_open(int sid, u8 dmx_id, u8 format,
 				enum content_type type, int media_type,
-				int output_mode)
+				int output_mode, int support_64bits)
 {
 	struct bufferid_attr attr;
 	int ret = 0;
@@ -2821,7 +2911,8 @@ struct out_elem *ts_output_open(int sid, u8 dmx_id, u8 format,
 	struct ts_out *ts_out_tmp = NULL;
 
 	pr_dbg("%s sid:%d, format:%d, type:%d ", __func__, sid, format, type);
-	pr_dbg("media_type:%d, output_mode:%d\n", media_type, output_mode);
+	pr_dbg("media_type:%d, output_mode:%d support_64bits:%d\n", media_type, output_mode,
+		support_64bits);
 
 	if (sid >= MAX_SID_NUM) {
 		dprint("%s sid:%d fail\n", __func__, sid);
@@ -2843,6 +2934,7 @@ struct out_elem *ts_output_open(int sid, u8 dmx_id, u8 format,
 	pout->newest_pts = 0;
 	pout->cur_pts = 0;
 	pout->decoder_rp_offset = INVALID_DECODE_RP;
+	pout->support_64bits = support_64bits;
 	memset(&attr, 0, sizeof(struct bufferid_attr));
 	attr.mode = OUTPUT_MODE;
 	attr.format = format;
@@ -3471,7 +3563,7 @@ int ts_output_set_mem(struct out_elem *pout, int memsize,
 }
 
 int ts_output_set_sec_mem(struct out_elem *pout,
-	unsigned int buf, unsigned int size)
+	__u64 buf, unsigned int size)
 {
 	pr_dbg("%s size:0x%0x\n", __func__, size);
 
@@ -3568,7 +3660,7 @@ int ts_output_get_newest_pts(struct out_elem *pout,
 
 int ts_output_get_mem_info(struct out_elem *pout,
 			   unsigned int *total_size,
-			   unsigned int *buf_phy_start,
+			   __u64 *buf_phy_start,
 			   unsigned int *free_size, unsigned int *wp_offset,
 			   __u64 *newest_pts)
 {
@@ -3628,6 +3720,9 @@ int ts_output_get_mem_info(struct out_elem *pout,
 			pout->newest_pts = tmp_pts;
 			*newest_pts = pout->newest_pts;
 		} else {
+			pr_dbg("c newest_pts %s pid:0x%0x pts:0x%lx\n",
+					pout->type == VIDEO_TYPE ? "video" : "audio",
+					pout->es_pes->pid, (unsigned long)pout->newest_pts);
 			*newest_pts = pout->newest_pts;
 		}
 	}
@@ -3831,7 +3926,7 @@ int ts_output_dump_info(char *buf)
 	for (i = 0; i < MAX_OUT_ELEM_NUM; i++) {
 		struct out_elem *pout = &out_elem_table[i];
 		unsigned int total_size = 0;
-		unsigned int buf_phy_start = 0;
+		__u64 buf_phy_start = 0;
 		unsigned int free_size = 0;
 		unsigned int wp_offset = 0;
 		struct pid_entry *pid_list;
@@ -3862,7 +3957,7 @@ int ts_output_dump_info(char *buf)
 					       &buf_phy_start,
 					       &free_size, &wp_offset, NULL);
 			r = sprintf(buf,
-				    "mem total:0x%0x, buf_base:0x%0x, ",
+				    "mem total:0x%0x, buf_base:0x%0llx, ",
 				    total_size, buf_phy_start);
 			buf += r;
 			total += r;
@@ -3908,7 +4003,7 @@ int ts_output_dump_info(char *buf)
 	for (i = 0; i < MAX_ES_NUM; i++) {
 		struct es_entry *es_slot = &es_table[i];
 		unsigned int total_size = 0;
-		unsigned int buf_phy_start = 0;
+		__u64 buf_phy_start = 0;
 		unsigned int free_size = 0;
 		unsigned int wp_offset = 0;
 
@@ -3923,7 +4018,8 @@ int ts_output_dump_info(char *buf)
 			buf += r;
 			total += r;
 
-			r = sprintf(buf, "pid:0x%0x ", es_slot->pid);
+			r = sprintf(buf, "pid:0x%0x ref:%d ",
+				es_slot->pid, es_slot->pout->ref);
 			buf += r;
 			total += r;
 
@@ -3932,7 +4028,7 @@ int ts_output_dump_info(char *buf)
 					       &buf_phy_start,
 					       &free_size, &wp_offset, NULL);
 			r = sprintf(buf,
-				    "mem total:0x%0x, buf_base:0x%0x, ",
+				    "mem total:0x%0x, buf_base:0x%0llx, ",
 				    total_size, buf_phy_start);
 			buf += r;
 			total += r;
@@ -3974,7 +4070,7 @@ int ts_output_dump_info(char *buf)
 	for (i = 0; i < MAX_ES_NUM; i++) {
 		struct es_entry *es_slot = &es_table[i];
 		unsigned int total_size = 0;
-		unsigned int buf_phy_start = 0;
+		__u64 buf_phy_start = 0;
 		unsigned int free_size = 0;
 		unsigned int wp_offset = 0;
 
@@ -4000,7 +4096,7 @@ int ts_output_dump_info(char *buf)
 					       &free_size, &wp_offset, NULL);
 
 			r = sprintf(buf,
-				    "mem total:0x%0x, buf_base:0x%0x, ",
+				    "mem total:0x%0x, buf_base:0x%0llx, ",
 				    total_size, buf_phy_start);
 			buf += r;
 			total += r;
@@ -4066,7 +4162,7 @@ int ts_output_dump_info(char *buf)
 	for (i = 0; i < MAX_ES_NUM; i++) {
 		struct es_entry *es_slot = &es_table[i];
 		unsigned int total_size = 0;
-		unsigned int buf_phy_start = 0;
+		__u64 buf_phy_start = 0;
 		unsigned int free_size = 0;
 		unsigned int wp_offset = 0;
 		struct cb_entry *tmp_cb = NULL;
@@ -4107,7 +4203,7 @@ int ts_output_dump_info(char *buf)
 					       &free_size, &wp_offset, NULL);
 
 			r = sprintf(buf,
-				    "mem total:0x%0x, buf_base:0x%0x, ",
+				    "mem total:0x%0x, buf_base:0x%0llx, ",
 				    total_size, buf_phy_start);
 			buf += r;
 			total += r;
@@ -4157,7 +4253,7 @@ int ts_output_dump_info(char *buf)
 
 	for (i = 0; i < MAX_PCR_NUM; i++) {
 		unsigned int total_size = 0;
-		unsigned int buf_phy_start = 0;
+		__u64 buf_phy_start = 0;
 		unsigned int free_size = 0;
 		unsigned int wp_offset = 0;
 
@@ -4180,7 +4276,7 @@ int ts_output_dump_info(char *buf)
 					       &free_size, &wp_offset, NULL);
 
 		r = sprintf(buf,
-				    "mem total:0x%0x, buf_base:0x%0x, ",
+				    "mem total:0x%0x, buf_base:0x%0llx, ",
 				    total_size, buf_phy_start);
 		buf += r;
 		total += r;
@@ -4283,6 +4379,7 @@ int ts_output_update_filter(int dmx_no, int sid)
 		struct es_entry *es_slot = &es_table[i];
 		struct out_elem *pout = NULL;
 		u8 flag = 0;
+		u32 reset = 0;
 
 		if (es_slot->used) {
 			struct cb_entry *tmp_cb = NULL;
@@ -4303,21 +4400,23 @@ int ts_output_update_filter(int dmx_no, int sid)
 
 			if (flag) {
 				pout->sid = sid;
-				dprint("change dmx id:%d, filter sid:0x%0x, pid:0x%0x\n",
-					dmx_no, pout->sid, es_slot->pid);
+				/*get the reset status from es table*/
+				tsout_read_es_table(es_slot->buff_id, &reset);
+				dprint("change dmx id:%d, sid:0x%0x,pid:0x%0x, reset:0x%0x\n",
+					dmx_no, pout->sid, es_slot->pid, reset);
 				tsout_config_es_table(es_slot->buff_id, es_slot->pid,
-				      pout->sid, 0, !drop_dup, pout->format);
+						pout->sid, reset, !drop_dup, pout->format);
 			}
 		}
 	}
 	return 0;
 }
 
-int ts_output_set_decode_info(int sid, struct decoder_mem_info *info)
+int ts_output_set_decode_info(int sid, struct decoder_mem_info_64bits *info)
 {
 	int i = 0;
 	unsigned int total_size = 0;
-	unsigned int buf_phy_start = 0;
+	__u64 buf_phy_start = 0;
 	unsigned int free_size = 0;
 	unsigned int wp_offset = 0;
 	struct out_elem *pout;
@@ -4338,6 +4437,8 @@ int ts_output_set_decode_info(int sid, struct decoder_mem_info *info)
 			if (info->rp_phy >= buf_phy_start &&
 				info->rp_phy <= (buf_phy_start + total_size)) {
 				pout->decoder_rp_offset = info->rp_phy - buf_phy_start;
+				pr_dbg("sid:%d, wp_offset:0x%0x, decoder_rp_offset:0x%0x\n",
+					sid, wp_offset, pout->decoder_rp_offset);
 				return 0;
 			}
 		}
@@ -4369,7 +4470,7 @@ int ts_output_check_flow_control(int sid, int percentage)
 	int i = 0;
 	struct es_entry *es_slot;
 	unsigned int total_size = 0;
-	unsigned int buf_phy_start = 0;
+	__u64 buf_phy_start = 0;
 	unsigned int free_size = 0;
 	unsigned int wp_offset = 0;
 	unsigned int buff_len = 0;
@@ -4508,7 +4609,7 @@ int ts_output_dump_clone_info(char *buf)
 	for (i = 0; i < MAX_OUT_ELEM_NUM; i++) {
 		struct out_elem *pout = &out_elem_table[i];
 		unsigned int total_size = 0;
-		unsigned int buf_phy_start = 0;
+		__u64 buf_phy_start = 0;
 		unsigned int free_size = 0;
 		unsigned int wp_offset = 0;
 
@@ -4523,7 +4624,7 @@ int ts_output_dump_clone_info(char *buf)
 					       &buf_phy_start,
 					       &free_size, &wp_offset, NULL);
 			r = sprintf(buf,
-				    "mem total:0x%0x, buf_base:0x%0x, ",
+				    "mem total:0x%0x, buf_base:0x%0llx, ",
 				    total_size, buf_phy_start);
 			buf += r;
 			total += r;
