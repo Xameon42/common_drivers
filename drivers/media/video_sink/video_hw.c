@@ -1706,6 +1706,7 @@ void vpu_module_clk_disable(u32 vpp_index, u32 module, bool async)
 	}
 }
 
+static void fgrain_stop(struct video_layer_s *layer, u8 vpp_index);
 void safe_switch_videolayer(u8 layer_id, bool on, bool async)
 {
 	if (layer_id == 0xff)
@@ -7360,6 +7361,7 @@ void vpp_blend_update_t7(const struct vinfo_s *vinfo)
 			vpu_delay_work_flag |=
 				VPU_VIDEO_LAYER1_CHANGED;
 #endif
+			fgrain_stop(&vd_layer[0], vd_layer[0].vpp_index);
 			if (vd_layer[0].global_debug & DEBUG_FLAG_BASIC_INFO)
 				pr_info("VIDEO: VsyncDisableVideoLayer\n");
 			video1_off_req = 1;
@@ -7433,6 +7435,7 @@ void vpp_blend_update_t7(const struct vinfo_s *vinfo)
 				vpu_delay_work_flag |=
 					VPU_VIDEO_LAYER2_CHANGED;
 #endif
+				fgrain_stop(&vd_layer[1], vd_layer[1].vpp_index);
 				if (vd_layer[1].global_debug & DEBUG_FLAG_BASIC_INFO)
 					pr_info("VIDEO: VsyncDisableVideoLayer2\n");
 				video2_off_req = 1;
@@ -11928,7 +11931,7 @@ void dump_pps_coefs_info(u8 layer_id, u8 bit9_mode, u8 coef_type)
 /*********************************************************
  * Film Grain APIs
  *********************************************************/
-#define FGRAIN_TBL_SIZE  (498 * 16)
+//#define FGRAIN_TBL_SIZE  (498 * 16)
 
 #ifdef CONFIG_AMLOGIC_MEDIA_LUT_DMA
 static void fgrain_set_config(struct video_layer_s *layer,
@@ -12009,6 +12012,7 @@ static void fgrain_stop(struct video_layer_s *layer, u8 vpp_index)
 	u32 reg_fgrain_loc_en = 0 << 1;
 	struct hw_fg_reg_s *fg_reg;
 	u8 layer_id = layer->layer_id;
+	u32 channel = FILM_GRAIN0_CHAN;
 
 	if (!glayer_info[layer_id].fgrain_support)
 		return;
@@ -12021,6 +12025,16 @@ static void fgrain_stop(struct video_layer_s *layer, u8 vpp_index)
 			       reg_fgrain_loc_en,
 			       0, 2);
 	glayer_info[layer_id].fgrain_start = false;
+	//disable lut_dma
+
+	if (layer_id == 0)
+		channel = FILM_GRAIN0_CHAN;
+	else if (layer_id == 1)
+		channel = FILM_GRAIN1_CHAN;
+	else if (layer_id == 2)
+		channel = FILM_GRAIN2_CHAN;
+
+	lut_dma_disable(LUT_DMA_WR, channel, layer->vpp_index);
 	if (debug_common_flag & DEBUG_FLAG_COMMON_FG)
 		pr_info("%s:vd=%d\n",
 			__func__, layer->layer_id);
@@ -12105,7 +12119,8 @@ static int fgrain_write(u32 layer_id, ulong fgs_table_addr)
 		channel = FILM_GRAIN2_CHAN;
 	lut_dma_write_phy_addr(channel,
 			       fgs_table_addr,
-			       table_size);
+			       table_size,
+			       vd_layer[layer_id].vpp_index);
 	return 0;
 }
 
@@ -12162,7 +12177,7 @@ static void fgrain_update_irq_source(u8 layer_id, u8 vpp_index)
 		channel = FILM_GRAIN1_CHAN;
 	else if (layer_id == 2)
 		channel = FILM_GRAIN2_CHAN;
-	lut_dma_update_irq_source(channel, irq_source);
+	lut_dma_update_irq_source(channel, irq_source, vpp_index);
 }
 
 void fgrain_config(struct video_layer_s *layer,

@@ -78,4 +78,16 @@ unsigned int rdma_hw_done_bit(void);
 u32 VCBUS_RD_MPEG_REG(u32 adr);
 int VCBUS_WR_MPEG_REG(u32 adr, u32 val);
 int VCBUS_WR_MPEG_REG_BITS(u32 adr, u32 val, u32 start, u32 len);
+
+u32 VSYNC_RD_MPEG_REG_VPP1(u32 adr);
+u32 VSYNC_RD_MPEG_REG_VPP2(u32 adr);
+u32 PRE_VSYNC_RD_MPEG_REG(u32 adr);
+//int VSYNC_WR_MPEG_REG(u32 adr, u32 val);
+int VSYNC_WR_MPEG_REG_VPP1(u32 adr, u32 val);
+int VSYNC_WR_MPEG_REG_VPP2(u32 adr, u32 val);
+int PRE_VSYNC_WR_MPEG_REG(u32 adr, u32 val);
+
+int VSYNC_WR_MPEG_REG_BITS_VPP1(u32 adr, u32 val, u32 start, u32 len);
+int VSYNC_WR_MPEG_REG_BITS_VPP2(u32 adr, u32 val, u32 start, u32 len);
+int PRE_VSYNC_WR_MPEG_REG_BITS(u32 adr, u32 val, u32 start, u32 len);
 #endif

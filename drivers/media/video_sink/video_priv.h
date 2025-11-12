@@ -184,7 +184,8 @@ enum vpp_type_e {
 	VPP1 = 1,
 	VPP2 = 2,
 	PRE_VSYNC = 3,
-	VPP_MAX = 4
+	VPP_MAX = 4,
+	VPP_INVALID = 0xff
 };
 
 enum reshape_mode_e {

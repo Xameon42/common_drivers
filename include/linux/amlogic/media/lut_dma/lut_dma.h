@@ -61,7 +61,8 @@ struct lut_dma_set_t {
 int lut_dma_register(struct lut_dma_set_t *lut_dma_set);
 void lut_dma_unregister(u32 dma_dir, u32 channel);
 int lut_dma_read(u32 channel, void *paddr);
-int lut_dma_write(u32 channel, void *paddr, u32 size);
-int lut_dma_write_phy_addr(u32 channel, ulong phy_addr, u32 size);
-void lut_dma_update_irq_source(u32 channel, u32 irq_source);
+int lut_dma_write_phy_addr(u32 channel, ulong phy_addr, u32 size, u8 vpp_index);
+void lut_dma_update_irq_source(u32 channel, u32 irq_source, u8 vpp_index);
+int lut_dma_enable(u32 dma_dir, u32 channel, u8 vpp_index);
+void lut_dma_disable(u32 dma_dir, u32 channel, u8 vpp_index);
 #endif

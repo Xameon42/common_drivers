@@ -111,7 +111,7 @@ static u32 get_cur_rd_frame_index(void)
 {
 	u32 data, frame_index;
 
-	data = lut_dma_reg_read(VPU_DMA_WRMIF_CTRL);
+	data = lut_dma_reg_read(VPU_DMA_WRMIF_CTRL, VPP_INVALID);
 	frame_index = (data & 0x1f00) >> 11;
 	pr_dbg("cur rd frame index:%d\n", frame_index);
 	return frame_index;
@@ -127,7 +127,7 @@ static u32 get_cur_wr_frame_index(u32 channel)
 	else
 		channel_index = channel;
 	reg = VPU_DMA_RDMIF0_CTRL + channel_index;
-	data = lut_dma_reg_read(reg);
+	data = lut_dma_reg_read(reg, VPP_INVALID);
 	frame_index = (data & 0x30000000) >> 28;
 	pr_dbg("chan(%d)cur wr frame index:%d\n",
 	       channel,
@@ -136,7 +136,7 @@ static u32 get_cur_wr_frame_index(u32 channel)
 }
 
 /* for dma it is read */
-static void set_lut_dma_rdcfg(u32 channel)
+static void set_lut_dma_rdcfg(u32 channel, u8 vpp_index)
 {
 	int i;
 	u32 base_addr, buf_size, trans_size;
@@ -166,7 +166,7 @@ static void set_lut_dma_rdcfg(u32 channel)
 				phy_addr = info->ins[channel].rd_phy_addr[i];
 
 			lut_dma_reg_write(base_addr,
-					  phy_addr);
+					  phy_addr, vpp_index);
 		}
 	}
 	buf_size = info->ins[channel].rd_table_size[0];
@@ -174,14 +174,15 @@ static void set_lut_dma_rdcfg(u32 channel)
 	trans_size = BYTE_16_ALIGNED(buf_size) / 16;
 	/* config transfer data_number */
 	lut_dma_reg_set_bits(VPU_DMA_WRMIF_CTRL3,
-			     trans_size, 0, 13);
+			     trans_size, 0, 13, vpp_index);
 }
 
 /* use phy addr directly */
 static void set_lut_dma_phyaddr_wrcfg_manual(u32 channel,
 					     u32 index,
 					     ulong phy_addr,
-					     u32 buf_size)
+					     u32 buf_size,
+					     u8 vpp_index)
 {
 	u32 base_addr, trans_size;
 	struct lut_dma_device_info *info = &lut_dma_info;
@@ -201,23 +202,24 @@ static void set_lut_dma_phyaddr_wrcfg_manual(u32 channel,
 			addr = phy_addr;
 		lut_dma_reg_write
 			(base_addr,
-			 addr);
+			 addr, vpp_index);
 	}
 	/* transfer unit:128 bits data */
 	trans_size = BYTE_16_ALIGNED(buf_size) / 16;
 	base_addr = VPU_DMA_RDMIF0_CTRL + channel_index;
 	/* set buf size */
 	lut_dma_reg_set_bits(base_addr,
-			     trans_size, 0, 12);
+			     trans_size, 0, 12, vpp_index);
 	/* set frame index */
 	lut_dma_reg_set_bits(base_addr,
-			     index, 24, 2);
+			     index, 24, 2, vpp_index);
 }
 
 static void set_lut_dma_phyaddr_wrcfg_auto(u32 channel,
 					   u32 index,
 					   ulong phy_addr,
-					   u32 buf_size)
+					   u32 buf_size,
+					   u8 vpp_index)
 {
 	u32 base_addr, trans_size;
 	struct lut_dma_device_info *info = &lut_dma_info;
@@ -238,7 +240,7 @@ static void set_lut_dma_phyaddr_wrcfg_auto(u32 channel,
 			else
 				addr = phy_addr;
 			lut_dma_reg_write(base_addr,
-					  addr);
+					  addr, vpp_index);
 		}
 	}
 	/* transfer unit:128 bits data */
@@ -246,7 +248,7 @@ static void set_lut_dma_phyaddr_wrcfg_auto(u32 channel,
 	base_addr = VPU_DMA_RDMIF0_CTRL + channel_index;
 	/* set buf size */
 	lut_dma_reg_set_bits(base_addr,
-			     trans_size, 0, 12);
+			     trans_size, 0, 12, vpp_index);
 }
 
 #ifdef TEST_LUT_DMA
@@ -320,7 +322,8 @@ static void set_lut_dma_wrcfg_manual(u32 channel, u32 index)
 			addr = info->ins[channel].wr_phy_addr[index];
 		lut_dma_reg_write
 			(base_addr,
-			 addr);
+			 addr,
+			 VPP_INVALID);
 	}
 	buf_size = info->ins[channel].wr_table_size[index];
 	/* transfer unit:128 bits data */
@@ -328,10 +331,10 @@ static void set_lut_dma_wrcfg_manual(u32 channel, u32 index)
 	base_addr = VPU_DMA_RDMIF0_CTRL + channel_index;
 	/* set buf size */
 	lut_dma_reg_set_bits(base_addr,
-			     trans_size, 0, 12);
+			     trans_size, 0, 12, VPP_INVALID);
 	/* set frame index */
 	lut_dma_reg_set_bits(base_addr,
-			     index, 24, 2);
+			     index, 24, 2, VPP_INVALID);
 }
 
 static void set_lut_dma_wrcfg_auto(u32 channel, u32 index)
@@ -355,7 +358,7 @@ static void set_lut_dma_wrcfg_auto(u32 channel, u32 index)
 				addr = info->ins[channel].wr_phy_addr[index];
 			/* set write phy addr */
 			lut_dma_reg_write(base_addr,
-					  addr);
+					  addr, VPP_INVALID);
 		}
 	}
 	buf_size = info->ins[channel].wr_size[index];
@@ -364,7 +367,7 @@ static void set_lut_dma_wrcfg_auto(u32 channel, u32 index)
 	base_addr = VPU_DMA_RDMIF0_CTRL + channel_index;
 	/* set buf size */
 	lut_dma_reg_set_bits(base_addr,
-			     trans_size, 0, 12);
+			     trans_size, 0, 12, VPP_INVALID);
 }
 
 static void set_lut_dma_phy_addr(u32 dma_dir, u32 channel)
@@ -395,7 +398,7 @@ static void set_lut_dma_phy_addr(u32 dma_dir, u32 channel)
 			else
 				addr = info->ins[channel].rd_phy_addr[i];
 			lut_dma_reg_write(base_addr,
-					  addr);
+					  addr, VPP_INVALID);
 		}
 		info->ins[channel].baddr_set = 1;
 	} else if (dma_dir == LUT_DMA_WR) {
@@ -412,7 +415,7 @@ static void set_lut_dma_phy_addr(u32 dma_dir, u32 channel)
 				addr = info->ins[channel].wr_phy_addr[i];
 			/* set write phy addr */
 			lut_dma_reg_write(base_addr,
-					  addr);
+					  addr, VPP_INVALID);
 		}
 		info->ins[channel].baddr_set = 1;
 	}
@@ -421,7 +424,7 @@ static void set_lut_dma_phy_addr(u32 dma_dir, u32 channel)
 static int bit_format;
 MODULE_PARM_DESC(bit_format, "\n bit_format\n");
 module_param(bit_format, uint, 0664);
-static int lut_dma_enable(u32 dma_dir, u32 channel)
+int lut_dma_enable(u32 dma_dir, u32 channel, u8 vpp_index)
 {
 	int mode = 0, channel_sel = 0;
 	u32 channel_index = 0;
@@ -435,7 +438,7 @@ static int lut_dma_enable(u32 dma_dir, u32 channel)
 		else
 			channel_sel = 0;
 		lut_dma_reg_set_bits(VPU_DMA_RDMIF_SEL,
-			channel_sel, 0, 1);
+			channel_sel, 0, 1, vpp_index);
 	}
 	/*channel 0,8->lut0;channel 1,9->lut1;channel 2,10->lut2*/
 	if (last_channel_sel != channel_sel) {
@@ -448,10 +451,10 @@ static int lut_dma_enable(u32 dma_dir, u32 channel)
 	if (dma_dir == LUT_DMA_RD) {
 		/* manul wr dma mode */
 		channel = LUT_DMA_RD_CHAN_NUM + channel;
-		set_lut_dma_rdcfg(channel);
+		set_lut_dma_rdcfg(channel, VPP_INVALID);
 		/* wr_mif_enable */
 		lut_dma_reg_set_bits(VPU_DMA_WRMIF_CTRL,
-				     1, 13, 1);
+				     1, 13, 1, VPP_INVALID);
 	} else if (dma_dir == LUT_DMA_WR) {
 		if (channel < LUT_DMA_WR_CHANNEL &&
 		    info->ins[channel].registered &&
@@ -464,35 +467,35 @@ static int lut_dma_enable(u32 dma_dir, u32 channel)
 			if (mode == LUT_DMA_AUTO) {
 				lut_dma_reg_set_bits(VPU_DMA_RDMIF0_CTRL +
 						     channel_index,
-						     0, 26, 1);
+						     0, 26, 1, vpp_index);
 			} else if (mode == LUT_DMA_MANUAL) {
 				lut_dma_reg_set_bits(VPU_DMA_RDMIF0_CTRL +
 						     channel_index,
-						     1, 26, 1);
+						     1, 26, 1, vpp_index);
 			}
 			pr_dbg("info->ins[channel].trigger_irq_type 0x%x %d\n",
 					info->ins[channel].trigger_irq_type, channel);
 			lut_dma_reg_set_bits
 				(VPU_DMA_RDMIF0_CTRL + channel_index,
 				 info->ins[channel].trigger_irq_type,
-				 16, 8);
+				 16, 8, vpp_index);
 			/*dolby: trigger by reg*/
 			if (info->ins[channel].trigger_irq_type ==
 				(1 << REG_TRIGGER) && channel == DV_CHAN)
-				lut_dma_reg_set_bits(VPU_INTF_CTRL, 3, 24, 2);
+				lut_dma_reg_set_bits(VPU_INTF_CTRL, 3, 24, 2, vpp_index);
 			else /*other: default value*/
-				lut_dma_reg_set_bits(VPU_INTF_CTRL, 0, 24, 2);
+				lut_dma_reg_set_bits(VPU_INTF_CTRL, 0, 24, 2, vpp_index);
 			lut_dma_reg_set_bits
 				(VPU_DMA_RDMIF0_CTRL + channel_index,
 				 bit_format,
-				 13, 2);
+				 13, 2, vpp_index);
 			info->ins[channel].enable = 1;
 		}
 	}
 	return 0;
 }
 
-static void lut_dma_disable(u32 dma_dir, u32 channel)
+void lut_dma_disable(u32 dma_dir, u32 channel, u8 vpp_index)
 {
 	int mode = 0, channel_index = 0;
 	struct lut_dma_device_info *info = &lut_dma_info;
@@ -501,7 +504,7 @@ static void lut_dma_disable(u32 dma_dir, u32 channel)
 		channel = LUT_DMA_RD_CHAN_NUM;
 		/* wr_mif_disable */
 		lut_dma_reg_set_bits(VPU_DMA_WRMIF_CTRL,
-				     0, 13, 1);
+				     0, 13, 1, VPP_INVALID);
 	} else if (dma_dir == LUT_DMA_WR) {
 		if (channel < LUT_DMA_WR_CHANNEL &&
 		    info->ins[channel].registered) {
@@ -512,7 +515,7 @@ static void lut_dma_disable(u32 dma_dir, u32 channel)
 			mode = info->ins[channel].mode;
 			lut_dma_reg_set_bits(VPU_DMA_RDMIF0_CTRL +
 					     channel_index,
-					     0, 16, 8);
+					     0, 16, 8, vpp_index);
 			info->ins[channel].enable = 0;
 		}
 	}
@@ -520,7 +523,7 @@ static void lut_dma_disable(u32 dma_dir, u32 channel)
 
 /* lut dma api */
 /* use phy addr directly */
-int lut_dma_write_phy_addr(u32 channel, ulong phy_addr, u32 size)
+int lut_dma_write_phy_addr(u32 channel, ulong phy_addr, u32 size, u8 vpp_index)
 {
 	struct lut_dma_device_info *info = &lut_dma_info;
 	u32 dma_dir = LUT_DMA_WR;
@@ -545,39 +548,42 @@ int lut_dma_write_phy_addr(u32 channel, ulong phy_addr, u32 size)
 		info->ins[channel].wr_size[index] = size;
 		if (mode == LUT_DMA_MANUAL) {
 			if (pre_size != size) {
-				lut_dma_disable(dma_dir, channel);
+				lut_dma_disable(dma_dir, channel, vpp_index);
 				pr_dbg("size changed: pre_size=%d, size=%d\n",
 				       pre_size, size);
 			}
 			/*should set VPU_DMA_RDMIF_SEL before VPU_DMA_RDMIF*/
-			lut_dma_enable(dma_dir, channel);
+			lut_dma_enable(dma_dir, channel, vpp_index);
 			set_lut_dma_phyaddr_wrcfg_manual(channel,
 							 index,
 							 phy_addr,
-							 size);
+							 size,
+							 vpp_index);
 		} else if (mode == LUT_DMA_AUTO) {
 			if (pre_size != size) {
 				/* if size changed, disable then enable */
-				lut_dma_disable(dma_dir, channel);
+				lut_dma_disable(dma_dir, channel, vpp_index);
 				set_lut_dma_phyaddr_wrcfg_auto(channel,
 							       index,
 							       phy_addr,
-							       size);
-				lut_dma_enable(dma_dir, channel);
+							       size,
+							       vpp_index);
+				lut_dma_enable(dma_dir, channel, vpp_index);
 				pr_dbg("size changed: pre_size=%d, size=%d\n",
 				       pre_size, size);
 			} else {
 				set_lut_dma_phyaddr_wrcfg_auto(channel,
 							       index,
 							       phy_addr,
-							       size);
+							       size,
+							       vpp_index);
 			}
 		}
 	}
 	return 0;
 }
 
-void lut_dma_update_irq_source(u32 channel, u32 irq_source)
+void lut_dma_update_irq_source(u32 channel, u32 irq_source, u8 vpp_index)
 {
 	struct lut_dma_device_info *info = &lut_dma_info;
 	u32 channel_index = 0;
@@ -592,7 +598,7 @@ void lut_dma_update_irq_source(u32 channel, u32 irq_source)
 		channel_index = channel;
 	lut_dma_reg_set_bits(VPU_DMA_RDMIF0_CTRL + channel_index,
 			     info->ins[channel].trigger_irq_type,
-			     16, 8);
+			     16, 8, vpp_index);
 }
 
 int lut_dma_read(u32 channel, void *paddr)
@@ -656,13 +662,13 @@ int lut_dma_write_internal(u32 channel, void *paddr, u32 size)
 		/* need cache or not ? */
 		if (mode == LUT_DMA_MANUAL) {
 			set_lut_dma_wrcfg_manual(channel, index);
-			lut_dma_enable(dma_dir, channel);
+			lut_dma_enable(dma_dir, channel, VPP_INVALID);
 		} else if (mode == LUT_DMA_AUTO) {
 			if (pre_size != size) {
 				/* if size changed, disable then enable */
-				lut_dma_disable(dma_dir, channel);
+				lut_dma_disable(dma_dir, channel, VPP_INVALID);
 				set_lut_dma_wrcfg_auto(channel, index);
-				lut_dma_enable(dma_dir, channel);
+				lut_dma_enable(dma_dir, channel, VPP_INVALID);
 				pr_dbg("size changed: pre_size=%d, size=%d\n",
 				       pre_size, size);
 			}
@@ -1025,7 +1031,7 @@ static ssize_t lut_dma_test_stroe(struct class *cla,
 	case 3:
 		/* do read test */
 		lut_dma_enable(LUT_DMA_RD,
-			       lut_dma_test_channel);
+			       lut_dma_test_channel, VPP_INVALID);
 		table_size = lut_dma_read(0, table_data);
 		break;
 	}
@@ -1202,10 +1208,11 @@ static int lut_dma_probe(struct platform_device *pdev)
 	}
 	for (i = 0; i < LUT_DMA_CHANNEL; i++)
 		mutex_init(&info->ins[i].lut_dma_lock);
+	set_lut_rdma_func_handler();
 	lut_dma_probed = 1;
 	if (cpu_after_eq(MESON_CPU_MAJOR_ID_SC2))
 		lut_dma_reg_set_bits(VPU_DMA_RDMIF_CTRL2,
-				     1, 29, 1);
+				     1, 29, 1, VPP_INVALID);
 	return 0;
 fail_class_create_file:
 	for (i = 0; i < ARRAY_SIZE(lut_dma_attrs); i++)
@@ -1226,7 +1233,7 @@ static int lut_dma_suspend(struct platform_device *dev, pm_message_t state)
 	for (i = 0; i < LUT_DMA_CHANNEL; i++)
 		if (info->ins[i].registered) {
 			if (info->ins[i].enable) {
-				lut_dma_disable(info->ins[i].dir, i);
+				lut_dma_disable(info->ins[i].dir, i, VPP_INVALID);
 				info->ins[i].force_disable = true;
 			}
 		}
@@ -1241,7 +1248,7 @@ static int lut_dma_resume(struct platform_device *dev)
 	for (i = 0; i < LUT_DMA_CHANNEL; i++)
 		if (info->ins[i].registered) {
 			if (!info->ins[i].enable && info->ins[i].force_disable)
-				lut_dma_enable(info->ins[i].dir, i);
+				lut_dma_enable(info->ins[i].dir, i, VPP_INVALID);
 		}
 	return 0;
 }
