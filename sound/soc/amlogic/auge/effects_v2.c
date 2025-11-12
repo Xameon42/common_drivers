@@ -1,7 +1,6 @@
-// SPDX-License-Identifier: GPL-2.0
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
 /*
- * Copyright (C) 2019 Amlogic, Inc. All rights reserved.
- *
+ * Copyright (c) 2019 Amlogic, Inc. All rights reserved.
  */
 
 #include <linux/kernel.h>
@@ -14,16 +13,19 @@
 #include <sound/tlv.h>
 #include <linux/clk-provider.h>
 
+#include "effects_common.h"
 #include "effects_v2.h"
 #include "effects_hw_v2.h"
 #include "effects_hw_v2_coeff.h"
+#include "effects_v3.h"
+#include "effects_hw_v3.h"
 #include "ddr_mngr.h"
 #include "regs.h"
 #include "iomap.h"
-
+#include "sound_init.h"
 #define DRV_NAME "Effects"
 //#define DEBUG
-#define AED_REG_NUM	13
+#define AED_REG_NUM_V5	8
 
 /*
  * AED Diagram
@@ -48,31 +50,9 @@ struct effect_chipinfo {
 	bool reserved_frddr;
 };
 
-struct audioeffect {
-	struct device *dev;
-
-	/* gate */
-	struct clk *gate;
-	/* source mpll */
-	struct clk *srcpll;
-	/* eqdrc clk */
-	struct clk *clk;
-
-	struct effect_chipinfo *chipinfo;
-
-	int lane_mask;
-	int ch_mask;
-
-	/* which module should be effected */
-	int effect_module;
-	unsigned int syssrc_clk_rate;
-	/* store user setting */
-	u32 user_setting[AED_REG_NUM];
-
-};
-
 struct audioeffect *s_effect;
 /* Restore AED register parameters after standby */
+/* for VERSION4 and before */
 static unsigned int aed_restore_list[AED_REG_NUM] = {
 	AED_EQ_VOLUME,
 	AED_EQ_VOLUME_SLEW_CNT,
@@ -89,14 +69,30 @@ static unsigned int aed_restore_list[AED_REG_NUM] = {
 	AED_DRC_CNTL,
 };
 
-static struct audioeffect *get_audioeffects(void)
+/* for VERSION5 and later */
+static unsigned int aed_restore_list_v5[AED_REG_NUM_V5] = {
+	AEQ_MIX0_LL,
+	AEQ_MIX0_RL,
+	AEQ_MIX0_LR,
+	AEQ_MIX0_RR,
+	AED_STATUS_CTRL,
+	AED_EQ_VOLUME_VAL,
+	AED_MUTE_CTRL,
+	AED_CLIP_THD_V3,
+};
+
+struct audioeffect *get_audioeffects(void)
 {
-	if (!s_effect) {
+	struct audioeffect *p_effect;
+
+	p_effect = s_effect;
+
+	if (!p_effect) {
 		pr_info("Not init audio effects\n");
 		return NULL;
 	}
 
-	return s_effect;
+	return p_effect;
 }
 
 int get_aed_dst(void)
@@ -165,7 +161,7 @@ static int eqdrc_clk_set(struct audioeffect *p_effect)
 	return 0;
 }
 
-static int mixer_aed_read(struct snd_kcontrol *kcontrol,
+int mixer_aed_read(struct snd_kcontrol *kcontrol,
 	struct snd_ctl_elem_value *ucontrol)
 {
 	struct soc_mixer_control *mc =
@@ -184,7 +180,7 @@ static int mixer_aed_read(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
-static int mixer_aed_write(struct snd_kcontrol *kcontrol,
+int mixer_aed_write(struct snd_kcontrol *kcontrol,
 	struct snd_ctl_elem_value *ucontrol)
 {
 	struct soc_mixer_control *mc =
@@ -222,7 +218,7 @@ static int mixer_get_EQ_params(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
-static int str2int(char *str, unsigned int *data, int size)
+int str2int(char *str, unsigned int *data, int size)
 {
 	int num = 0;
 	unsigned int temp = 0;
@@ -276,6 +272,11 @@ static int mixer_set_EQ_params(struct snd_kcontrol *kcontrol,
 	}
 
 	version = check_aed_version();
+	if (version < 0) {
+		pr_err("Failed to obtain version: %d\n", version);
+		return 0;
+	}
+
 	p = &EQ_COEFF[band_id * FILTER_PARAM_SIZE];
 	aed_set_ram_coeff(version, (EQ_FILTER_RAM_ADD +
 		band_id * FILTER_PARAM_SIZE),
@@ -312,7 +313,7 @@ static int mixer_set_crossover_params(struct snd_kcontrol *kcontrol,
 	char tmp_string[FILTER_PARAM_BYTE];
 	char *p_string = &tmp_string[0];
 	unsigned int *p = &CROSSOVER_COEFF[0];
-	int num, i, band_id;
+	int num, i, band_id, version;
 	char *val = (char *)ucontrol->value.bytes.data;
 
 	if (!val)
@@ -332,9 +333,14 @@ static int mixer_set_crossover_params(struct snd_kcontrol *kcontrol,
 	p = &CROSSOVER_COEFF[band_id * FILTER_PARAM_SIZE];
 	for (i = 0; i < FILTER_PARAM_SIZE; i++)
 		*p++ = *p_data++;
+	version = check_aed_version();
+	if (version < 0) {
+		pr_err("Failed to obtain version: %d\n", version);
+		return 0;
+	}
 
 	p = &CROSSOVER_COEFF[band_id * FILTER_PARAM_SIZE];
-	aed_set_ram_coeff(check_aed_version(), (CROSSOVER_FILTER_RAM_ADD +
+	aed_set_ram_coeff(version, (CROSSOVER_FILTER_RAM_ADD +
 		band_id * FILTER_PARAM_SIZE),
 		FILTER_PARAM_SIZE, p);
 
@@ -446,34 +452,41 @@ static int mixer_set_fullband_DRC_params(struct snd_kcontrol *kcontrol,
 
 static void aed_set_filter_data(int version)
 {
-	int *p;
+	unsigned int *p;
 
 	/* set default filter param*/
-	p = &DC_CUT_COEFF[0];
-	aed_init_ram_coeff(version,
-			   DC_CUT_FILTER_RAM_ADD, DC_CUT_FILTER_SIZE, p);
-	p = &EQ_COEFF[0];
-	aed_init_ram_coeff(version, EQ_FILTER_RAM_ADD, EQ_FILTER_SIZE, p);
-	p = &CROSSOVER_COEFF[0];
-	aed_init_ram_coeff(version,
-			   CROSSOVER_FILTER_RAM_ADD, CROSSOVER_FILTER_SIZE, p);
-
+	if (version > VERSION4) {
+		aed_v3_set_filter_data();
+	} else {
+		p = &DC_CUT_COEFF[0];
+		aed_init_ram_coeff(version,
+				DC_CUT_FILTER_RAM_ADD, DC_CUT_FILTER_SIZE, p);
+		p = &EQ_COEFF[0];
+		aed_init_ram_coeff(version, EQ_FILTER_RAM_ADD, EQ_FILTER_SIZE, p);
+		p = &CROSSOVER_COEFF[0];
+		aed_init_ram_coeff(version,
+				CROSSOVER_FILTER_RAM_ADD, CROSSOVER_FILTER_SIZE, p);
+	}
 }
 
-static void aed_set_drc_data(void)
+static void aed_set_drc_data(int version)
 {
-	unsigned int *p = &multiband_drc_coeff[0];
+	unsigned int *p;
 	int i;
 
-	/*set MDRC default value*/
-	for (i = 0; i < AED_MULTIBAND_DRC_BANDS; i++)
-		aed_set_multiband_drc_coeff(i, p);
-
-	/*set FDRC default value*/
-	p = &fullband_drc_coeff[0];
-	for (i = 0; i < AED_FULLBAND_DRC_GROUP_SIZE; i++) {
-		aed_set_fullband_drc_coeff(i,
-			p + i * AED_FULLBAND_DRC_OFFSET);
+	if (version > VERSION4) {
+		aed_v3_set_drc_data();
+	} else {
+		/*set MDRC default value*/
+		p = &multiband_drc_coeff[0];
+		for (i = 0; i < AED_MULTIBAND_DRC_BANDS; i++)
+			aed_set_multiband_drc_coeff(i, p);
+		/*set FDRC default value*/
+		p = &fullband_drc_coeff[0];
+		for (i = 0; i < AED_FULLBAND_DRC_GROUP_SIZE; i++) {
+			aed_set_fullband_drc_coeff(i,
+				p + i * AED_FULLBAND_DRC_OFFSET);
+		}
 	}
 }
 
@@ -560,19 +573,28 @@ static const struct snd_kcontrol_new snd_effect_controls[] = {
 int card_add_effect_v2_kcontrols(struct snd_soc_card *card)
 {
 	unsigned int idx;
-	int err;
+	int err, version;
 
 	if (!s_effect) {
 		pr_info("effect_v2 is not init\n");
 		return 0;
 	}
+	version = check_aed_version();
+	if (version < 0) {
+		pr_err("Failed to obtain version: %d\n", version);
+		return 0;
+	}
 
-	for (idx = 0; idx < ARRAY_SIZE(snd_effect_controls); idx++) {
-		err = snd_ctl_add(card->snd_card,
-				snd_ctl_new1(&snd_effect_controls[idx],
-					s_effect));
-		if (err < 0)
-			return err;
+	if (version > VERSION4) {
+		add_effect_v3_kcontrols(card);
+	} else {
+		for (idx = 0; idx < ARRAY_SIZE(snd_effect_controls); idx++) {
+			err = snd_ctl_add(card->snd_card,
+					snd_ctl_new1(&snd_effect_controls[idx],
+						s_effect));
+			if (err < 0)
+				return err;
+		}
 	}
 
 	return 0;
@@ -594,6 +616,11 @@ static struct effect_chipinfo tm2_revb_effect_chipinfo = {
 	.reserved_frddr = false,
 };
 
+static struct effect_chipinfo t6d_effect_chipinfo = {
+	.version = VERSION5,
+	.reserved_frddr = false,
+};
+
 static const struct of_device_id effect_device_id[] = {
 	{
 		.compatible = "amlogic, snd-effect-v1"
@@ -610,6 +637,10 @@ static const struct of_device_id effect_device_id[] = {
 		.compatible = "amlogic, snd-effect-v4",
 		.data       = &tm2_revb_effect_chipinfo,
 	},
+	{
+		.compatible = "amlogic, snd-effect-v5",
+		.data       = &t6d_effect_chipinfo,
+	},
 	{}
 };
 MODULE_DEVICE_TABLE(of, effect_device_id);
@@ -620,29 +651,47 @@ static void effect_init(struct platform_device *pdev)
 	int version;
 	/*set eq/drc module lane & channels*/
 	version = check_aed_version();
+	if (version < 0)
+		pr_err("Failed to obtain version: %d\n", version);
+
 	if (version > VERSION2)
 		aed_set_lane_and_channels_v3(p_effect->lane_mask, p_effect->ch_mask);
 	else
 		aed_set_lane_and_channels(p_effect->lane_mask, p_effect->ch_mask);
 
 	/*set default mixer gain*/
-	aed_set_mixer_params();
-	/*all 20 bands for EQ1*/
-	aed_eq_taps(EQ_BAND);
+	aed_set_mixer_params(version);
 	/*set default filter param*/
 	aed_set_filter_data(version);
-	/*set multi-band drc param*/
-	aed_set_multiband_drc_param();
 	/*set multi/full-band drc data*/
-	aed_set_drc_data();
-	/*set full-band drc param, enable 2 band*/
-	aed_set_fullband_drc_param(2);
+	aed_set_drc_data(version);
+	if (version > VERSION4) {
+		/*all 16 bands for EQ1*/
+		aed_eq_taps(version, EQ_V3_BAND);
+		aed_status_set();
+	} else {
+		/*all 20 bands for EQ1*/
+		aed_eq_taps(version, EQ_BAND);
+		/*set multi-band drc param*/
+		aed_set_multiband_drc_param();
+		/*set full-band drc param, enable 2 band*/
+		aed_set_fullband_drc_param(2);
+	}
 	/*set EQ/DRC module enable*/
 	aml_set_aed(1, p_effect->effect_module);
 
 	if (p_effect->chipinfo &&
 		p_effect->chipinfo->reserved_frddr) {
 		aml_aed_set_frddr_reserved();
+	}
+
+	/* set master & channel volume gain to 0dB */
+	if (version > VERSION4) {
+		aed_set_volume(version, 0xc0, 0xc0, 0xc0);
+	} else {
+		aed_set_volume(version, 0xc0, 0x30, 0x30);
+		/* enable DC filter */
+		aed_dc_enable(true);
 	}
 }
 
@@ -756,9 +805,6 @@ static int effect_platform_probe(struct platform_device *pdev)
 
 	effect_init(pdev);
 
-	/*set master & channel volume gain to 0dB*/
-	aed_set_volume(0xc0, 0x30, 0x30);
-
 	return 0;
 }
 
@@ -766,9 +812,16 @@ static int effect_platform_suspend(struct platform_device *pdev, pm_message_t st
 {
 	struct audioeffect *p_effect = dev_get_drvdata(&pdev->dev);
 	int i = 0;
+	int version;
 
-	for (i = 0; i < ARRAY_SIZE(aed_restore_list); i++)
-		p_effect->user_setting[i] = eqdrc_read(aed_restore_list[i]);
+	version = check_aed_version();
+	if (version > VERSION4) {
+		for (; i < ARRAY_SIZE(aed_restore_list_v5); i++)
+			p_effect->user_setting[i] = eqdrc_read(aed_restore_list_v5[i]);
+	} else {
+		for (; i < ARRAY_SIZE(aed_restore_list); i++)
+			p_effect->user_setting[i] = eqdrc_read(aed_restore_list[i]);
+	}
 
 	aml_set_aed(0, p_effect->effect_module);
 
@@ -785,6 +838,7 @@ static int effect_platform_resume(struct platform_device *pdev)
 	struct audioeffect *p_effect = dev_get_drvdata(&pdev->dev);
 	int ret;
 	int i = 0;
+	int version;
 
 	if (!IS_ERR(p_effect->clk)) {
 		audiobus_write(EE_AUDIO_CLK_GATE_EN0, 0xffffffff);
@@ -808,8 +862,14 @@ static int effect_platform_resume(struct platform_device *pdev)
 	}
 	effect_init(pdev);
 
-	for (i = 0; i < ARRAY_SIZE(aed_restore_list); i++)
-		eqdrc_write(aed_restore_list[i], p_effect->user_setting[i]);
+	version = check_aed_version();
+	if (version > VERSION4) {
+		for (; i < ARRAY_SIZE(aed_restore_list_v5); i++)
+			eqdrc_write(aed_restore_list_v5[i], p_effect->user_setting[i]);
+	} else {
+		for (; i < ARRAY_SIZE(aed_restore_list); i++)
+			eqdrc_write(aed_restore_list[i], p_effect->user_setting[i]);
+	}
 
 	pr_debug("%s\n", __func__);
 	return 0;

@@ -7,10 +7,12 @@
 #include <linux/kernel.h>
 
 #include "effects_hw_v2.h"
+#include "effects_hw_v3.h"
 #include "regs.h"
 #include "iomap.h"
 #include "tdm_hw.h"
 #include "spdif_hw.h"
+#include "effects_common.h"
 
 void aed_init_ram_coeff(int version, int add, int len, unsigned int *params)
 {
@@ -135,9 +137,8 @@ void aed_get_multiband_drc_coeff(int band, unsigned int *params)
 	int offset = AED_MDRC_RMS_COEF10 - AED_MDRC_RMS_COEF00;
 	int reg = AED_MDRC_RMS_COEF00;
 
-	for (i = 0; i < offset; i++) {
+	for (i = 0; i < offset; i++)
 		*(params + i) = eqdrc_read(reg + band * offset + i);
-	}
 }
 
 void aed_set_fullband_drc_coeff(int group, unsigned int *params)
@@ -198,13 +199,17 @@ void aed_get_fullband_drc_coeff(int len, unsigned int *params)
 	*p++ = eqdrc_read(AED_DRC_OFFSET);
 }
 
-void aed_set_mixer_params(void)
+void aed_set_mixer_params(int version)
 {
-	eqdrc_write(AED_MIX0_LL, 0x40000);
-	eqdrc_write(AED_MIX0_RL, 0x0);
-	eqdrc_write(AED_MIX0_LR, 0x0);
-	eqdrc_write(AED_MIX0_RR, 0x40000);
-	eqdrc_write(AED_CLIP_THD, 0x7fffff);
+	if (version > VERSION4) {
+		aed_v3_set_mixer_params();
+	} else {
+		eqdrc_write(AED_MIX0_LL, 0x40000);
+		eqdrc_write(AED_MIX0_RL, 0x0);
+		eqdrc_write(AED_MIX0_LR, 0x0);
+		eqdrc_write(AED_MIX0_RR, 0x40000);
+		eqdrc_write(AED_CLIP_THD, 0x7fffff);
+	}
 }
 
 void aed_dc_enable(bool enable)
@@ -239,14 +244,18 @@ void aed_eq_enable(int idx, bool enable)
 	eqdrc_update_bits(AED_EQ_EN, 0x1 << idx, enable << idx);
 }
 
-void aed_eq_taps(unsigned int eq1_taps)
+void aed_eq_taps(int version, unsigned int eq1_taps)
 {
-	if (eq1_taps > 20) {
-		pr_err("Error EQ1_Tap = %d\n", eq1_taps);
-		return;
+	if (version > VERSION4) {
+		aed_v3_eq_taps(eq1_taps);
+	} else {
+		if (eq1_taps > 20) {
+			pr_err("Error EQ1_Tap = %d\n", eq1_taps);
+			return;
+		}
+		eqdrc_update_bits(AED_EQ_TAP_CNTL, 0x1f, eq1_taps);
+		eqdrc_update_bits(AED_EQ_TAP_CNTL, 0x1f << 5, (20 - eq1_taps) << 5);
 	}
-	eqdrc_update_bits(AED_EQ_TAP_CNTL, 0x1f, eq1_taps);
-	eqdrc_update_bits(AED_EQ_TAP_CNTL, 0x1f << 5, (20 - eq1_taps) << 5);
 }
 
 void aed_set_multiband_drc_param(void)
@@ -271,17 +280,21 @@ void aed_set_fullband_drc_enable(bool enable)
 	eqdrc_update_bits(AED_DRC_CNTL, (0x1 << 0), (enable << 0));
 }
 
-void aed_set_volume(unsigned int master_vol,
-		    unsigned int lch_vol, unsigned int rch_vol)
+void aed_set_volume(int version, unsigned int master_vol,
+			unsigned int lch_vol, unsigned int rch_vol)
 {
-	eqdrc_write(AED_EQ_VOLUME,
-		    (0 << 30) |          /* volume step: 0.125dB */
-		    (master_vol << 16) | /* master volume: 0dB */
-		    (lch_vol << 8) |     /* channel 2 volume: 0dB */
-		    (rch_vol << 0)       /* channel 1 volume: 0dB */
-	);
-	eqdrc_write(AED_EQ_VOLUME_SLEW_CNT, 0x2); /*40ms from -120dB~0dB*/
-	eqdrc_write(AED_MUTE, 0);
+	if (version > VERSION4) {
+		aed_v3_set_volume(master_vol, lch_vol, rch_vol);
+	} else {
+		eqdrc_write(AED_EQ_VOLUME,
+				(0 << 30) |          /* volume step: 0.125dB */
+				(master_vol << 16) | /* master volume: 0dB */
+				(lch_vol << 8) |     /* channel 2 volume: 0dB */
+				(rch_vol << 0)       /* channel 1 volume: 0dB */
+		);
+		eqdrc_write(AED_EQ_VOLUME_SLEW_CNT, 0x2); /*40ms from -120dB~0dB*/
+		eqdrc_write(AED_MUTE, 0);
+	}
 }
 
 void aed_set_lane_and_channels(int lane_mask, int ch_mask)

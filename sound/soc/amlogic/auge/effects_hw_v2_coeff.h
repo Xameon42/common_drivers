@@ -18,6 +18,7 @@
 #define CROSSOVER_FILTER_BAND    (4)
 
 #define FILTER_PARAM_BYTE        (66) /*"0x%8.8x "*/
+#define EQ_V3_BAND               (16)
 
 /* 20Hz, highpass filter */
 static unsigned int DC_CUT_COEFF[DC_CUT_FILTER_SIZE] = {

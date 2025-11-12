@@ -22,6 +22,7 @@
 
 #include "resample.h"
 #include "resample_hw.h"
+#include "effects_common.h"
 #include "effects_hw.h"
 #include "effects_hw_v2.h"
 #include "effects_v2.h"

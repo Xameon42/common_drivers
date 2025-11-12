@@ -1108,6 +1108,28 @@ struct register_table {
 #define AED_STATUS_REG                     0xde
 
 /*
+ * EQ DRC, the third version for T6D
+ */
+
+#define AEQ_COEF_ADDR                      (0x0)
+#define AEQ_COEF_DATA                      (0x1)
+#define AEQ_MIX0_LL                        (0x2)
+#define AEQ_MIX0_RL                        (0x3)
+#define AEQ_MIX0_LR                        (0x4)
+#define AEQ_MIX0_RR                        (0x5)
+#define AEQ_SOFT_REST                      (0x9)
+#define AED_STATUS_CTRL                    (0x10)
+#define AED_SEL                            (0x11)
+#define AED_EQ_VOLUME_VAL                  (0x12)
+#define AED_EQ_VOLUME_STEP_CNT             (0x13)
+#define AED_MUTE_CTRL                      (0x14)
+#define AEQ_DSP_VOL_DBG_SEL                (0x15)
+#define AED_CLIP_THD_V3                    (0x17)
+#define AEQ_RO_DSP_DBG                     (0x30)
+#define AEQ_RO_LM_RMS_OUT                  (0x31)
+#define AEQ_RO_DSP_ERR                     (0x32)
+
+/*
  * VAD, Voice activity detection
  */
 #define VAD_TOP_CTRL0                      0x000
