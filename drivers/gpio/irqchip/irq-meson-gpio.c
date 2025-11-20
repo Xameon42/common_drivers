@@ -16,6 +16,7 @@
 #include <linux/of_irq.h>
 #ifdef CONFIG_AMLOGIC_MODIFY
 #include <linux/amlogic/glb_timer.h>
+#include <linux/amlogic/irq_latch.h>
 #endif
 
 #define NUM_CHANNEL 8
@@ -359,6 +360,7 @@ struct meson_gpio_irq_controller {
 	u8 channel_num;
 	u32 *shadow;
 	int shadow_size;
+	bool level_high_to_gic;
 #endif
 	spinlock_t lock;		//
 };
@@ -679,8 +681,15 @@ static int meson_gpio_irq_set_type(struct irq_data *data, unsigned int type)
 	if (ret)
 		return ret;
 
-	return irq_chip_set_type_parent(data,
-					meson_gpio_irq_type_output(type));
+	if (ctl->level_high_to_gic) {
+		type &= ~IRQ_TYPE_SENSE_MASK;
+		type |= IRQ_TYPE_LEVEL_HIGH;
+		irq_latch_clr(data->irq);
+		return irq_chip_set_type_parent(data, type);
+	} else {
+		return irq_chip_set_type_parent(data,
+						meson_gpio_irq_type_output(type));
+	}
 }
 
 static struct irq_chip meson_gpio_irq_chip = {
@@ -716,12 +725,20 @@ static int meson_gpio_irq_allocate_gic_irq(struct irq_domain *domain,
 					   unsigned int type)
 {
 	struct irq_fwspec fwspec;
+	struct meson_gpio_irq_controller *ctl = domain->host_data;
 
 	fwspec.fwnode = domain->parent->fwnode;
 	fwspec.param_count = 3;
 	fwspec.param[0] = 0;	/* SPI */
 	fwspec.param[1] = hwirq;
-	fwspec.param[2] = meson_gpio_irq_type_output(type);
+
+	if (ctl->level_high_to_gic) {
+		type &= ~IRQ_TYPE_SENSE_MASK;
+		type |= IRQ_TYPE_LEVEL_HIGH;
+		fwspec.param[2] = type;
+	} else {
+		fwspec.param[2] = meson_gpio_irq_type_output(type);
+	}
 
 	return irq_domain_alloc_irqs_parent(domain, virq, 1, &fwspec);
 }
@@ -834,6 +851,9 @@ static int meson_gpio_irq_parse_dt(struct device_node *node,
 		ctl->channel_map = NULL;
 		return ret;
 	}
+	ret = of_property_read_bool(node, "amlogic,level-high-to-gic");
+	if (ret)
+		ctl->level_high_to_gic = true;
 #endif
 
 	ctl->params->ops.gpio_irq_init(ctl);

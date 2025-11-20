@@ -604,6 +604,7 @@
 				#interrupt-cells = <2>;
 				amlogic,channel-interrupts =
 					<10 11 12 13 14 15 16 17 18 19 20 21>;
+				amlogic,level-high-to-gic;
 			};
 
 			spicc0: spi@50000 {
