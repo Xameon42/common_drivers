@@ -317,6 +317,8 @@ static int meson_gxbb_wdt_freeze(struct device *dev)
 
 static const struct dev_pm_ops meson_gxbb_wdt_pm_ops = {
 #if defined(CONFIG_AMLOGIC_MODIFY)
+	.suspend = meson_gxbb_wdt_suspend,
+	.resume = meson_gxbb_wdt_resume,
 	.freeze = meson_gxbb_wdt_freeze,
 	.thaw = meson_gxbb_wdt_resume,
 	.poweroff = meson_gxbb_wdt_suspend,
@@ -371,20 +373,8 @@ static void meson_gxbb_wdt_syscore_shutdown(void)
 	pr_info("watchdog shutdown\n");
 }
 
-static int meson_gxbb_wdt_syscore_suspend(void)
-{
-	return meson_gxbb_wdt_suspend(gdev);
-}
-
-static void meson_gxbb_wdt_syscore_resume(void)
-{
-	meson_gxbb_wdt_resume(gdev);
-}
-
 static struct syscore_ops meson_gxbb_wdt_syscore_ops = {
 	.shutdown = meson_gxbb_wdt_syscore_shutdown,
-	.suspend = meson_gxbb_wdt_syscore_suspend,
-	.resume = meson_gxbb_wdt_syscore_resume,
 };
 
 #if IS_ENABLED(CONFIG_DEBUG_FS)
