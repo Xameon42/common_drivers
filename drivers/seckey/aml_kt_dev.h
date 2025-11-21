@@ -32,6 +32,7 @@ struct aml_kt_dev {
 	u32 ive_start;
 	u32 ive_end;
 	u32 kt_reserved;
+	u32 host_key_max_len;
 	struct cdev cdev;
 };
 

@@ -779,6 +779,13 @@ int aml_kt_set_host_key(struct aml_kt_dev *dev, struct amlkt_set_key_param *key_
 							dev->kt_iv_slot[index], key_param->key,
 							key_param->key_len, KT_MODE_HOST);
 		} else {
+			/* check key len */
+			if (key_param->key_len > dev->host_key_max_len) {
+				KT_LOGE("Not support key length[%d] (max:%d)\n",
+					key_param->key_len,
+					dev->host_key_max_len);
+				return KT_ERROR;
+			}
 			ret = aml_kt_set_inter_key(dev, key_param->handle,
 						dev->kt_slot[index], key_param->key,
 						key_param->key_len, KT_MODE_HOST);
@@ -1146,6 +1153,15 @@ static int aml_kt_get_dts_info(struct aml_kt_dev *dev, struct platform_device *p
 	ret = of_property_read_u32(pdev->dev.of_node, "kt_reserved", &dev->kt_reserved);
 	if (ret) {
 		KT_LOGE("%s: not found 0x%x\n", "kt_reserved", dev->kt_reserved);
+		return KT_ERROR;
+	}
+
+	/* Check host key max length */
+	ret = of_property_read_u32(pdev->dev.of_node, "kt_host_key_max_len",
+				   &dev->host_key_max_len);
+	if (ret) {
+		KT_LOGE("%s: not found 0x%x\n", "kt_host_key_max_len",
+			dev->host_key_max_len);
 		return KT_ERROR;
 	}
 
