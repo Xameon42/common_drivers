@@ -210,6 +210,21 @@ int amlogic_of_parse(struct mmc_host *host)
 	if (device_property_read_u32(dev, "vendor-id", &mmc->vendor_id) < 0)
 		mmc->vendor_id = 0;
 
+	if (device_property_read_u32(dev, "cmd_dly", &mmc->cmd_dly) < 0)
+		mmc->cmd_dly = 0;
+
+	if (device_property_read_u32(dev, "dat0_dly", &mmc->dat0_dly) < 0)
+		mmc->dat0_dly = 0;
+
+	if (device_property_read_u32(dev, "dat1_dly", &mmc->dat1_dly) < 0)
+		mmc->dat1_dly = 0;
+
+	if (device_property_read_u32(dev, "dat2_dly", &mmc->dat2_dly) < 0)
+		mmc->dat2_dly = 0;
+
+	if (device_property_read_u32(dev, "dat3_dly", &mmc->dat3_dly) < 0)
+		mmc->dat3_dly = 0;
+
 	return 0;
 }
 
@@ -1336,6 +1351,138 @@ int sdio_get_device(void)
 	return device;
 }
 
+static int mmc_io_rw_direct_host(struct mmc_host *host, int write, unsigned int fn,
+	unsigned int addr, u8 in, u8 *out)
+{
+	struct mmc_command cmd = {};
+	int err;
+
+	if (out)
+		*out = 0;
+
+	if (fn > 7)
+		return -EINVAL;
+
+	/* sanity check */
+	if (addr & ~0x1FFFF)
+		return -EINVAL;
+
+	cmd.opcode = SD_IO_RW_DIRECT;
+	cmd.arg = write ? 0x80000000 : 0x00000000;
+	cmd.arg |= fn << 28;
+	cmd.arg |= (write && out) ? 0x08000000 : 0x00000000;
+	cmd.arg |= addr << 9;
+	cmd.arg |= in;
+	cmd.flags = MMC_RSP_SPI_R5 | MMC_RSP_R5 | MMC_CMD_AC;
+
+	err = mmc_wait_for_cmd(host, &cmd, 0);
+	if (err)
+		return err;
+
+	if (mmc_host_is_spi(host)) {
+		/* host driver already reported errors */
+	} else {
+		if (cmd.resp[0] & R5_ERROR)
+			return -EIO;
+		if (cmd.resp[0] & R5_FUNCTION_NUMBER)
+			return -EINVAL;
+		if (cmd.resp[0] & R5_OUT_OF_RANGE)
+			return -ERANGE;
+	}
+
+	if (out) {
+		if (mmc_host_is_spi(host))
+			*out = (cmd.resp[0] >> 8) & 0xFF;
+		else
+			*out = cmd.resp[0] & 0xFF;
+	}
+
+	return 0;
+}
+
+static int meson_io_rw_direct(struct mmc_card *card, int write, unsigned int fn,
+	unsigned int addr, u8 in, u8 *out)
+{
+	return mmc_io_rw_direct_host(card->host, write, fn, addr, in, out);
+}
+
+//read ID
+static u16 read_device_id(struct mmc_card *card)
+{
+	u8 val1, val2;
+
+	if (meson_io_rw_direct(card, 0, 0, 0x1004, 0, &val1) != 0 ||
+	    meson_io_rw_direct(card, 0, 0, 0x1005, 0, &val2) != 0)
+		return 0;
+
+	pr_info("device:0x%x\n", (val1 << 0) | (val2 << 8));
+	return (val1 << 0) | (val2 << 8);
+}
+
+//check support
+static bool is_device_supported(u16 device_id, const u16 *supported_pids, int count)
+{
+	int i;
+
+	for (i = 0; i < count; i++) {
+		if (device_id == supported_pids[i])
+			return true;
+	}
+	return false;
+}
+
+//set cmd/data0/data1/data2/data3 delay
+static void set_delays(struct meson_host *host, struct mmc_card *card)
+{
+	u8 delays[] = {
+		host->cmd_dly & 0xff,
+		host->dat0_dly & 0xff,
+		host->dat1_dly & 0xff,
+		host->dat2_dly & 0xff,
+		host->dat3_dly & 0xff
+	};
+	u32 regs[] = {0x2c1, 0x2c2, 0x2c3, 0x2c4, 0x2c5};
+	int i;
+
+	for (i = 0; i < 5; i++) {
+		if (meson_io_rw_direct(card, 1, 1, regs[i], delays[i], NULL) != 0)
+			return;
+	}
+	for (i = 0; i < 5; i++) {
+		if (meson_io_rw_direct(card, 0, 1, regs[i], 0, (u8 *)&delays[i]) != 0)
+			return;
+	}
+}
+
+void sdio_set_dly(struct meson_host *host)
+{
+	struct mmc_card *card = NULL;
+	u16 device_id = 0;
+	static const u16 SUPPORTED_PIDS[] = {0x4C0, 0x500, 0x540, 0x600,
+					     0x640, 0x680, 0x800, 0x808,
+					     0x810, 0x840, 0x848, 0x850,
+					     0x880, 0x888, 0x890, 0xC00,
+					     0x8888, 0x8881};
+	static const int PID_COUNT = ARRAY_SIZE(SUPPORTED_PIDS);
+
+	if (!sdio_host || !sdio_host->card)
+		return;
+
+	card = sdio_host->card;
+	device_id = read_device_id(card);
+
+	if (device_id == 0)
+		return;
+
+	if (!is_device_supported(device_id, SUPPORTED_PIDS, PID_COUNT))
+		return;
+
+	set_delays(host, card);
+	pr_info("cmd:%d, d0:%d d1:%d, d2:%d, d3:%d\n",
+		host->cmd_dly, host->dat0_dly,
+		host->dat1_dly, host->dat2_dly, host->dat3_dly);
+}
+
 static int meson_mmc_clk_set(struct meson_host *host,
 			struct mmc_ios *ios, bool ddr)
 {
@@ -1478,8 +1625,10 @@ static void meson_mmc_check_resampling(struct meson_host *host,
 	case MMC_TIMING_UHS_SDR25:
 	case MMC_TIMING_UHS_SDR50:
 	case MMC_TIMING_UHS_SDR104:
-		if (aml_card_type_sdio(host))
+		if (aml_card_type_sdio(host)) {
 			sdio_get_device();
+			sdio_set_dly(host);
+		}
 		mmc_phase_set = &host->sd_mmc.sdr;
 		break;
 	default:

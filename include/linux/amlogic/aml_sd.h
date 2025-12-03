@@ -233,6 +233,11 @@ struct meson_host {
 	unsigned int f_max;
 	struct completion drv_completion;
 	unsigned int vendor_id;
+	unsigned int cmd_dly;
+	unsigned int dat0_dly;
+	unsigned int dat1_dly;
+	unsigned int dat2_dly;
+	unsigned int dat3_dly;
 };
 
 struct amlsd_platform {
@@ -335,6 +340,8 @@ const char *get_wifi_inf(void);
 int sdio_get_vendor(void);
 void aml_host_bus_fsm_show(struct mmc_host *mmc, int status);
 extern struct mmc_host *sdio_host;
+int mmc_io_rw_direct(struct mmc_card *card, int write, unsigned int fn,
+	unsigned int addr, u8 in, u8 *out);
 
 #define   DRIVER_NAME "meson-gx-mmc"
 #define   G12A_DRIVER_NAME "meson-g12a-mmc"
