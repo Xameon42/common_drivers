@@ -38,9 +38,7 @@
 #include <linux/of_irq.h>
 #include <linux/interrupt.h>
 #include <linux/amlogic/page_trace.h>
-#include <linux/amlogic/cpu_version.h>
 #include <linux/amlogic/gki_module.h>
-#include <linux/amlogic/cpu_version.h>
 #include <linux/arm-smccc.h>
 #include <linux/highmem.h>
 #include <linux/amlogic/amfc_regs.h>
@@ -51,6 +49,11 @@
 
 static struct amfc *amfc;
 static struct page *garbage_page;
+
+struct amfc *get_amfc_instance(void)
+{
+	return amfc;
+}
 
 static inline int _vmalloc_or_module_addr(const void *x)
 {
@@ -173,7 +176,7 @@ static unsigned long vmalloc_to_phys(void *va)
 
 static unsigned long inline get_cache_line_size(void)
 {
-	unsigned long ctr_el0;
+	unsigned long ctr_el0 = 0;
 
 	asm volatile (
 	#ifdef CONFIG_ARM64
@@ -1115,6 +1118,14 @@ static ssize_t statistics_store(struct class *cla,
 	amfc->d_count            = 0;
 	amfc->c_congestion       = 0;
 	amfc->d_congestion       = 0;
+#ifdef CONFIG_AMLOGIC_F2FS
+	amfc->f2fs_enc_in        = 0;
+	amfc->f2fs_enc_out       = 0;
+	amfc->f2fs_dec_in        = 0;
+	amfc->f2fs_dec_out       = 0;
+	amfc->f2fs_enc_fail      = 0;
+	amfc->f2fs_dec_fail      = 0;
+#endif
 	return count;
 }
 
@@ -1164,6 +1175,14 @@ static ssize_t statistics_show(struct class *cla,
 	s += sprintf(buf + s, "Decompressed count:              %16ld\n",  amfc->d_count);
 	s += sprintf(buf + s, "Compress congestion count:       %16ld\n",  amfc->c_congestion);
 	s += sprintf(buf + s, "Decompress congestion count:     %16ld\n",  amfc->d_congestion);
+#ifdef CONFIG_AMLOGIC_F2FS
+	s += sprintf(buf + s, "f2fs_enc_in:                     %16lld\n",  amfc->f2fs_enc_in);
+	s += sprintf(buf + s, "f2fs_enc_out:                    %16lld\n",  amfc->f2fs_enc_out);
+	s += sprintf(buf + s, "f2fs_dec_in:                     %16lld\n",  amfc->f2fs_dec_in);
+	s += sprintf(buf + s, "f2fs_dec_out:                    %16lld\n",  amfc->f2fs_dec_out);
+	s += sprintf(buf + s, "f2fs_enc_fail:                   %16ld\n",  amfc->f2fs_enc_fail);
+	s += sprintf(buf + s, "f2fs_dec_fail:                   %16ld\n",  amfc->f2fs_dec_fail);
+#endif
 
 	return s;
 }
@@ -1396,6 +1415,13 @@ static int __init amfc_probe(struct platform_device *pdev)
 	unsigned int tmp;
 	struct resource *res;
 	struct device_node *node;
+#ifdef CONFIG_AMLOGIC_F2FS
+	r = hook_f2fs();
+	if (r == -ENOMEM)
+		return r;
+	else if (r)
+		pr_emerg("f2fs may enabled compress but amfc hook failed\n");
+#endif
 
 	amfc = devm_kzalloc(&pdev->dev, sizeof(*amfc), GFP_KERNEL);
 	if (!amfc)
@@ -1585,6 +1611,9 @@ int __init amfc_init(void)
 	match_id = amfc_match;
 	amfc_driver.driver.of_match_table = match_id;
 #endif
+	if (!amfc_supported())
+		return -ENODEV;
+
 	ret = platform_driver_probe(&amfc_driver, amfc_probe);
 	return ret;
 }

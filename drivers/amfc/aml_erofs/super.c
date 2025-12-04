@@ -15,6 +15,7 @@
 #include <linux/crypto.h>
 #include <linux/async.h>
 #include <linux/delay.h>
+#include <linux/amlogic/amfc.h>
 #include "xattr.h"
 
 #define CREATE_TRACE_POINTS
@@ -897,6 +898,9 @@ static int __init erofs_module_init(void)
 {
 	int err;
 	struct file_system_type *old_erofs = NULL;
+
+	if (!amfc_supported())
+		return -ENODEV;
 
 #ifdef CONFIG_ARM64
 	async_schedule(do_symbol_fix, &symbol_fixed);

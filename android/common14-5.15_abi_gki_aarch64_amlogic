@@ -7,3 +7,7 @@
 
 #stmmac.ko
   bpf_redirect_info
+
+#amfc.ko
+  __traceiter_android_rvh_flush_task
+  __tracepoint_android_rvh_flush_task

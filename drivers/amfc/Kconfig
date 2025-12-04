@@ -34,4 +34,15 @@ config AMFC_BASE
 	help
 		Register base of AMFC for decompress uImage code.
 
+config AMLOGIC_F2FS
+	bool "AMLOGIC_F2FS filesystem support"
+	depends on AMLOGIC_AMFC
+	depends on F2FS_FS_COMPRESSION
+	default n
+	help
+		AMLOGIC_F2FS is an optimzation for using amfc as f2fs compress
+		backe-end, which can help to increase io performance on platform.
+
+		If unsure, say N.
+
 source "$(COMMON_DRIVERS_DIR)/drivers/amfc/aml_erofs/Kconfig"
