@@ -364,5 +364,6 @@ int hdmi_timing_vrefresh(const struct hdmi_timing *t);
  * return > 0: current timing have modified to match frac_mode.
  */
 int hdmitx_mode_update_timing(struct hdmi_timing *t, bool to_frac_mode);
+enum hdmi_picture_aspect hdmitx_mode_get_vic_aspect_ratio(enum hdmi_vic vic);
 
 #endif

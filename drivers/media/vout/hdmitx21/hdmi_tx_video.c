@@ -27,6 +27,7 @@ static void construct_avi_packet(struct hdmitx_dev *hdev)
 {
 	struct hdmi_avi_infoframe *info = &hdev->infoframes.avi.avi;
 	struct hdmi_format_para *para = &hdev->tx_comm.fmt_para;
+	enum hdmi_picture_aspect pic_ar = hdmitx_mode_get_vic_aspect_ratio(para->timing.vic);
 
 	hdmi_avi_infoframe_init(info);
 	info->version = 2;
@@ -37,7 +38,13 @@ static void construct_avi_packet(struct hdmitx_dev *hdev)
 		info->colorimetry = HDMI_COLORIMETRY_ITU_601;
 	else
 		info->colorimetry = HDMI_COLORIMETRY_ITU_709;
-	info->picture_aspect = HDMI_PICTURE_ASPECT_16_9;
+	if (pic_ar == HDMI_PICTURE_ASPECT_4_3)
+		info->picture_aspect = HDMI_PICTURE_ASPECT_4_3;
+	else if (pic_ar == HDMI_PICTURE_ASPECT_NONE)
+		info->picture_aspect = HDMI_PICTURE_ASPECT_NONE;
+	else
+		info->picture_aspect = HDMI_PICTURE_ASPECT_16_9;
+
 	info->active_aspect = HDMI_ACTIVE_ASPECT_PICTURE;
 	info->itc = 0;
 	info->extended_colorimetry = HDMI_EXTENDED_COLORIMETRY_XV_YCC_601;
