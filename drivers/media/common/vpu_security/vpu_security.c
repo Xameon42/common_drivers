@@ -188,6 +188,19 @@ static const struct of_device_id vpu_security_dt_match[] = {
 	{}
 };
 
+#ifndef CONFIG_AMLOGIC_ZAPPER_CUT
+static int _aml_write_vcbus_bits(u32 reg,
+			  const u32 value,
+			  const u32 start,
+			  const u32 len)
+{
+	aml_write_vcbus(reg, ((aml_read_vcbus(reg) &
+		 ~(((1L << (len)) - 1) << (start))) |
+		(((value) & ((1L << (len)) - 1)) << (start))));
+	return 0;
+}
+#endif
+
 static bool is_vpu_secure_support(void)
 {
 	return sec_meson_dev.version ? true : false;
@@ -283,10 +296,16 @@ static void secure_reg_update(struct vpu_secure_ins *ins,
 					  (!reg_item[i].en);
 				if (!reg_item[i].reg)
 					continue;
-				ins->reg_wr_op[vpp_index](reg_item[i].reg,
+				if (reg_item[i].reg == VPU_LUT_DMA_SEC_IN)
+					_aml_write_vcbus_bits(reg_item[i].reg,
 							  reg_val,
 							  reg_item[i].start,
 							  reg_item[i].len);
+				else
+					ins->reg_wr_op[vpp_index](reg_item[i].reg,
+								  reg_val,
+								  reg_item[i].start,
+								  reg_item[i].len);
 			}
 		}
 #endif

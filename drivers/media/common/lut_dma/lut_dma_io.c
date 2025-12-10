@@ -16,6 +16,7 @@
 
 struct rdma_fun_s rdma_func[5];
 
+#ifdef remove
 static u32 _VSYNC_RD_VIDEO_TABLE_REG(u32 adr)
 {
 	return VSYNC_RD_MPEG_REG(adr);
@@ -45,6 +46,7 @@ static int _PRE_VSYNC_WR_VIDEO_TABLE_REG_BITS(u32 adr, u32 val, u32 start, u32 l
 {
 	return PRE_VSYNC_WR_MPEG_REG_BITS(adr, val, start, len);
 }
+#endif
 
 static u32 _aml_read_vcbus(u32 adr)
 {
@@ -70,11 +72,10 @@ static int _aml_write_vcbus_bits(u32 reg,
 
 void set_lut_rdma_func_handler(void)
 {
+#ifdef remove
+	//for OTT-88755 debug need always used vcbus write
 	bool is_rdma = false;
 
-	if (cpu_after_eq(MESON_CPU_MAJOR_ID_S7)) {
-		is_rdma = true;
-	}
 	if (is_rdma) {
 		rdma_func[0].rdma_rd =
 			_VSYNC_RD_VIDEO_TABLE_REG;
@@ -132,12 +133,17 @@ void set_lut_rdma_func_handler(void)
 		rdma_func[3].rdma_wr_bits =
 			_aml_write_vcbus_bits;
 	}
-	rdma_func[4].rdma_rd =
-		_aml_read_vcbus;
-	rdma_func[4].rdma_wr =
-		_aml_write_vcbus;
-	rdma_func[4].rdma_wr_bits =
-		_aml_write_vcbus_bits;
+#endif
+	int i = 0;
+
+	for (i = 0; i < 5; i++) {
+		rdma_func[i].rdma_rd =
+			_aml_read_vcbus;
+		rdma_func[i].rdma_wr =
+			_aml_write_vcbus;
+		rdma_func[i].rdma_wr_bits =
+			_aml_write_vcbus_bits;
+	}
 }
 
 u32 lut_dma_reg_read(u32 reg, u8 vpp_index)
