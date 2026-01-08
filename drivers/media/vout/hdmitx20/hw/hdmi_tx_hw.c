@@ -4947,11 +4947,18 @@ static int hdmitx_cntl_ddc(struct hdmitx_hw_common *tx_hw,
 				hdmitx_set_reg_bits(HDMITX_DWC_MC_CLKDIS,
 						    1, 6, 1);
 			usleep_range(4, 6);
-			hdmitx_set_reg_bits(HDMITX_DWC_HDCP22REG_CTRL, 3, 1, 2);
 			hdmitx_set_reg_bits(HDMITX_TOP_SW_RESET, 1, 5, 1);
 			usleep_range(9, 11);
 			hdmitx_set_reg_bits(HDMITX_TOP_SW_RESET, 0, 5, 1);
 			usleep_range(9, 11);
+			/*
+			 * current switch flow is kill esm-> mux to hdcp1.4 path->
+			 * bypass hdcp1.4->mux to hdcp2.2 path->hdcp2.2 reset->
+			 * hdcp2.2 pkf/duk/nonce set->esm init->hdcp2.2 auth
+			 * it will cause abnormal 1byte BKSV read waveform on DDC.
+			 * need to mux to hdcp2.2 after do hdcp2.2 reset.
+			 */
+			hdmitx_set_reg_bits(HDMITX_DWC_HDCP22REG_CTRL, 3, 1, 2);
 			hdmitx_wr_reg(HDMITX_DWC_HDCP22REG_MASK, 0);
 			hdmitx_wr_reg(HDMITX_DWC_HDCP22REG_MUTE, 0);
 			set_pkf_duk_nonce();
