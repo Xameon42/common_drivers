@@ -206,7 +206,7 @@
 	aml_watermark {
 		compatible = "amlogic,watermark";
 		soc-name = "s6";
-		interrupts = <GIC_SPI 197 IRQ_TYPE_EDGE_RISING>; //=viu-vsync
+		interrupts = <GIC_SPI 197 IRQ_TYPE_LEVEL_HIGH>; //=viu-vsync
 		interrupt-names = "wm-vsync";
 	};
 
@@ -1281,7 +1281,7 @@
 		hdmitx-gpios-scl = <&gpio GPIOH_1 GPIO_ACTIVE_HIGH>;
 		hdmitx-gpios-sda = <&gpio GPIOH_0 GPIO_ACTIVE_HIGH>;
 		interrupts = <GIC_SPI 204 IRQ_TYPE_LEVEL_HIGH
-			GIC_SPI 197 IRQ_TYPE_EDGE_RISING>;
+			GIC_SPI 197 IRQ_TYPE_LEVEL_HIGH>;
 		interrupt-names = "hdmitx_hpd", "vrr_vsync";
 		enc_idx = <0>;
 		max_refreshrate = <120>; /* the max freshrate of S6 is upto 120hz */
@@ -1500,7 +1500,7 @@
 	rdma {
 		compatible = "amlogic, meson-t7, rdma";
 		status = "okay";
-		interrupts = <GIC_SPI 215 IRQ_TYPE_EDGE_RISING>;
+		interrupts = <GIC_SPI 215 IRQ_TYPE_LEVEL_HIGH>;
 		interrupt-names = "rdma";
 		/* after sc2 */
 		reset-names = "rdma";
@@ -1531,8 +1531,8 @@
 		flag_cma = <4>;	//<1>;
 		//memory-region = <&di_reserved>;
 		//memory-region = <&di_cma_reserved>;
-		interrupts = <0 203 1
-				0 202 1>;
+		interrupts = <0 203 4
+				0 202 4>;
 		interrupt-names = "pre_irq", "post_irq";
 		clocks = <&clkc CLKID_VPU_CLKB>,
 			<&clkc CLKID_VPU>;
@@ -1770,9 +1770,9 @@
 		compatible = "amlogic, fb-s6";
 		memory-region = <&logo_reserved>;
 		status = "disabled";
-		interrupts = <GIC_SPI 197 IRQ_TYPE_EDGE_RISING
+		interrupts = <GIC_SPI 197 IRQ_TYPE_LEVEL_HIGH
 			GIC_SPI 194 IRQ_TYPE_EDGE_RISING
-			GIC_SPI 215 IRQ_TYPE_EDGE_RISING>;
+			GIC_SPI 215 IRQ_TYPE_LEVEL_HIGH>;
 		interrupt-names = "viu-vsync", "viu2-vsync", "rdma";
 		/* uboot logo,fb0/fb1 memory size,if afbcd fb0=0x01851000*/
 		display_mode_default = "1080p60hz";
@@ -1809,7 +1809,7 @@
 		 *if support 1080p-YUV422-8BIT-WR:1920*1080*2*4 ~= 16M
 		 */
 		/*cma_size = <16>;*/
-		interrupts = <0 210 1>;
+		interrupts = <0 210 4>;
 		rdma-irq = <2>;
 		//clocks = <&clkc CLKID_FCLK_DIV5>, <&clkc CLKID_VDIN_MEAS_GATE>;
 		//clock-names = "fclk_div5", "cts_vdin_meas_clk";
@@ -1836,7 +1836,7 @@
 		status = "okay";
 		reserve-iomap = "true";
 		flag_cma = <0>;/*1:share with codec_mm;0:cma alone*/
-		interrupts = <0 212 1>;
+		interrupts = <0 212 4>;
 		rdma-irq = <4>;
 		vdin_id = <1>;
 		/* vdin v4l2 */
@@ -1862,7 +1862,7 @@
 		compatible = "amlogic, amvideom-s6";
 		dev_name = "amvideom";
 		status = "okay";
-		interrupts = <GIC_SPI 197 IRQ_TYPE_EDGE_RISING>;
+		interrupts = <GIC_SPI 197 IRQ_TYPE_LEVEL_HIGH>;
 		interrupt-names = "vsync";
 		low_latency = <1>;
 	};
@@ -1905,7 +1905,7 @@
 	ge2d {
 		compatible = "amlogic, ge2d-s6";
 		status = "okay";
-		interrupts = <GIC_SPI 217 IRQ_TYPE_EDGE_RISING>;
+		interrupts = <GIC_SPI 217 IRQ_TYPE_LEVEL_HIGH>;
 		interrupt-names = "ge2d";
 		clocks = <&clkc CLKID_VAPB>,
 			<&clkc CLKID_GE2D>;
@@ -1921,7 +1921,7 @@
 		status = "okay";
 		compatible = "amlogic, aml-gdc-v3";
 		reg = <0 0xfe092000 0 0x000015c>;
-		interrupts = <GIC_SPI 147 IRQ_TYPE_EDGE_RISING>;
+		interrupts = <GIC_SPI 147 IRQ_TYPE_LEVEL_HIGH>;
 		interrupt-names = "amlgdc";
 		clocks = <&clkc CLKID_DEWARPA>;
 		clock-names = "clk_gate";
