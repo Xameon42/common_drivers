@@ -42,10 +42,12 @@ struct proc_dir_entry *cpufreq_proc;
 static int opp_table_index[MAX_CLUSTERS];
 static u32 dsu_voltage_vote_result[VOTER_NUM];
 static u32 dsu_freq_vote_result[VOTER_NUM];
+#ifndef MAX
 #define MAX(x1, x2) ({ \
 	typeof(x1) _x1 = x1; \
 	typeof(x2) _x2 = x2; \
 	(_x1 > _x2 ? _x1 : _x2); })
+#endif
 
 static unsigned int freqmax[MAX_CLUSTERS];
 static int freqmax0_param(char *buff)

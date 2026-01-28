@@ -176,8 +176,13 @@ static inline void z_erofs_onlinepage_endio(struct page *page)
 	erofs_dbg("%s, page %p value %x", __func__, page, atomic_read(u.o));
 }
 
+#ifdef MIN_T
+#define Z_EROFS_VMAP_ONSTACK_PAGES	\
+	MIN_T(unsigned int, THREAD_SIZE / 8 / sizeof(struct page *), 96U)
+#else
 #define Z_EROFS_VMAP_ONSTACK_PAGES	\
 	min_t(unsigned int, THREAD_SIZE / 8 / sizeof(struct page *), 96U)
+#endif
 #define Z_EROFS_VMAP_GLOBAL_PAGES	2048
 
 #endif

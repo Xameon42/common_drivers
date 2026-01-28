@@ -92,11 +92,12 @@ static wait_queue_head_t g_wait_queue_for_open;
 static wait_queue_head_t g_wait_queue_for_data;
 
 static bool g_stop_accept;
-
+#ifndef MIN
 static u32 MIN(u32 arg1, u32 arg2)
 {
 	return arg1 < arg2 ? arg1 : arg2;
 }
+#endif
 
 static void *cache_malloc(u32 size)
 {
