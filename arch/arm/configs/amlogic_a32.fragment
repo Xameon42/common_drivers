@@ -521,6 +521,12 @@ CONFIG_AMLOGIC_NTFS3_ISSUE=y
 # fix dm-bow state change bug
 CONFIG_AMLOGIC_DM_BOW_BUGFIX=y
 
+# ext4 fix1
+CONFIG_AMLOGIC_EXT4_FIX1=y
+
+# device vpp
+# CONFIG_AMLOGIC_MEDIA_VPP is not set
+
 # CONFIG_CXD2880_SPI_DRV is not set
 # CONFIG_MEDIA_TUNER_SIMPLE is not set
 # CONFIG_MEDIA_TUNER_TDA18250 is not set

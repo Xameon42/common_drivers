@@ -13,4 +13,11 @@ config AMLOGIC_DM_BOW_BUGFIX
 	default n
 	help
 	  DM BOW bug fix by Amlogic.
+
+config AMLOGIC_EXT4_FIX1
+	bool "EXT4 i_state_flags issue fix"
+	depends on EXT4_FS
+	default n
+	help
+	  EXT4 i_state_flags issue fix.
 endmenu
