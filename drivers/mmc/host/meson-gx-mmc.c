@@ -623,9 +623,7 @@ static int no_pxp_clk_set(struct meson_host *host, struct mmc_ios *ios,
 		/* Switch sdio source clock to DIV2 to provide bandwidth */
 		if (aml_card_type_sdio(host) && sdio_host && sdio_host->card &&
 			((host->vendor_id &&
-			sdio_host->card->cis.vendor == host->vendor_id) ||
-			/* Need to be compatible with w1. */
-			(sdio_host->card->cis.vendor == 0x8888)))
+			sdio_host->card->cis.vendor == host->vendor_id)))
 			src_clk = host->clk[2];
 		else
 			src_clk = host->clk[1];
