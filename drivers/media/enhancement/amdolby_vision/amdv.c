@@ -2254,8 +2254,7 @@ static int dvel_receiver_event_fun(int type, void *data, void *arg)
 		if ((debug_dolby & 1) || (debug_dolby & 0x100))
 			pr_dv_dbg("%s, provider %s unregistered\n",
 				__func__, provider_name);
-		if (!multi_dv_mode)/*dvel is not used for multi-mode*/
-			dv_vf_light_unreg_provider();
+		dv_vf_light_unreg_provider();
 		return -1;
 	} else if (type == VFRAME_EVENT_PROVIDER_QUREY_STATE) {
 		return RECEIVER_ACTIVE;
@@ -2263,8 +2262,7 @@ static int dvel_receiver_event_fun(int type, void *data, void *arg)
 		if ((debug_dolby & 1) || (debug_dolby & 0x100))
 			pr_dv_dbg("%s, provider %s registered\n",
 				__func__, provider_name);
-		if (!multi_dv_mode)/*dvel is not used for multi-mode*/
-			dv_vf_light_reg_provider();
+		dv_vf_light_reg_provider();
 	}
 	return 0;
 }

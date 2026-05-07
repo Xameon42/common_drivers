@@ -404,7 +404,7 @@ void amdv_core_reset(enum core_type type)
 			VSYNC_WR_DV_REG(VIU_SW_RESET, 0);
 		} else if (is_aml_tm2() || is_aml_sc2() ||
 			 is_aml_s4d() || is_aml_t7() ||
-			 is_aml_t3()) {
+			 is_aml_t3() || is_aml_s7d() || is_aml_s6()) {
 			VSYNC_WR_DV_REG(VIU_SW_RESET, 1 << 31);
 			VSYNC_WR_DV_REG(VIU_SW_RESET, 0);
 		} else if (is_aml_s5()) {
@@ -1051,7 +1051,7 @@ static int dv_core1_set(u32 dm_count,
 
 	if ((bl_enable && el_enable && (amdv_mask & 1)) ||
 	    (copy_core1a_to_core1b || copy_core1a_to_core1c)) {
-		if (is_aml_sc2() || is_aml_tm2_stbmode() ||
+		if (is_aml_g12() || is_aml_sc2() || is_aml_tm2_stbmode() ||
 		    is_aml_s4d() || is_aml_s7d() || is_aml_s6()) {
 			VSYNC_WR_DV_REG_BITS
 				(AMDV_PATH_CTRL,
@@ -1558,8 +1558,8 @@ static int dv_core1a_set(u32 dm_count,
 {
 	u32 count;
 	u32 bypass_flag = 0;
-	int el_enable = 0;/*default 0?*/
-	int el_41_mode = 0;/*default 0?*/
+	int el_enable = !!new_m_dovi_setting.input[0].el_flag;
+	int el_41_mode = !!new_m_dovi_setting.input[0].el_halfsize_flag;
 	int composer_enable =
 		core1a_enable && el_enable && (amdv_mask & 1);
 	int i;
@@ -1581,7 +1581,8 @@ static int dv_core1a_set(u32 dm_count,
 	/* Register: dolby_path_ctrl[0] = 0 to enable BL*/
 	/*	     dolby_path_ctrl[1] = 0 to enable EL*/
 	/*	     dolby_path_ctrl[2] = 0 to enable OSD*/
-	if ((is_aml_g12() || is_aml_tm2_stbmode()) &&
+	if ((is_aml_g12() || is_aml_sc2() || is_aml_tm2_stbmode() ||
+	     is_aml_s4d() || is_aml_s7d() || is_aml_s6()) &&
 	    dv_core1[0].core1_on == 0) {
 		pr_dv_dbg("((%s %d, register AMDV_PATH_CTRL: %x))\n",
 			__func__, __LINE__,
@@ -1592,6 +1593,16 @@ static int dv_core1a_set(u32 dm_count,
 			pr_dv_dbg("((%s %d, enable core1a, AMDV_PATH_CTRL: %x))\n",
 				__func__, __LINE__,
 				VSYNC_RD_DV_REG(AMDV_PATH_CTRL));
+		}
+		if (el_enable) {
+			if ((VSYNC_RD_DV_REG(AMDV_PATH_CTRL) & 0x2) != 0) {
+				pr_dv_dbg("((%s %d enable el))\n",
+					__func__, __LINE__);
+				VSYNC_WR_DV_REG_BITS(AMDV_PATH_CTRL, 0, 1, 1);
+				pr_dv_dbg("((%s %d, enable_el, AMDV_PATH_CTRL: %x))\n",
+					__func__, __LINE__,
+					VSYNC_RD_DV_REG(AMDV_PATH_CTRL));
+			}
 		}
 	}
 
@@ -1905,7 +1916,8 @@ static int dv_core1a_set(u32 dm_count,
 			start_render = 1;
 		}
 		if (dv_core1[0].core1_on && !bypass_core1) {
-			if (is_aml_g12()) {
+			if (is_aml_g12() || is_aml_sc2() || is_aml_s4d() ||
+				is_aml_tm2_stbmode() || is_aml_s7d() || is_aml_s6()) {
 				VSYNC_WR_DV_REG_BITS
 					(AMDV_PATH_CTRL,
 					 0, 0, 1);
@@ -2149,8 +2161,8 @@ static int dv_core1b_set(u32 dm_count,
 {
 	u32 count;
 	u32 bypass_flag = 0;
-	int el_enable = 0;/*default 0?*/
-	int el_41_mode = 0;/*default 0?*/
+	int el_enable = !!new_m_dovi_setting.input[0].el_flag;
+	int el_41_mode = !!new_m_dovi_setting.input[0].el_halfsize_flag;
 	int composer_enable =
 		core1b_enable && el_enable && (amdv_mask & 1);
 	int i;

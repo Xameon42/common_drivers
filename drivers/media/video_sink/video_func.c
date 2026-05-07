@@ -546,19 +546,14 @@ bool dvel_status;
 int dolby_vision_need_wait(u8 path_index)
 {
 	struct vframe_s *vf;
-	int ret = 0;
 
 	if (!is_amdv_enable())
 		return 0;
 
 	vf = video_vf_peek(path_index);
-	if (!vf) {
+	if (!vf || (amdv_wait_metadata(vf, VD1_PATH) == 1))
 		return 1;
-	} else {
-		ret = amdv_wait_metadata(vf, VD1_PATH);
-		if (ret > 0)
-			return ret;
-	}
+
 	return 0;
 }
 
@@ -596,7 +591,7 @@ int dvel_swap_frame(struct vframe_s *vf)
 		if (dvel_size != new_dvel_w)
 			dvel_changed = true;
 		ret = set_layer_display_canvas
-			(layer, vf, layer->cur_frame_par,
+			(&vd_layer[1], vf, layer->cur_frame_par,
 			layer_info, __LINE__);
 		dvel_status = true;
 	} else if (dvel_status) {
