@@ -199,7 +199,7 @@ static inline int dmc_monitor_init(void)
 	return 0;
 }
 
-void dmc_monitor_exit(void)
+static void dmc_monitor_exit(void)
 {
 }
 #endif
