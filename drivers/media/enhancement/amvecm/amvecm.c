@@ -10337,9 +10337,6 @@ void resume_ve(void)
 
 void resume_cm(int vpp_index)
 {
-	if (!pq_cfg.cm_en)
-		return;
-
 	if (chip_type_id == chip_s7 ||
 		chip_type_id == chip_s7d)
 		return;
@@ -10348,6 +10345,9 @@ void resume_cm(int vpp_index)
 		amcm_enable(WR_DMA, vpp_index);
 	else
 		amcm_disable(WR_DMA, vpp_index);
+
+	if (!pq_cfg.cm_en)
+		return;
 
 	amregs_store.length = RECOVERY_REG_CM_MAX;
 	if (!(memcpy(amregs_store.am_reg, reg_cm_list,
