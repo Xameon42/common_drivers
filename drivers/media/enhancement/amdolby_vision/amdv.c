@@ -5319,6 +5319,8 @@ int parse_sei_and_meta_ext_v1(struct vframe_s *vf,
 	enum signal_format_enum *src_format = (enum signal_format_enum *)fmt;
 	static int parse_process_count;
 	char meta_buf[1024];
+	char _comp_buf[8196];
+	char _md_buf[1024];
 	static u32 last_play_id;
 
 	if (!aux_buf || aux_size == 0 || !fmt || !md_buf || !comp_buf ||
@@ -5479,15 +5481,15 @@ int parse_sei_and_meta_ext_v1(struct vframe_s *vf,
 				rpu_ret =
 				p_funcs_tv->metadata_parser_process
 				(meta_buf, rpu_size,
-				 comp_buf + *total_comp_size,
-				 &comp_size, md_buf + *total_md_size,
+				 _comp_buf,
+				 &comp_size, _md_buf,
 				 &md_size, true);
 			else if (p_funcs_stb && p_funcs_stb->metadata_parser_process)
 				rpu_ret =
 				p_funcs_stb->metadata_parser_process
 				(meta_buf, rpu_size,
-				 comp_buf + *total_comp_size,
-				 &comp_size, md_buf + *total_md_size,
+				 _comp_buf,
+				 &comp_size, _md_buf,
 				 &md_size, true);
 
 			if (rpu_ret < 0) {
@@ -5498,15 +5500,17 @@ int parse_sei_and_meta_ext_v1(struct vframe_s *vf,
 				ret = 3;
 			} else {
 				if (*total_comp_size + comp_size
-					< COMP_BUF_SIZE)
+					< COMP_BUF_SIZE && comp_size > 0) {
+					memcpy(comp_buf + *total_comp_size, _comp_buf, comp_size);
 					*total_comp_size += comp_size;
-				else
+				} else
 					parser_overflow = true;
 
 				if (*total_md_size + md_size
-					< MD_BUF_SIZE)
+					< MD_BUF_SIZE && md_size > 0) {
+					memcpy(md_buf + *total_md_size, _md_buf, md_size);
 					*total_md_size += md_size;
-				else
+				} else
 					parser_overflow = true;
 				if (rpu_ret == 1)
 					*ret_flags = 1;
@@ -5665,15 +5669,15 @@ int parse_sei_and_meta_ext_v1(struct vframe_s *vf,
 				rpu_ret =
 				p_funcs_tv->metadata_parser_process
 				(meta_buf, size,
-				comp_buf + *total_comp_size,
-				&comp_size, md_buf + *total_md_size,
+				_comp_buf,
+				&comp_size, _md_buf,
 				&md_size, true);
 			else if (p_funcs_stb && p_funcs_stb->metadata_parser_process)
 				rpu_ret =
 				p_funcs_stb->metadata_parser_process
 				(meta_buf, size,
-				comp_buf + *total_comp_size,
-				&comp_size, md_buf + *total_md_size,
+				_comp_buf,
+				&comp_size, _md_buf,
 				&md_size, true);
 
 			if (rpu_ret < 0) {
@@ -5684,15 +5688,17 @@ int parse_sei_and_meta_ext_v1(struct vframe_s *vf,
 				ret = 3;
 			} else {
 				if (*total_comp_size + comp_size
-					< COMP_BUF_SIZE)
+					< COMP_BUF_SIZE && comp_size > 0) {
+					memcpy(comp_buf + *total_comp_size, _comp_buf, comp_size);
 					*total_comp_size += comp_size;
-				else
+				} else
 					parser_overflow = true;
 
 				if (*total_md_size + md_size
-					< MD_BUF_SIZE)
+					< MD_BUF_SIZE && md_size > 0) {
+					memcpy(md_buf + *total_md_size, _md_buf, md_size);
 					*total_md_size += md_size;
-				else
+				} else
 					parser_overflow = true;
 				if (rpu_ret == 1)
 					*ret_flags = 1;
@@ -5755,6 +5761,8 @@ int parse_sei_and_meta_ext_v2(struct vframe_s *vf,
 	unsigned int rpu_size = 0;
 	enum signal_format_enum *src_format = (enum signal_format_enum *)fmt;
 	char meta_buf[1024];
+	char _comp_buf[8196];
+	char _md_buf[1024];
 	int dv_id = vf->src_fmt.dv_id;
 
 	if (!dv_inst_valid(dv_id)) {
@@ -5895,10 +5903,9 @@ int parse_sei_and_meta_ext_v2(struct vframe_s *vf,
 				rpu_ret =
 				p_funcs_tv->metadata_parser_process
 				(meta_buf, rpu_size,
-				 comp_buf +
-				 *total_comp_size,
+				 _comp_buf,
 				 &comp_size,
-				 md_buf + *total_md_size,
+				 _md_buf,
 				 &md_size,
 				 true);
 			} else {
@@ -5906,10 +5913,9 @@ int parse_sei_and_meta_ext_v2(struct vframe_s *vf,
 				p_funcs_stb->multi_mp_process
 				(dv_inst[dv_id].metadata_parser,
 				 meta_buf, rpu_size,
-				 comp_buf +
-				 *total_comp_size,
+				 _comp_buf,
 				 &comp_size,
-				 md_buf + *total_md_size,
+				 _md_buf,
 				 &md_size,
 				 true, DV_TYPE_DOVI);
 			}
@@ -5922,15 +5928,17 @@ int parse_sei_and_meta_ext_v2(struct vframe_s *vf,
 				dv_inst[dv_id].err_parse_cnt += 1;
 			} else {
 				if (*total_comp_size + comp_size
-					< COMP_BUF_SIZE)
+					< COMP_BUF_SIZE && comp_size > 0) {
+					memcpy(comp_buf + *total_comp_size, _comp_buf, comp_size);
 					*total_comp_size += comp_size;
-				else
+				} else
 					parser_overflow = true;
 
 				if (*total_md_size + md_size
-					< MD_BUF_SIZE)
+					< MD_BUF_SIZE && md_size > 0) {
+					memcpy(md_buf + *total_md_size, _md_buf, md_size);
 					*total_md_size += md_size;
-				else
+				} else
 					parser_overflow = true;
 				if (rpu_ret == 1)
 					*ret_flags = 1;
@@ -6095,9 +6103,9 @@ int parse_sei_and_meta_ext_v2(struct vframe_s *vf,
 				rpu_ret =
 				p_funcs_tv->metadata_parser_process
 				(meta_buf, size,
-				comp_buf + *total_comp_size,
+				_comp_buf,
 				&comp_size,
-				md_buf + *total_md_size,
+				_md_buf,
 				&md_size,
 				true);
 			else
@@ -6105,9 +6113,9 @@ int parse_sei_and_meta_ext_v2(struct vframe_s *vf,
 				p_funcs_stb->multi_mp_process
 				(dv_inst[dv_id].metadata_parser,
 				 meta_buf, size,
-				 comp_buf + *total_comp_size,
+				 _comp_buf,
 				 &comp_size,
-				 md_buf + *total_md_size,
+				 _md_buf,
 				 &md_size,
 				 true, DV_TYPE_ATSC);
 
@@ -6118,15 +6126,17 @@ int parse_sei_and_meta_ext_v2(struct vframe_s *vf,
 				ret = 3;
 			} else {
 				if (*total_comp_size + comp_size
-					< COMP_BUF_SIZE)
+					< COMP_BUF_SIZE && comp_size > 0) {
+					memcpy(comp_buf + *total_comp_size, _comp_buf, comp_size);
 					*total_comp_size += comp_size;
-				else
+				} else
 					parser_overflow = true;
 
 				if (*total_md_size + md_size
-					< MD_BUF_SIZE)
+					< MD_BUF_SIZE && md_size > 0) {
+					memcpy(md_buf + *total_md_size, _md_buf, md_size);
 					*total_md_size += md_size;
-				else
+				} else
 					parser_overflow = true;
 				if (rpu_ret == 1)
 					*ret_flags = 1;
