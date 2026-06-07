@@ -42,8 +42,8 @@
 #define MUTE_TYPE_RGB	2
 #define MUTE_TYPE_IPT	3
 struct vframe_s;
-#define MD_BUF_SIZE (1024 * 4)
-#define COMP_BUF_SIZE (8196 * 4)
+#define MD_BUF_SIZE 1024
+#define COMP_BUF_SIZE 8196
 
 #define DV_SEI 0x01000000
 #define AV1_SEI 0x14000000 /*for both dv and hdr10plus*/
