@@ -608,7 +608,7 @@ int meson_hdmitx_get_modes(struct drm_connector *connector)
 		goto end;
 	}
 
-	if (am_hdmi_info.hdmitx_dev->get_vrr_mode_group)
+	if (tx_comm->vrr_mode != T_VRR_NONE && am_hdmi_info.hdmitx_dev->get_vrr_mode_group)
 		num_group = am_hdmi_info.hdmitx_dev->get_vrr_mode_group(groups,
 							  MAX_VRR_MODE_GROUP);
 

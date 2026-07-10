@@ -209,6 +209,8 @@ struct hdmitx_common {
 	u32 flag_3dfp;
 	u32 flag_3dtb;
 	u32 flag_3dss;
+
+	enum vrr_type vrr_mode; /* 1: GAME-VRR, 2: QMS-VRR,  0: default no-VRR */
 };
 
 void hdmitx_get_init_state(struct hdmitx_common *tx_common,

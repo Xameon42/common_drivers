@@ -1549,7 +1549,7 @@ int hdmitx_set_fr_hint(int rate, void *data)
 		 */
 		tx_comm->hdmitx_vinfo.brr_duration = 0;
 		memset(&vrr_para.vrr_para_tmp, 0, sizeof(vrr_para.vrr_para_tmp));
-		if (hdev->vrr_mode == T_VRR_QMS || hdev->vrr_mode == T_VRR_GAME)
+		if (hdev->tx_comm.vrr_mode == T_VRR_QMS || hdev->tx_comm.vrr_mode == T_VRR_GAME)
 			hdmi_vrr_disable_emp_packet(&vrr_para);
 		HDMITX_INFO("disable VRR/EMP packet\n");
 		return 0;
@@ -1559,10 +1559,8 @@ int hdmitx_set_fr_hint(int rate, void *data)
 		return 0;
 	}
 
-	/* TODO, hard code vrr_mode */
-	hdev->vrr_mode = T_VRR_QMS;
-	if (hdev->vrr_mode == T_VRR_GAME || hdev->vrr_mode == T_VRR_QMS) {
-		para.type = hdev->vrr_mode;
+	if (hdev->tx_comm.vrr_mode == T_VRR_GAME || hdev->tx_comm.vrr_mode == T_VRR_QMS) {
+		para.type = hdev->tx_comm.vrr_mode;
 	} else {
 		para.vrr_enabled = 0;
 		return 0;

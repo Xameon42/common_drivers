@@ -2643,7 +2643,7 @@ static ssize_t vrr_mode_show(struct device *dev,
 	int pos = 0;
 	struct hdmitx_dev *hdev = dev_get_drvdata(dev);
 
-	switch (hdev->vrr_mode) {
+	switch (hdev->tx_comm.vrr_mode) {
 	case T_VRR_GAME:
 		pos += snprintf(buf + pos, PAGE_SIZE - pos, "%s\n", "game-vrr");
 		break;
@@ -2673,18 +2673,18 @@ static ssize_t vrr_mode_store(struct device *dev,
 	if (isdigit(buf[0])) {
 		val = buf[0] - '0';
 		if (val == 0 || val == 1 || val == 2)
-			hdev->vrr_mode = val;
+			hdev->tx_comm.vrr_mode = val;
 		else
 			HDMITX_INFO("only accept as 0, 1 or 2\n");
 
 		return count;
 	}
 	if (strncmp(buf, "game-vrr", 8) == 0)
-		hdev->vrr_mode = T_VRR_GAME;
+		hdev->tx_comm.vrr_mode = T_VRR_GAME;
 	else if (strncmp(buf, "qms-vrr", 7) == 0)
-		hdev->vrr_mode = T_VRR_QMS;
+		hdev->tx_comm.vrr_mode = T_VRR_QMS;
 	else
-		hdev->vrr_mode = T_VRR_NONE;
+		hdev->tx_comm.vrr_mode = T_VRR_NONE;
 
 	return count;
 }
@@ -4572,6 +4572,13 @@ static int amhdmitx_get_dt_info(struct platform_device *pdev, struct hdmitx_dev 
 		if (!ret) {
 			if (val == 2)
 				hdev->tx_comm.enc_idx = 2;
+		}
+
+		ret = of_property_read_u32(pdev->dev.of_node, "vrr_type", &val);
+		hdev->tx_comm.vrr_mode = T_VRR_NONE; /* default */
+		if (!ret) {
+			if (val == T_VRR_GAME || val == T_VRR_QMS)
+				hdev->tx_comm.vrr_mode = val;
 		}
 
 		/* hdcp ctrl 0:sysctrl, 1: drv, 2: linux app */
