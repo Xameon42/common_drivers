@@ -1341,6 +1341,10 @@ static int hdmitx_set_dispmode(struct hdmitx_hw_common *tx_hw)
 	enum hdmi_vic vic = para->timing.vic;
 
 	fifo_flow_enable_intrs(0);
+
+	if (hdev->tx_comm.flag_3dfp)
+		para->timing.pixel_freq *= 2;
+
 	/* gp2 setting has been set for fe/enc for dsc*/
 	hdmitx21_set_clk(hdev);
 
