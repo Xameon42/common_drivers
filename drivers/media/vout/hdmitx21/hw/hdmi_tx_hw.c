@@ -1572,7 +1572,14 @@ static int hdmitx_set_dispmode(struct hdmitx_hw_common *tx_hw)
 		}
 	}
 
+	if (hdev->tx_comm.flag_3dfp || hdev->tx_comm.flag_3dtb || hdev->tx_comm.flag_3dss)
+		usleep_range(20000, 20500);
+
 	hdmitx_set_phy(hdev);
+
+	if (hdev->tx_comm.flag_3dfp)
+		hdmi21_set_3d(hdev, T3D_FRAME_PACKING, 0);
+
 	if (hdev->tx_hw.chip_data->chip_type == MESON_CPU_ID_S5) {
 #ifndef CONFIG_AMLOGIC_ZAPPER_CUT
 		hdmitx_dfm_cfg(0, 0);
