@@ -1115,8 +1115,11 @@ static int am_hdmitx_connector_late_register(struct drm_connector *connector)
 
 static void am_hdmitx_connector_destroy(struct drm_connector *connector)
 {
+	struct am_hdmi_tx *am_hdmitx = connector_to_am_hdmi(connector);
+
 	drm_connector_unregister(connector);
 	drm_connector_cleanup(connector);
+	drm_property_blob_put(am_hdmitx->edid_raw_blob);
 }
 
 int meson_hdmitx_atomic_check(struct drm_connector *connector,
@@ -2485,6 +2488,22 @@ static void meson_hdmitx_init_edid_valid_property(struct drm_device *drm_dev,
 	}
 }
 
+static void meson_hdmitx_init_edid_raw_property(struct drm_device *drm_dev,
+						  struct am_hdmi_tx *am_hdmi)
+{
+	struct drm_property *prop;
+
+	prop = drm_property_create(drm_dev,
+				   DRM_MODE_PROP_BLOB | DRM_MODE_PROP_IMMUTABLE,
+				   "edid_raw", 0);
+	if (prop) {
+		am_hdmi->edid_raw_prop = prop;
+		drm_object_attach_property(&am_hdmi->base.connector.base, prop, 0);
+	} else {
+		DRM_ERROR("Failed to init edid_raw property\n");
+	}
+}
+
 static void meson_hdmitx_init_hdcp_user_prop(struct drm_device *drm_dev,
 						  struct am_hdmi_tx *am_hdmi)
 {
@@ -2540,6 +2559,8 @@ static void meson_hdmitx_hpd_cb(void *data)
 #endif
 	struct drm_device *drm = connector->dev;
 	struct drm_mode_config mode_config = drm->mode_config;
+	u8 *edid_raw_buf = NULL;
+	int edid_raw_len;
 
 	DRM_INFO("drm hdmitx hpd notify\n");
 	if (!hdmitx_get_hpd_state(tx_comm) && !am_hdmi->android_path) {
@@ -2570,6 +2591,15 @@ static void meson_hdmitx_hpd_cb(void *data)
 		drm_mode_config_helper_suspend(drm);
 	}
 #endif
+
+	edid_raw_len = hdmitx_common_read_edid(&edid_raw_buf);
+	if (drm_property_replace_global_blob(drm, &am_hdmi->edid_raw_blob,
+					     edid_raw_len > 0 ? edid_raw_len : 0,
+					     edid_raw_buf, &connector->base,
+					     am_hdmi->edid_raw_prop))
+		DRM_ERROR("Failed to update edid_raw property\n");
+	kfree(edid_raw_buf);
+
 	drm_kms_helper_hotplug_event(am_hdmi->base.connector.dev);
 }
 
@@ -2694,6 +2724,7 @@ int meson_hdmitx_dev_bind(struct drm_device *drm,
 	meson_hdmitx_init_hdr_priority_property(drm, am_hdmi);
 	meson_hdmitx_init_ready_property(drm, am_hdmi);
 	meson_hdmitx_init_edid_valid_property(drm, am_hdmi);
+	meson_hdmitx_init_edid_raw_property(drm, am_hdmi);
 	meson_hdmitx_init_hdcp_user_prop(drm, am_hdmi);
 	meson_hdmitx_init_frac_rate_policy_property(drm, am_hdmi);
 	meson_hdmitx_init_allm_cap_property(drm, am_hdmi);

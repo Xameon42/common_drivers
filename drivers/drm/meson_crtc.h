@@ -63,7 +63,7 @@ struct am_meson_crtc_state {
 	u8 crtc_eotf_type;
 	/*dv core enabled, control by userspace not driver*/
 	bool crtc_dv_enable;
-	bool dv_mode;
+	int dv_mode;
 	/*hdr core enabled, always on if soc support hdr.*/
 	bool crtc_hdr_enable;
 	/*eotf policy update by property*/
@@ -105,6 +105,12 @@ struct am_meson_crtc {
 	struct drm_property *dv_enable_property;
 	struct drm_property *brr_update_property;
 	struct drm_property *dv_mode_property;
+	struct drm_property *dv_policy_property;
+	struct drm_property *dv_ll_policy_property;
+	struct drm_property *dv_status_property;
+	struct drm_property *dv_video_on_property;
+	struct drm_property *dv_debug_property;
+	struct drm_property *hdr10plus_property;
 	struct drm_property *bgcolor_property;
 	struct drm_property *video_pixelformat_property;
 	struct drm_property *osd_pixelformat_property;
@@ -158,11 +164,15 @@ int am_meson_hdmi_get_vrr_range(struct drm_device *dev,
 void set_amdv_policy(int policy);
 int get_amdv_policy(void);
 void set_amdv_ll_policy(int policy);
+int get_amdv_ll_policy(void);
+void amdv_debug_store(char *buf);
 void set_amdv_enable(bool enable);
 int get_dv_support_info(void);
 bool is_amdv_enable(void);
 void set_amdv_mode(int mode);
 int get_amdv_mode(void);
+int get_amdv_status(void);
+bool is_amdv_video_on(void);
 #endif
 #ifdef CONFIG_AMLOGIC_MEDIA_ENHANCEMENT_VECM
 void set_hdr_policy(int policy);

@@ -165,6 +165,46 @@ int hdmitx_common_get_vic_list(int **vics)
 }
 EXPORT_SYMBOL(hdmitx_common_get_vic_list);
 
+int hdmitx_common_read_edid(u8 **edid_buf)
+{
+	int len = 0;
+	u32 valid_blk_no = 0;
+
+	if (!edid_buf)
+		return -EINVAL;
+
+	mutex_lock(&global_tx_base->valid_mutex);
+
+	valid_blk_no = hdmitx_edid_valid_block_num(&global_tx_base->EDID_buf);
+
+	/* check if EDID does exist */
+	if (!valid_blk_no) {
+		len = -ENODEV;
+		goto out;
+	}
+
+	len = valid_blk_no * 128;
+
+	/* allocate output buffer */
+	*edid_buf = kmalloc(len, GFP_KERNEL);
+	if (!*edid_buf) {
+		HDMITX_ERROR("%s: failed to allocate %d bytes\n",
+		__func__, len);
+		len = -ENOMEM;
+		goto out;
+	}
+
+	/* copy EDID */
+	memcpy(*edid_buf, &global_tx_base->EDID_buf, len);
+
+	HDMITX_DEBUG("%s: returned %d bytes of EDID\n", __func__, len);
+
+out:
+	mutex_unlock(&global_tx_base->valid_mutex);
+	return len;
+}
+EXPORT_SYMBOL(hdmitx_common_read_edid);
+
 /* similar as hdmitx_common_validate_mode_locked() but without lock,
  * it's almost the same as valid_mode_store()
  * validation step:

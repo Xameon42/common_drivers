@@ -365,6 +365,7 @@ int hdmitx_common_set_contenttype(int content_type);
 const struct dv_info *hdmitx_common_get_dv_info(void);
 const struct hdr_info *hdmitx_common_get_hdr_info(void);
 int hdmitx_common_get_vic_list(int **vics);
+int hdmitx_common_read_edid(u8 **edid_buf);
 bool hdmitx_common_chk_mode_attr_sup(char *mode, char *attr);
 int hdmitx_common_get_timing_para(int vic, struct drm_hdmitx_timing_para *para);
 void hdmitx_audio_notify_callback(struct hdmitx_common *tx_comm,

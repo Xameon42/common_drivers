@@ -626,6 +626,7 @@ void osd_sharpness_size_ctrl(void);
 void osd_sharpness_demo_ctrl(void);
 
 bool is_hdr10plus_enable(void);
+void set_hdr10plus_enable(bool enable);
 
 #ifndef CONFIG_AMLOGIC_MEDIA_ENHANCEMENT_DOLBYVISION
 bool is_amdv_enable(void);
